@@ -1,0 +1,22 @@
+{
+  "name": "@errandboard/user-service",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:integration": "node --import tsx --test tests/integration/*.test.ts"
+  },
+  "dependencies": {
+    "mongoose": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
