@@ -8,8 +8,8 @@ db = db.getSiblingDB(process.env.MONGO_INITDB_DATABASE);
 db.createRole({
     role: "user_service_role",
     privileges: [
-        { resource: { db: "errandboard", collection: "users" }, actions: ["find", "insert", "update", "delete"] },
-        { resource: { db: "errandboard", collection: "sessions" }, actions: ["find", "insert", "update", "delete"] }
+        { resource: { db: "errandboard", collection: "users" }, actions: ["find", "insert", "update", "remove"] },
+        { resource: { db: "errandboard", collection: "sessions" }, actions: ["find", "insert", "update", "remove"] }
     ],
     roles: []
 });
@@ -18,9 +18,9 @@ db.createRole({
 db.createRole({
     role: "supplier_service_role",
     privileges: [
-        { resource: { db: "errandboard", collection: "suppliers" }, actions: ["find", "insert", "update", "delete"] },
-        { resource: { db: "errandboard", collection: "items" }, actions: ["find", "insert", "update", "delete"] },
-        { resource: { db: "errandboard", collection: "inventory" }, actions: ["find", "insert", "update", "delete"] }
+        { resource: { db: "errandboard", collection: "suppliers" }, actions: ["find", "insert", "update", "remove"] },
+        { resource: { db: "errandboard", collection: "items" }, actions: ["find", "insert", "update", "remove"] },
+        { resource: { db: "errandboard", collection: "inventory" }, actions: ["find", "insert", "update", "remove"] }
     ],
     roles: []
 });

@@ -20,6 +20,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  user-service:
+    build: ./services/user-service
+    environment:
+      PORT: 3001
+      MONGO_HOST: mongodb
+      MONGO_DB_NAME: errandboard
+      MONGO_USER_SERVICE_PASSWORD: ${MONGO_USER_SERVICE_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      FRONTEND_ORIGIN: http://localhost:5173
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    networks:
+      - errandboard-network
 
 volumes:
   mongodb_data:
