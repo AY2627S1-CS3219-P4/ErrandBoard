@@ -8,6 +8,7 @@
     "start": "node dist/index.js",
     "build": "tsc --project tsconfig.json",
     "typecheck": "tsc --project tsconfig.json --noEmit",
+    "typecheck:tests": "tsc --project tsconfig.test.json",
     "test": "node --import tsx --test tests/*.test.ts",
     "test:integration": "node --import tsx --test tests/integration/*.test.ts"
   },

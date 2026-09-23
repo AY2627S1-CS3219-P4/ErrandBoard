@@ -31,7 +31,7 @@ export default function Login() {
         return;
       }
 
-      navigate("/");
+      navigate("/home");
     } catch {
       setError("Unable to reach the User Service.");
     } finally {
