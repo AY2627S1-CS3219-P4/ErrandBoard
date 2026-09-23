@@ -16,11 +16,12 @@ export async function connectDb(): Promise<void> {
     }
 
     const host = process.env.MONGO_HOST ?? "127.0.0.1";
+    const db = process.env.MONGO_DB_NAME ?? "errandboard";
 
-    await mongoose.connect(`mongodb://${host}:27017/errandboard`, {
+    await mongoose.connect(`mongodb://${host}:27017/${db}`, {
         user: "user_service",
         pass: pw,
-        authSource: "errandboard",
+        authSource: db,
         serverSelectionTimeoutMS: 5000,
         autoCreate: false,
         autoIndex: false,
