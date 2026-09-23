@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel obsolete runs after another commit to the same branch or PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  user-service:
+    name: User Service (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    defaults:
+      run:
+        working-directory: services/user-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: services/user-service/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check source types
+        run: npm run typecheck
+
+      # tsconfig includes only src/; tsx executes tests without type checking.
+      - name: Check test types
+        run: >-
+          npx --no-install tsc --noEmit --target ES2022
+          --module NodeNext --moduleResolution NodeNext --strict
+          --esModuleInterop --skipLibCheck --types node tests/*.test.ts
+
+      # These tests validate documents in memory; MongoDB is not required.
+      - name: Run unit tests
+        run: npm test
+
+      - name: Compile service
+        run: npm run build
+
+  compose-config:
+    name: Validate Compose configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # Interpolation placeholders only; no containers are started.
+      MONGO_ROOT_PASSWORD: ci-placeholder-root
+      MONGO_USER_SERVICE_PASSWORD: ci-placeholder-user
+      MONGO_SUPPLIER_SERVICE_PASSWORD: ci-placeholder-supplier
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate Compose without loading a local environment file
+        run: docker compose --env-file /dev/null -f compose.yaml config --quiet
