@@ -14,17 +14,17 @@ mongoose.connection.on("disconnected", () => {
 
 
 export async function connectDb(): Promise<void> {
-    const pw = process.env.MONGO_USER_SERVICE_PASSWORD;
+    const pw = process.env.MONGO_SUPPLIER_SERVICE_PASSWORD;
 
     if (!pw) {
-        throw new Error("MONGO_USER_SERVICE_PASSWORD missing");
+        throw new Error("MONGO_SUPPLIER_SERVICE_PASSWORD missing");
     }
 
     const host = process.env.MONGO_HOST ?? "127.0.0.1";
     const db = process.env.MONGO_DB_NAME ?? "errandboard";
 
     await mongoose.connect(`mongodb://${host}:27017/${db}`, {
-        user: "user_service",
+        user: "supplier_service",
         pass: pw,
         authSource: db,
         serverSelectionTimeoutMS: 5000,
