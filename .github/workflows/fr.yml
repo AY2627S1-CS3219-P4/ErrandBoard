@@ -1,0 +1,23 @@
+name: Update FR Tracker
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  update-tracker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update FR tracker
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          # Extract FR IDs from issue
+          # Change [ ] to [x] in FR-TRACKER.md
+          # Commit and push changes

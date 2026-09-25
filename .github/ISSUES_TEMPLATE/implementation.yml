@@ -1,0 +1,20 @@
+name: Implementation Task
+description: Track implementation of a functional requirement
+title: "[FR] "
+body:
+  - type: input
+    id: fr
+    attributes:
+      label: Functional Requirement
+      description: Enter the FR ID, e.g. F1.4 or F28.2.11
+      placeholder: F1.4
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: Describe what needs to be implemented
+    validations:
+      required: true
