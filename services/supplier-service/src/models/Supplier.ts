@@ -26,13 +26,30 @@ export interface SupplierCoords {
   longitude: number;
 }
 
+export interface TimeSlot {
+  open: string;
+  close: string;
+}
+
+//Each day holds zero or more slots; an empty array means the supplier is closed that day
+export interface OpeningHours {
+  mon: TimeSlot[];
+  tue: TimeSlot[];
+  wed: TimeSlot[];
+  thu: TimeSlot[];
+  fri: TimeSlot[];
+  sat: TimeSlot[];
+  sun: TimeSlot[];
+}
+
 export interface SupplierDocument {
     name: string;
     category: SupplierCategory;
     building: string;
+    address: string;
+    locationDescription?: string;
     coordinates?: SupplierCoords;
-    openingHour?: string;
-    closingHour?: string;
+    openingHours: OpeningHours;
     imageUrl?: string;
     description?: string;
     isActive: boolean;
@@ -45,6 +62,38 @@ const coordinateSchema = new Schema<SupplierCoords>(
     latitude: {type: Number, required: true},
     longitude: {type: Number, required: true},
   },
+  { _id: false },
+)
+
+const timeSlotSchema = new Schema<TimeSlot>(
+  {
+    open: {
+      type: String,
+      required: true,
+      match: [/^([01]\d|2[0-3]):[0-5]\d$/, "open must be HH:mm"],
+    },
+    close: {
+      type: String,
+      required: true,
+      match: [/^([01]\d|2[0-3]):[0-5]\d$/, "close must be HH:mm"],
+    },
+  },
+  { _id: false },
+)
+
+const dayField = { type: [timeSlotSchema], default: [] };
+
+const openingHoursSchema = new Schema<OpeningHours>(
+  {
+    mon: dayField,
+    tue: dayField,
+    wed: dayField,
+    thu: dayField,
+    fri: dayField,
+    sat: dayField,
+    sun: dayField,
+  },
+  { _id: false },
 )
 
 const supplierSchema = new Schema<SupplierDocument>(
@@ -68,17 +117,25 @@ const supplierSchema = new Schema<SupplierDocument>(
       minlength: 1,
       maxlength: 100,
     },
+    address: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 1, 
+      maxlength: 100,
+    },
+    locationDescription: {
+      type: String,
+      trim: true,
+      maxlength: 100,
+    },
     coordinates: {
       type: coordinateSchema,
       required: false,
     },
-    openingHour: {
-      type: String,
-      match: [/^([01]\d|2[0-3]):[0-5]\d$/, "openingTime must be HH:mm"],
-    },
-    closingHour: {
-      type: String,
-      match: [/^([01]\d|2[0-3]):[0-5]\d$/, "closingTime must be HH:mm"],
+    openingHours: {
+      type: openingHoursSchema,
+      default: () => ({}),
     },
     imageUrl: {
       type: String,
