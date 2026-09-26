@@ -27,10 +27,10 @@
     -   [ ] **F1.3** --- The system shall verify that the submitted
         username satisfies the agreed username format and length
         constraints. --- **Priority:** High · **Sprint:** 7
-    -   [ ] **F1.4** --- The system shall verify that the submitted
+ **F1.4** --- The system shall verify that the submitted
         email address follows the agreed valid email format. ---
         **Priority:** High · **Sprint:** 7
-    -   [ ] **F1.5** --- The system shall require verification of the
+ **F1.5** --- The system shall require verification of the
         submitted email address before the registered account is
         activated. --- **Priority:** Medium · **Sprint:** 9
     -   [ ] **F1.6** --- The system shall reject verification attempts
