@@ -22,6 +22,8 @@ jobs:
       - name: Update FR tracker
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
         run: |
           set -euo pipefail
 
@@ -39,9 +41,14 @@ jobs:
           fi
 
           for fr_id in "${fr_ids[@]}"; do
-            # Only change an unchecked tracker item whose bold ID matches
-            # exactly. This prevents F1 from matching F1.1, etc.
-            FR_ID="$fr_id" perl -0pi -e 's/^(\s*-\s*)\[ \](.*?\*\*\Q$ENV{FR_ID}\E\*\*.*)$/\1[x]$2/mg' FR-TRACKER.md
+            # Update only the matching table row. Exact ID matching prevents
+            # F1 from matching F1.1, etc.
+            FR_ID="$fr_id" perl -pi -e '
+              if (/^\| \[[ x]\] \| \Q$ENV{FR_ID}\E \|/) {
+                s/^\| \[ \] \|/| [x] |/;
+                s/Issue: -/Issue: [Issue #$ENV{ISSUE_NUMBER}]($ENV{ISSUE_URL})/;
+              }
+            ' FR-TRACKER.md
           done
 
           if git diff --quiet -- FR-TRACKER.md; then
