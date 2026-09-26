@@ -47,8 +47,12 @@ jobs:
             FR_ID="$fr_id" perl -pi -e '
               if (/^\| \[[ x]\] \| \Q$ENV{FR_ID}\E \|/) {
                 if ($ENV{ISSUE_ACTION} eq "reopened") {
-                  s/^\| \[x\] \|/| [ ] |/;
-                  s/Issue: \[Issue #[^]]+\]\([^)]*\)/Issue: -/;
+                  # Do not clear another issue's link if multiple issues
+                  # happen to reference the same FR.
+                  if (/Issue: \[Issue #\Q$ENV{ISSUE_NUMBER}\E\]/) {
+                    s/^\| \[x\] \|/| [ ] |/;
+                    s/Issue: \[Issue #[^]]+\]\([^)]*\)/Issue: -/;
+                  }
                 } else {
                   s/^\| \[ \] \|/| [x] |/;
                   s/Issue: -/Issue: [Issue #$ENV{ISSUE_NUMBER}]($ENV{ISSUE_URL})/;
