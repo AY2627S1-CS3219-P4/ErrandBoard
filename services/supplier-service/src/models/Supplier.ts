@@ -15,21 +15,36 @@ export const SUPPLIER_CATEGORIES = [
     "FOOD_BEVERAGE",
     "RETAIL",
     "CONVENIENCE",
+    "PRINTING",
     "OTHER"
 ] as const
 
 export type SupplierCategory = (typeof SUPPLIER_CATEGORIES)[number]
 
+export interface SupplierCoords {
+  latitude: number; //support floating point and integer values
+  longitude: number;
+}
+
 export interface SupplierDocument {
     name: string;
     category: SupplierCategory;
-    address: string;
+    building: string;
     openingHour?: string;
     closingHour?: string;
     imageUrl?: string;
     description?: string;
     isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
 }
+
+const coordinateSchema = new Schema<SupplierCoords>(
+  {
+    latitude: {type: Number, required: true},
+    longitude: {type: Number, required: true},
+  },
+)
 
 const supplierSchema = new Schema<SupplierDocument>(
   {
@@ -45,7 +60,7 @@ const supplierSchema = new Schema<SupplierDocument>(
       enum: SUPPLIER_CATEGORIES,
       required: true,
     },
-    address: {
+    building: {
       type: String,
       required: true,
       trim: true,
