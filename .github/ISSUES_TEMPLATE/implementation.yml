@@ -6,7 +6,7 @@ body:
     id: fr
     attributes:
       label: Functional Requirement
-      description: Enter the FR ID, e.g. F1.4 or F28.2.11
+      description: Enter one or more FR IDs, e.g. F1.4 or F28.2.11. Keep the IDs in this issue body; the tracker is updated when this issue is closed.
       placeholder: F1.4
     validations:
       required: true
