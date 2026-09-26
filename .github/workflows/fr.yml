@@ -2,7 +2,7 @@ name: Update FR Tracker
 
 on:
   issues:
-    types: [closed]
+    types: [closed, reopened]
 
 permissions:
   contents: write
@@ -24,6 +24,7 @@ jobs:
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           ISSUE_URL: ${{ github.event.issue.html_url }}
+          ISSUE_ACTION: ${{ github.event.action }}
         run: |
           set -euo pipefail
 
@@ -45,8 +46,13 @@ jobs:
             # F1 from matching F1.1, etc.
             FR_ID="$fr_id" perl -pi -e '
               if (/^\| \[[ x]\] \| \Q$ENV{FR_ID}\E \|/) {
-                s/^\| \[ \] \|/| [x] |/;
-                s/Issue: -/Issue: [Issue #$ENV{ISSUE_NUMBER}]($ENV{ISSUE_URL})/;
+                if ($ENV{ISSUE_ACTION} eq "reopened") {
+                  s/^\| \[x\] \|/| [ ] |/;
+                  s/Issue: \[Issue #[^]]+\]\([^)]*\)/Issue: -/;
+                } else {
+                  s/^\| \[ \] \|/| [x] |/;
+                  s/Issue: -/Issue: [Issue #$ENV{ISSUE_NUMBER}]($ENV{ISSUE_URL})/;
+                }
               }
             ' FR-TRACKER.md
           done
@@ -59,5 +65,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add FR-TRACKER.md
-          git commit -m "chore: mark FRs complete for issue #${{ github.event.issue.number }}"
+          git commit -m "chore: update FR status for issue #${{ github.event.issue.number }} (${{ github.event.action }})"
           git push
