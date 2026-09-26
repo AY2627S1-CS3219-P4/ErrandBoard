@@ -7,17 +7,50 @@ on:
 permissions:
   contents: write
 
+# This workflow expects the implementation issue to be closed after the
+# corresponding PR has been merged. The issue body must contain one or more
+# tracker IDs such as F1.4 or F28.2.11.
+
 jobs:
   update-tracker:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Update FR tracker
         env:
           ISSUE_BODY: ${{ github.event.issue.body }}
         run: |
-          # Extract FR IDs from issue
-          # Change [ ] to [x] in FR-TRACKER.md
-          # Commit and push changes
+          set -euo pipefail
+
+          # Extract distinct IDs from the issue body. The pattern supports
+          # both top-level and nested requirements (for example F1.4.2).
+          mapfile -t fr_ids < <(
+            printf '%s\n' "$ISSUE_BODY" |
+              grep -oE '\bF[0-9]+(\.[0-9]+)*\b' |
+              sort -u || true
+          )
+
+          if [ "${#fr_ids[@]}" -eq 0 ]; then
+            echo "No FR IDs found in the closed issue; nothing to update."
+            exit 0
+          fi
+
+          for fr_id in "${fr_ids[@]}"; do
+            # Only change an unchecked tracker item whose bold ID matches
+            # exactly. This prevents F1 from matching F1.1, etc.
+            FR_ID="$fr_id" perl -0pi -e 's/^(\s*-\s*)\[ \](.*?\*\*\Q$ENV{FR_ID}\E\*\*.*)$/\1[x]$2/mg' FR-TRACKER.md
+          done
+
+          if git diff --quiet -- FR-TRACKER.md; then
+            echo "No unchecked matching FR items found; nothing to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add FR-TRACKER.md
+          git commit -m "chore: mark FRs complete for issue #${{ github.event.issue.number }}"
+          git push
