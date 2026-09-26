@@ -30,6 +30,7 @@ export interface SupplierDocument {
     name: string;
     category: SupplierCategory;
     building: string;
+    coordinates?: SupplierCoords;
     openingHour?: string;
     closingHour?: string;
     imageUrl?: string;
@@ -67,6 +68,10 @@ const supplierSchema = new Schema<SupplierDocument>(
       minlength: 1,
       maxlength: 100,
     },
+    coordinates: {
+      type: coordinateSchema,
+      required: false,
+    },
     openingHour: {
       type: String,
       match: [/^([01]\d|2[0-3]):[0-5]\d$/, "openingTime must be HH:mm"],
@@ -94,6 +99,12 @@ const supplierSchema = new Schema<SupplierDocument>(
     collection: "suppliers",
     timestamps: true,
   },
+);
+
+//Based on issue #2 enforce unique constraint on name and building
+supplierSchema.index(
+  {name: 1, building: 1},
+  {unique: true}
 );
 
 export const Supplier = model<SupplierDocument>("Supplier", supplierSchema);
