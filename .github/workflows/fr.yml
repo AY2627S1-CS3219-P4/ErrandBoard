@@ -47,7 +47,7 @@ jobs:
             FR_ID="$fr_id" perl -pi -e '
               if (/\| [^|]*\Q$ENV{FR_ID}\E \|/) {
                 if ($ENV{ISSUE_ACTION} eq "reopened") {
-                  # Do not clear another issue's link if multiple issues
+                  # Do not clear another issue link if multiple issues
                   # happen to reference the same FR.
                   if (/Issue: \[Issue #\Q$ENV{ISSUE_NUMBER}\E\]/) {
                     s/\[x\](?= \Q$ENV{FR_ID}\E)/[ ]/;
