@@ -75,6 +75,17 @@ for (const username of ["ab", "a".repeat(31), "alice smith", "alice!"]) {
   });
 }
 
+test("accepts the ADMIN account type", async () => {
+  const user = new User({
+    ...validUser(),
+    accountType: "ADMIN",
+  });
+
+  await user.validate();
+
+  assert.equal(user.accountType, "ADMIN");
+});
+
 test("rejects an unsupported account type", async () => {
   const user = new User({
     ...validUser(),
