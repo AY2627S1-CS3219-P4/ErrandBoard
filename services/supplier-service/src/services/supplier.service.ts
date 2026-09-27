@@ -70,6 +70,16 @@ export async function createSupplier(
     }
 }
 
+
+export async function getSupplierById(
+    id: string
+): Promise<SupplierDocument> {
+    const supplier = await Supplier.findById(id);
+
+    if (!supplier) throw new SupplierNotFoundError(`Supplier ${id} not found`);
+    return supplier;
+}
+
 export async function updateSupplier(
     id: string,
     input: UpdateSupplierInput
@@ -97,6 +107,24 @@ export async function updateSupplier(
     }
 }
 
+
+//Instead of deleting outright, set the active attribute of the supplier to false
+export async function deactivateSupplier(
+    id: string
+): Promise<SupplierDocument> {
+    const supplier = await Supplier.findByIdAndUpdate(
+        id,
+        { $set: {isActive: false}},
+        {new: true}
+    )
+
+    if (!supplier) throw new SupplierNotFoundError(`Supplier ${id} not found`);
+
+    return supplier;
+}
+
+
+//filter function for listing of suppliers
 
 //Error handling functions
 
