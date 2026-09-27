@@ -32,7 +32,7 @@ export async function login(
     return;
   }
 
-  const token = await createAccessToken(user._id.toString());
+  const token = await createAccessToken(user._id.toString(), user.accountType);
 
   res.cookie("access_token", token, {
     httpOnly: true,

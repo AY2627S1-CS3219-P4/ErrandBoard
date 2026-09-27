@@ -1,6 +1,7 @@
 import { model, Schema } from "mongoose";
 
-export type AccountType = "USER" | "ADMIN";
+export const ACCOUNT_TYPES = ["USER", "ADMIN"] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 export interface UserDocument {
   email: string;

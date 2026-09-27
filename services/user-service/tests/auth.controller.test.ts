@@ -64,7 +64,9 @@ for (const mode of ["production", "development"]) {
     assert.equal(state.cookies.length, 1);
     const cookie = state.cookies[0]!;
     assert.equal(cookie.name, "access_token");
-    assert.equal(await verifyAccessToken(cookie.value), user._id.toString());
+    assert.deepEqual(await verifyAccessToken(cookie.value), {
+      userId: user._id.toString(), role: "USER",
+    });
     assert.deepEqual(cookie.options, {
       httpOnly: true, secure: mode === "production", sameSite: "lax",
       maxAge: 900_000, path: "/",
@@ -76,6 +78,24 @@ for (const mode of ["production", "development"]) {
     assert.deepEqual(state.cleared, [{ name: cookie.name, options: matchingOptions }]);
   });
 }
+
+test("admin login issues a token carrying the ADMIN role", async (t) => {
+  setEnv(t, "JWT_SECRET", "controller-test-key-not-for-deployment-123456789");
+  const admin = new User({
+    email: "admin@example.com", username: "admin",
+    passwordHash: user.passwordHash, accountType: "ADMIN",
+  });
+  t.mock.method(User, "findOne", () => ({ select: async () => admin }));
+  const { state, response } = responseDouble();
+
+  await login({ body: { email: admin.email, password } } as Request, response);
+  assert.equal(state.status, 200);
+  assert.equal((state.body as { user: { accountType: string } }).user.accountType, "ADMIN");
+  const token = state.cookies[0]!.value;
+  assert.deepEqual(await verifyAccessToken(token), {
+    userId: admin._id.toString(), role: "ADMIN",
+  });
+});
 
 test("failed login returns a generic 401 and never issues a cookie", async (t) => {
   let found: typeof user | null = null;
