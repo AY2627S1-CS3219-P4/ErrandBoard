@@ -18,9 +18,23 @@ afterEach(() => {
   else process.env.JWT_SECRET = originalSecret;
 });
 
+function signTestToken(claims: Record<string, unknown>) {
+  return new SignJWT(claims)
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("15m")
+    .sign(new TextEncoder().encode(testSecret));
+}
+
+function tamper(token: string, changes: Record<string, unknown>) {
+  const [header, payload, signature] = token.split(".");
+  const claims = JSON.parse(Buffer.from(payload!, "base64url").toString());
+  const changedPayload = Buffer.from(JSON.stringify({ ...claims, ...changes })).toString("base64url");
+  return `${header}.${changedPayload}.${signature}`;
+}
+
 test("issued JWT verifies the user ID and expires after 15 minutes", async () => {
-  const token = await createAccessToken(userId);
-  assert.equal(await verifyAccessToken(token), userId);
+  const token = await createAccessToken(userId, "USER");
+  assert.deepEqual(await verifyAccessToken(token), { userId, role: "USER" });
   // Decode only to inspect claims; verification above authenticates them.
   const payload = decodeJwt(token);
   assert.equal(typeof payload.iat, "number");
@@ -28,20 +42,39 @@ test("issued JWT verifies the user ID and expires after 15 minutes", async () =>
   assert.equal(payload.exp! - payload.iat!, 15 * 60);
 });
 
-test("verification rejects a tampered subject", async () => {
-  const token = await createAccessToken(userId);
-  const [header, payload, signature] = token.split(".");
-  const claims = JSON.parse(Buffer.from(payload!, "base64url").toString());
-  claims.sub = "another-user";
-  const changedPayload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+for (const role of ["USER", "ADMIN"] as const) {
+  test(`issued JWT carries the ${role} role`, async () => {
+    const token = await createAccessToken(userId, role);
+    assert.deepEqual(await verifyAccessToken(token), { userId, role });
+  });
+}
 
-  await assert.rejects(verifyAccessToken(`${header}.${changedPayload}.${signature}`), {
+test("verification rejects a tampered subject", async () => {
+  const token = await createAccessToken(userId, "USER");
+  await assert.rejects(verifyAccessToken(tamper(token, { sub: "another-user" })), {
     code: "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
   });
 });
 
+test("verification rejects a role escalated after signing", async () => {
+  const token = await createAccessToken(userId, "USER");
+  await assert.rejects(verifyAccessToken(tamper(token, { role: "ADMIN" })), {
+    code: "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
+  });
+});
+
+test("verification rejects a signed token without a role", async () => {
+  const token = await signTestToken({ sub: userId });
+  await assert.rejects(verifyAccessToken(token), /JWT role is missing or invalid/);
+});
+
+test("verification rejects a signed token with an unknown role", async () => {
+  const token = await signTestToken({ sub: userId, role: "SUPERUSER" });
+  await assert.rejects(verifyAccessToken(token), /JWT role is missing or invalid/);
+});
+
 test("verification rejects a token signed with a different secret", async () => {
-  const token = await createAccessToken(userId);
+  const token = await createAccessToken(userId, "USER");
   process.env.JWT_SECRET = "a-different-unit-test-signing-key-123456789";
   await assert.rejects(verifyAccessToken(token), {
     code: "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
@@ -65,16 +98,13 @@ test("verification rejects malformed and unsigned tokens", async () => {
 });
 
 test("verification rejects a signed token without a subject", async () => {
-  const token = await new SignJWT({})
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("15m")
-    .sign(new TextEncoder().encode(testSecret));
+  const token = await signTestToken({ role: "USER" });
   await assert.rejects(verifyAccessToken(token), /JWT subject is missing/);
 });
 
 test("signing and verification fail clearly when JWT_SECRET is missing", async () => {
-  const token = await createAccessToken(userId);
+  const token = await createAccessToken(userId, "USER");
   delete process.env.JWT_SECRET;
-  await assert.rejects(createAccessToken(userId), /JWT_SECRET is required/);
+  await assert.rejects(createAccessToken(userId, "USER"), /JWT_SECRET is required/);
   await assert.rejects(verifyAccessToken(token), /JWT_SECRET is required/);
 });

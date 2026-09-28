@@ -1,10 +1,5 @@
-import { SignJWT, jwtVerify } from "jose";
-import { ACCOUNT_TYPES, type AccountType } from "../models/User.js";
-
-interface AccessTokenClaims {
-  userId: string;
-  role: AccountType;
-}
+import { jwtVerify } from "jose";
+import { ACCOUNT_TYPES, type AccessTokenClaims, type AccountType } from "../types/auth.types.js";
 
 function getSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -14,14 +9,6 @@ function getSecret(): Uint8Array {
   }
 
   return new TextEncoder().encode(secret);
-}
-
-export async function createAccessToken(userId: string, role: AccountType): Promise<string> {
-  return new SignJWT({ sub: userId, role })
-    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-    .setIssuedAt()
-    .setExpirationTime("15m")
-    .sign(getSecret());
 }
 
 export async function verifyAccessToken(token: string): Promise<AccessTokenClaims> {
