@@ -9,7 +9,7 @@ db.createRole({
     role: "user_service_role",
     privileges: [
         { resource: { db: "errandboard", collection: "users" }, actions: ["find", "insert", "update", "remove"] },
-        { resource: { db: "errandboard", collection: "sessions" }, actions: ["find", "insert", "update", "remove"] }
+        { resource: { db: "errandboard", collection: "sessions" }, actions: ["find", "insert", "update", "remove", "createIndex"] }
     ],
     roles: []
 });
