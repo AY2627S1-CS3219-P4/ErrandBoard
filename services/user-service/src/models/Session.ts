@@ -27,13 +27,15 @@ const sessionSchema = new Schema<SessionDocument>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
     },
     revokedAt: Date,
     userAgent: String,
     ipAddress: String,
   },
-  { collection: "sessions", timestamps: true },
+  {
+    collection: "sessions",
+    timestamps: true,
+  },
 );
 
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
