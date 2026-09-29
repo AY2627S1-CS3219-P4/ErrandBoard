@@ -1,27 +1,10 @@
+import { QueryFilter } from "mongoose";
 import {
     Supplier,
     type SupplierCategory,
     type SupplierDocument,
     type SupplierCoords,
 }   from "../models/Supplier.js"
-
-
-//Temporary schema comment so I don't need to split screen
-/*
-export interface SupplierDocument {
-    name: string;
-    category: SupplierCategory;
-    building: string;
-    coordinates: SupplierCoords;
-    openingHour?: string;
-    closingHour?: string;
-    imageUrl?: string;
-    description?: string;
-    isActive: boolean;
-    createdAt: Date;
-    updatedAt: Date;
-}
-*/
 
 //Input interfaces which specify what kind of input CRUD functions expect
 
@@ -48,8 +31,15 @@ export interface UpdateSupplierInput {
     description?: string;
 }
 
+//The listing should support free-text search on the supplier name. Should be case-insensitive, match on partial substrings
+//Users should be able to filter suppliers by category and building (campus location).
+//Filtering should support the selection of multiple options. search + category + buildling + multiple options
+//The administrative user should be able to view the supplier listing (including soft-deleted records) through the same listing/search endpoint used by requesters and couriers (FR7).
 export interface ListSuppliersInput {
-
+    search?: string;
+    category?: SupplierCategory[];
+    building?: string[];
+    showInactive?: boolean;
 }
 
 //Supplier specific error classes
@@ -66,10 +56,39 @@ export async function createSupplier(
     try {
         return await Supplier.create(input);
     } catch (error) {
+        if (isDuplicateKeyError(error)) {
+            throw new DuplicateSupplierError(
+                `Supplier "${input.name}" already exists at "${input.building}".`
+            );
+        }    
         throw error;
     }
 }
 
+export async function listSuppliers(input: ListSuppliersInput) {
+    const query: QueryFilter<SupplierDocument> = {};
+
+    //if showInactive is true isActive should be set to false;
+    if (!input.showInactive) {
+        query.isActive = true;
+    }
+
+    //$options set to i for case insensitive
+    if (input.search) {
+        query.name = { $regex: escapeRegExp(input.search), $options: "i" };
+    }
+
+    if (input.category?.length) {
+        query.category = { $in: input.category };
+    }
+
+    if (input.building?.length) {
+        query.building = { $in: input.building };
+    }
+
+    //return sorted ascending
+    return Supplier.find(query).sort({ name: 1 });
+}
 
 export async function getSupplierById(
     id: string
@@ -135,4 +154,10 @@ function isDuplicateKeyError(error: unknown): boolean {
                                         && "code" in error 
                                         && (error as { code?: number}).code === duplicateErrorCode;
     return res;
+}
+
+
+//replaces special regex characters in a string so it can be safely used
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
