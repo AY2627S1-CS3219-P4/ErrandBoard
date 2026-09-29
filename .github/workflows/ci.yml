@@ -60,6 +60,46 @@ jobs:
       - name: Compile service
         run: npm run build
 
+  supplier-service:
+    name: Supplier Service (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+      defaults:
+        run:
+          working-directory: services/supplier-service
+      
+      steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: services/supplier-service/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check source types
+        run: npm run typecheck
+
+      - name: Check test types
+        run: npm run typecheck:tests
+
+      - name: Run unit tests
+        run: npm test
+  
+      - name: Compile service
+        run: npm run build
+
   compose-config:
     name: Validate Compose configuration
     runs-on: ubuntu-latest
