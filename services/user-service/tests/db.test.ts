@@ -20,7 +20,7 @@ afterEach(() => {
   });
 });
 
-test("connection uses the configured database and service credentials without a stray brace", async (t) => {
+test("connection uses the configured database and service credentials", async (t) => {
   const connect = t.mock.method(mongoose, "connect", async () => mongoose);
   await connectDb();
   assert.equal(connect.mock.callCount(), 1);

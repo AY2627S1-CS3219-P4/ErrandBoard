@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
-import { login, logout } from "../src/controllers/auth.controller.js";
+import bcrypt from "bcryptjs";
+import { login, logout, register } from "../src/controllers/auth.controller.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
 import { verifyAccessToken } from "../src/security/token.js";
@@ -39,12 +40,99 @@ function setEnv(t: TestContext, key: string, value: string | undefined) {
 }
 
 const password = "Controller test password!";
+const strongRegistrationPassword = "qf7$Lx2@vB9!Rk3#nP5^wM8";
 let user: InstanceType<typeof User>;
 before(async () => {
   user = new User({
     email: "alice@example.com", username: "alice",
     passwordHash: await hashPassword(password),
   });
+});
+
+test("registration returns 201 with a safe user response", async (t) => {
+  let persisted: Record<string, unknown> | undefined;
+  const create = t.mock.method(
+    User,
+    "create",
+    async (document: Record<string, unknown>) => {
+      persisted = document;
+      const createdUser = new User(document);
+      await createdUser.validate();
+      return createdUser;
+    },
+  );
+  const { state, response } = responseDouble();
+
+  await register(
+    {
+      body: {
+        email: " E0000000@U.NUS.EDU ",
+        username: "alice_123",
+        password: strongRegistrationPassword,
+        accountType: "ADMIN",
+      },
+    } as Request,
+    response,
+  );
+
+  assert.equal(state.status, 201);
+  assert.ok(persisted);
+  assert.deepEqual(Object.keys(persisted).sort(), ["email", "passwordHash", "username"]);
+  assert.equal(persisted.email, "e0000000@u.nus.edu");
+  assert.notEqual(persisted.passwordHash, strongRegistrationPassword);
+  assert.equal(create.mock.callCount(), 1);
+
+  const body = state.body as { user: Record<string, unknown> };
+  assert.deepEqual(Object.keys(body.user).sort(), ["accountType", "email", "id", "username"]);
+  assert.equal(body.user.accountType, "USER");
+  assert.equal(body.user.email, "e0000000@u.nus.edu");
+});
+
+test("registration rejects invalid fields before hashing or persistence", async (t) => {
+  const hash = t.mock.method(bcrypt, "hash", async () => "unexpected-hash");
+  const create = t.mock.method(User, "create", async () => {
+    throw new Error("must not persist invalid registration");
+  });
+  const { state, response } = responseDouble();
+
+  await register(
+    {
+      body: {
+        email: "not-an-email",
+        username: "ab",
+        password: "password123!password123!",
+      },
+    } as Request,
+    response,
+  );
+
+  assert.equal(state.status, 400);
+  assert.deepEqual(state.body, {
+    error: "Invalid registration input",
+    fields: {
+      email: "Email must use the NUS student email format.",
+      username: "Username must be 3–30 letters, numbers, or underscores.",
+      password: "Password must be rated strong or better.",
+    },
+  });
+  assert.equal(hash.mock.callCount(), 0);
+  assert.equal(create.mock.callCount(), 0);
+});
+
+test("registration handles a missing or non-object request body as 400", async (t) => {
+  const create = t.mock.method(User, "create", async () => {
+    throw new Error("must not persist malformed body");
+  });
+  const { state, response } = responseDouble();
+
+  await register({ body: null } as unknown as Request, response);
+
+  assert.equal(state.status, 400);
+  assert.deepEqual(state.body, {
+    error: "Invalid registration input",
+    fields: { body: "Expected a JSON object containing registration fields." },
+  });
+  assert.equal(create.mock.callCount(), 0);
 });
 
 for (const mode of ["production", "development"]) {

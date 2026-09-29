@@ -11,7 +11,7 @@ const EMAIL_REGEX: RegExp = /^e\d{7}@u\.nus\.edu$/;
 const USER_REGEX: RegExp = /^[a-zA-Z0-9_]{3,30}$/;
 const MIN_PASSWORD_CHARACTERS = 10;
 const MAX_PASSWORD_BYTES = 72;
-const MIN_ACCEPTABLE_PASSWORD_SCORE = 4;
+const MIN_ACCEPTABLE_PASSWORD_SCORE = 3;
 const PASSWORD_SCORE_LABELS = [
   "Very weak",
   "Weak",
@@ -181,7 +181,7 @@ export default function Register() {
           <input
             id="register-password"
             type="password"
-            placeholder="10 characters minimum. Need 'Very Strong' in the bar"
+            placeholder="10 characters minimum. Need 'Strong' in the bar"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             aria-describedby="register-password-meter"

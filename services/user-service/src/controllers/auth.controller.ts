@@ -4,16 +4,22 @@ import {
   registerUser,
 } from "../services/auth.service.js";
 import { createAccessToken } from "../security/token.js";
+import { validateRegistration } from "../validators/registration.validator.js";
 
 export async function register(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const user = await registerUser({
-    email: req.body.email,
-    username: req.body.username,
-    password: req.body.password,
-  });
+  const validation = validateRegistration(req.body);
+  if (!validation.valid) {
+    res.status(400).json({
+      error: "Invalid registration input",
+      fields: validation.errors,
+    });
+    return;
+  }
+
+  const user = await registerUser(validation.data);
 
   res.status(201).json({ user });
 }
