@@ -3,6 +3,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import mongoose from "mongoose";
 import { connectDb } from "../src/db.js";
 import { Session } from "../src/models/Session.js";
+import { User } from "../src/models/User.js";
 
 const keys = ["MONGO_USER_SERVICE_PASSWORD", "MONGO_HOST", "MONGO_DB_NAME"] as const;
 let original: (string | undefined)[];
@@ -24,6 +25,12 @@ afterEach(() => {
 test("connection uses the configured database and service credentials", async (t) => {
   const connect = t.mock.method(mongoose, "connect", async () => mongoose);
   t.mock.method(Session, "createIndexes", async () => []);
+  // mongoose.connect is mocked here, so disable model auto-indexing that a
+  // real connection would normally control through its connection options.
+  const autoIndex = User.schema.get("autoIndex");
+  User.schema.set("autoIndex", false);
+  t.mock.method(User, "createIndexes", async () => []);
+  t.after(() => User.schema.set("autoIndex", autoIndex));
   await connectDb();
   assert.equal(connect.mock.callCount(), 1);
   const [uri, options] = connect.mock.calls[0]!.arguments;

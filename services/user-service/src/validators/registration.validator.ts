@@ -2,7 +2,7 @@ import { ZxcvbnFactory } from "@zxcvbn-ts/core";
 import * as common from "@zxcvbn-ts/language-common";
 import * as english from "@zxcvbn-ts/language-en";
 
-const EMAIL_REGEX = /^e\d{7}@u\.nus\.edu$/i;
+const EMAIL_REGEX = /^e\d{7}@u\.nus\.edu$/;
 const USER_REGEX = /^[a-zA-Z0-9_]{3,30}$/;
 const MIN_PASSWORD_CHARACTERS = 10;
 const MAX_PASSWORD_BYTES = 72;

@@ -20,7 +20,7 @@ const userSchema = new Schema<UserDocument>(
       trim: true,
       lowercase: true,
       unique: true,
-      match: [/^\S+@\S+\.\S+$/, "A valid email address is required"],
+      match: [/^e\d{7}@u\.nus\.edu$/, "A valid email address is required"],
     },
     username: {
       type: String,
@@ -29,7 +29,7 @@ const userSchema = new Schema<UserDocument>(
       unique: true,
       minlength: 3,
       maxlength: 30,
-      match: [/^[a-zA-Z0-9_]+$/, "Username may contain letters, numbers, and underscores only"],
+      match: [/^[a-zA-Z0-9_]{3,30}$/, "Username may contain letters, numbers, and underscores only"],
     },
     passwordHash: {
       type: String,

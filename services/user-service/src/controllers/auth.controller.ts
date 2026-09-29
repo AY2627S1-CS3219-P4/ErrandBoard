@@ -8,6 +8,29 @@ import {
 import { createAccessToken } from "../security/token.js";
 import { validateRegistration } from "../validators/registration.validator.js";
 
+function duplicateRegistrationFields(error: unknown): Record<string, string> | null {
+  if (
+    typeof error !== "object" || error === null ||
+    !("code" in error) || error.code !== 11000
+  ) return null;
+
+  const fields: Record<string, string> = {};
+  const keyPattern = "keyPattern" in error && typeof error.keyPattern === "object" && error.keyPattern !== null
+    ? error.keyPattern as Record<string, unknown>
+    : {};
+  const message = "message" in error && typeof error.message === "string" ? error.message : "";
+  const duplicateFields = new Set([...Object.keys(keyPattern), ...["email", "username"].filter((field) => message.includes(`${field}_1`))]);
+
+  for (const field of duplicateFields) {
+    if (field === "email") fields.email = "This email is already registered. Try logging in instead.";
+    if (field === "username") fields.username = "This username is already taken. Please choose another.";
+  }
+
+  return Object.keys(fields).length > 0
+    ? fields
+    : { registration: "An account with these details already exists." };
+}
+
 export async function register(
   req: Request,
   res: Response,
@@ -21,7 +44,18 @@ export async function register(
     return;
   }
 
-  const user = await registerUser(validation.data);
+  let user;
+  try {
+    user = await registerUser(validation.data);
+  } catch (error) {
+    const fields = duplicateRegistrationFields(error);
+    if (!fields) throw error;
+    res.status(409).json({
+      error: "Registration conflict",
+      fields,
+    });
+    return;
+  }
 
   res.status(201).json({ user });
 }

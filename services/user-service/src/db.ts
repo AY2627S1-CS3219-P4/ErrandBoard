@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { Session } from './models/Session.js';
+import { User } from './models/User.js';
 
 mongoose.connection.on("error", () => {
     console.error("MongoDB connection error");
@@ -29,9 +30,9 @@ export async function connectDb(): Promise<void> {
         bufferCommands: false,
     });
 
-    // Ensure the Session model's indexes, including the expiresAt TTL index,
-    // exist even though automatic connection-wide index creation is disabled.
+    // Ensure that all indexes exist in all models
     await Session.createIndexes();
+    await User.createIndexes();
 }
 
 export async function disconnectDb(): Promise<void> {

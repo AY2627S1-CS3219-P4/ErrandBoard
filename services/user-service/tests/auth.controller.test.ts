@@ -150,6 +150,33 @@ test("registration handles a missing or non-object request body as 400", async (
   assert.equal(create.mock.callCount(), 0);
 });
 
+test("registration maps MongoDB duplicate email and username errors to field-specific 409 responses", async (t) => {
+  for (const [field, expectedMessage] of [
+    ["email", "This email is already registered. Try logging in instead."],
+    ["username", "This username is already taken. Please choose another."],
+  ] as const) {
+    const duplicate = Object.assign(new Error("duplicate key"), {
+      code: 11000,
+      keyPattern: { [field]: 1 },
+    });
+    t.mock.method(User, "create", async () => { throw duplicate; });
+    const { state, response } = responseDouble();
+
+    await register(requestDouble({
+      email: "e1234567@u.nus.edu",
+      username: "alice",
+      password: strongRegistrationPassword,
+    }), response);
+
+    assert.equal(state.status, 409);
+    assert.deepEqual(state.body, {
+      error: "Registration conflict",
+      fields: { [field]: expectedMessage },
+    });
+    t.mock.reset();
+  }
+});
+
 for (const mode of ["production", "development"]) {
   test(`login sets a protected cookie and logout clears its matching attributes (${mode})`, async (t) => {
     setEnv(t, "NODE_ENV", mode);
