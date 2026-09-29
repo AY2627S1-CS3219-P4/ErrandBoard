@@ -3,16 +3,15 @@ import { Link, useNavigate } from "react-router-dom";
 import { ZxcvbnFactory } from "@zxcvbn-ts/core";
 import * as common from "@zxcvbn-ts/language-common";
 import * as english from "@zxcvbn-ts/language-en";
+import "./AuthForm.css";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
 const EMAIL_REGEX: RegExp = /^e\d{7}@u\.nus\.edu$/;
 const USER_REGEX: RegExp = /^[a-zA-Z0-9_]{3,30}$/;
-
-// Keep these policy thresholds alongside the registration form.
 const MIN_PASSWORD_CHARACTERS = 10;
-const MAX_PASSWORD_BYTES = 72; // bcrypt's input boundary
-const MIN_ACCEPTABLE_PASSWORD_SCORE = 3; // zxcvbn-ts score range: 0–4
+const MAX_PASSWORD_BYTES = 72;
+const MIN_ACCEPTABLE_PASSWORD_SCORE = 4;
 const PASSWORD_SCORE_LABELS = [
   "Very weak",
   "Weak",
@@ -64,8 +63,6 @@ export default function Register() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Derive validity from the current values instead of keeping separate state
-  // that can lag behind a just-typed character.
   const emailIsValid = validateEmail(email);
   const usernameIsValid = validateUsername(username);
   const passwordCheck = useMemo(() => checkPassword(password), [password]);
@@ -107,81 +104,100 @@ export default function Register() {
   }
 
   return (
-    <main>
+    <main className="auth-page">
       <h1>Register</h1>
 
-      <form onSubmit={handleSubmit}>
-        <label>
-          Email
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <div className="auth-field">
+          <div className="auth-field-heading">
+            <label htmlFor="register-email">Email</label>
+            {email.length > 0 && !emailIsValid && (
+              <span className="auth-tip" role="status">
+                Enter an email in the required NUS format.
+              </span>
+            )}
+          </div>
           <input
+            id="register-email"
             type="email"
+            placeholder="e.g. e1234567@u.nus.edu"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             aria-invalid={email.length > 0 && !emailIsValid}
             required
           />
-        </label>
-        {email.length > 0 && !emailIsValid && (
-          <p role="status">Enter an email in the required NUS format.</p>
-        )}
+        </div>
 
-        <label>
-          Username
+        <div className="auth-field">
+          <div className="auth-field-heading">
+            <label htmlFor="register-username">Username</label>
+            {username.length > 0 && !usernameIsValid && (
+              <span className="auth-tip" role="status">
+                Use 3–30 characters: letters, numbers, underscores.
+              </span>
+            )}
+          </div>
           <input
+            id="register-username"
             type="text"
+            placeholder="3–30 characters; letters, numbers, underscores"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             aria-invalid={username.length > 0 && !usernameIsValid}
             required
           />
-        </label>
-        {username.length > 0 && !usernameIsValid && (
-          <p role="status">
-            Username must be 3–30 characters and use only letters, numbers, or
-            underscores.
-          </p>
-        )}
+        </div>
 
-        <label>
-          Password
+        <div className="auth-field">
+          <div className="auth-field-heading">
+            <label htmlFor="register-password">Password</label>
+          </div>
+          <div
+            id="register-password-meter"
+            className={`auth-password-meter ${password ? `password-strength-${passwordCheck.score}` : "password-strength-empty"}`}
+            role="progressbar"
+            aria-label="Password strength"
+            aria-valuemin={0}
+            aria-valuemax={4}
+            aria-valuenow={password ? passwordCheck.score : 0}
+            aria-valuetext={
+              password
+                ? PASSWORD_SCORE_LABELS[passwordCheck.score]
+                : "No password entered"
+            }
+          >
+            <span className="auth-password-meter-label" aria-hidden="true">
+              {password ? PASSWORD_SCORE_LABELS[passwordCheck.score] : "Password strength"}
+            </span>
+            <span className="auth-password-meter-track" aria-hidden="true">
+              <span
+                className="auth-password-meter-fill"
+                style={{
+                  width: password ? `${(passwordCheck.score / 4) * 100}%` : "0%",
+                }}
+              />
+            </span>
+          </div>
           <input
+            id="register-password"
             type="password"
+            placeholder="10 characters minimum. Need 'Very Strong' in the bar"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            aria-describedby={password ? "password-strength-help" : undefined}
+            aria-describedby="register-password-meter"
             aria-invalid={password.length > 0 && !passwordCheck.valid}
             required
           />
-        </label>
-        {password && (
-          <div id="password-strength-help">
-            <label htmlFor="password-strength">
-              Password strength: {PASSWORD_SCORE_LABELS[passwordCheck.score]}
-            </label>
-            <progress
-              id="password-strength"
-              max={4}
-              value={passwordCheck.score}
-              aria-label={`Password strength: ${PASSWORD_SCORE_LABELS[passwordCheck.score]}`}
-            >
-              {passwordCheck.score}/4
-            </progress>
-            <p>
-              Use at least {MIN_PASSWORD_CHARACTERS} characters and no more
-              than {MAX_PASSWORD_BYTES} UTF-8 bytes. Current length:{" "}
-              {passwordCheck.characterLength} characters, {passwordCheck.byteLength} bytes.
-            </p>
-          </div>
-        )}
+        </div>
 
-        {error && <p role="alert">{error}</p>}
+        {error && <p className="auth-tip auth-form-error" role="alert">{error}</p>}
 
-        <button type="submit" disabled={isSubmitDisabled}>
+        <button className="auth-submit" type="submit" disabled={isSubmitDisabled}>
           {isSubmitting ? "Registering..." : "Register"}
         </button>
       </form>
 
-      <p>
+      <p className="auth-alternate-link">
         Already have an account? <Link to="/login">Login</Link> instead!
       </p>
     </main>
