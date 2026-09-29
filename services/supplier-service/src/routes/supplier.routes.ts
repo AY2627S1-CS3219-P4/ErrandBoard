@@ -6,6 +6,10 @@ import {
     list,
     update
 } from "../controllers/supplier.controller.js";
+import {
+    authenticate,
+    requireAdmin
+} from "../middleware/auth.middleware.js"
 
 
 export const supplierRouter = Router();
@@ -18,10 +22,10 @@ supplierRouter.get("/:id", getById);
 //Note the following routes require admin privileges -> insert auth functions before controller functions eg requireAuth etc...
 
 //Post routes
-supplierRouter.post("/", create);
+supplierRouter.post("/", authenticate, requireAdmin, create);
 
 //Patch routes
-supplierRouter.patch("/", update);
+supplierRouter.patch("/", authenticate, requireAdmin, update);
 
 //delete routes
-supplierRouter.delete("/", deactivate);
+supplierRouter.delete("/", authenticate, requireAdmin, deactivate);
