@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import {
   authenticateUser,
   createUserSession,
+  getUserForActiveSession,
   registerUser,
   revokeUserSession,
 } from "../services/auth.service.js";
@@ -132,4 +133,20 @@ export async function logout(req: Request, res: Response): Promise<void> {
   });
 
   res.status(204).send();
+}
+
+export async function currentUser(req: Request, res: Response): Promise<void> {
+  const sessionToken = req.cookies?.session_token;
+  if (typeof sessionToken !== "string") {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const user = await getUserForActiveSession(sessionToken);
+  if (!user) {
+    res.status(401).json({ error: "Session is invalid or expired" });
+    return;
+  }
+
+  res.json({ user });
 }

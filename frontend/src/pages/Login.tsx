@@ -1,15 +1,20 @@
 import { useState, type SubmitEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/useAuth";
 import "./AuthForm.css";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { refreshAuth } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    typeof location.state?.message === "string" ? location.state.message : "",
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -60,7 +65,12 @@ export default function Login() {
         return;
       }
 
-      navigate("/home");
+      const authenticated = await refreshAuth(false);
+      if (!authenticated) {
+        setError("Login succeeded, but your session could not be verified. Please try again.");
+        return;
+      }
+      navigate("/home", { replace: true });
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error("Unable to reach the User Service", {

@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { login, logout, register } from "../src/controllers/auth.controller.js";
+import { currentUser, login, logout, register } from "../src/controllers/auth.controller.js";
 import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
+import { hashSessionToken } from "../src/security/session-token.js";
 import { verifyAccessToken } from "../src/security/token.js";
 
 // Small response double: no HTTP listener or database is required.
@@ -175,6 +176,41 @@ test("registration maps MongoDB duplicate email and username errors to field-spe
     });
     t.mock.reset();
   }
+});
+
+test("current-user endpoint rejects a missing or expired/revoked session", async (t) => {
+  const missing = responseDouble();
+  await currentUser(requestDouble({}), missing.response);
+  assert.equal(missing.state.status, 401);
+  assert.deepEqual(missing.state.body, { error: "Not authenticated" });
+
+  const findSession = t.mock.method(Session, "findOne", async () => null);
+  const expired = responseDouble();
+  await currentUser(requestDouble({}, { session_token: "opaque-token" }), expired.response);
+  assert.equal(expired.state.status, 401);
+  assert.deepEqual(expired.state.body, { error: "Session is invalid or expired" });
+
+  const query = findSession.mock.calls[0]?.arguments[0] as Record<string, any>;
+  assert.equal(query.tokenHash, hashSessionToken("opaque-token"));
+  assert.deepEqual(query.revokedAt, { $exists: false });
+  assert.ok(query.expiresAt.$gt instanceof Date);
+});
+
+test("current-user endpoint returns only safe user details for a valid session", async (t) => {
+  const activeUser = new User({
+    email: "e7654321@u.nus.edu", username: "activeuser", passwordHash: user.passwordHash,
+  });
+  t.mock.method(Session, "findOne", async () => ({ userId: activeUser._id }));
+  t.mock.method(User, "findById", async () => activeUser);
+  const { state, response } = responseDouble();
+
+  await currentUser(requestDouble({}, { session_token: "valid-session" }), response);
+
+  assert.equal(state.status, 200);
+  assert.deepEqual(state.body, { user: {
+    id: activeUser._id.toString(), email: activeUser.email,
+    username: activeUser.username, accountType: "USER",
+  } });
 });
 
 for (const mode of ["production", "development"]) {
