@@ -1,16 +1,5 @@
 import { model, Schema } from "mongoose";
 
-
-//What details should a supplier have?
-
-//1. Name
-//2. Category
-//3. Location (Address)
-//4. Opening and closing hours
-//5. Image
-//6. description
-//7. 
-
 export const SUPPLIER_CATEGORIES = [
     "FOOD_BEVERAGE",
     "RETAIL",
@@ -163,5 +152,8 @@ supplierSchema.index(
   {name: 1, building: 1},
   {unique: true}
 );
+
+//Support case insensitive partial text search on name
+supplierSchema.index({ name: "text" });
 
 export const Supplier = model<SupplierDocument>("Supplier", supplierSchema);

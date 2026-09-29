@@ -3,6 +3,7 @@
 import express from "express";
 import cors from "cors"; //cross-origin resource sharing
 import cookieParser from "cookie-parser";
+import { supplierRouter } from "./routes/supplier.routes.js";
 
 export const app = express();
 
@@ -17,9 +18,13 @@ app.use(
   }),
 );
 
+//status route
 app.get("/health", (_req, res) => {
     res.json({
     service: "supplier-service",
     status: "ok",
   });
 });
+
+//other routes
+app.use("/suppliers", supplierRouter);
