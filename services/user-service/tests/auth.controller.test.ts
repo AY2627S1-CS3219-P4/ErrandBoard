@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
-import { login, logout } from "../src/controllers/auth.controller.js";
+import bcrypt from "bcryptjs";
+import { currentUser, login, logout, register } from "../src/controllers/auth.controller.js";
 import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
+import { hashSessionToken } from "../src/security/session-token.js";
 import { verifyAccessToken } from "../src/security/token.js";
 
 // Small response double: no HTTP listener or database is required.
@@ -54,12 +56,161 @@ function requestDouble(
 }
 
 const password = "Controller test password!";
+const strongRegistrationPassword = "qf7$Lx2@vB9!Rk3#nP5^wM8";
 let user: InstanceType<typeof User>;
 before(async () => {
   user = new User({
     email: "alice@example.com", username: "alice",
     passwordHash: await hashPassword(password),
   });
+});
+
+test("registration returns 201 with a safe user response", async (t) => {
+  let persisted: Record<string, unknown> | undefined;
+  const create = t.mock.method(
+    User,
+    "create",
+    async (document: Record<string, unknown>) => {
+      persisted = document;
+      const createdUser = new User(document);
+      await createdUser.validate();
+      return createdUser;
+    },
+  );
+  const { state, response } = responseDouble();
+
+  await register(
+    {
+      body: {
+        email: " E0000000@U.NUS.EDU ",
+        username: "alice_123",
+        password: strongRegistrationPassword,
+        accountType: "ADMIN",
+      },
+    } as Request,
+    response,
+  );
+
+  assert.equal(state.status, 201);
+  assert.ok(persisted);
+  assert.deepEqual(Object.keys(persisted).sort(), ["email", "passwordHash", "username"]);
+  assert.equal(persisted.email, "e0000000@u.nus.edu");
+  assert.notEqual(persisted.passwordHash, strongRegistrationPassword);
+  assert.equal(create.mock.callCount(), 1);
+
+  const body = state.body as { user: Record<string, unknown> };
+  assert.deepEqual(Object.keys(body.user).sort(), ["accountType", "email", "id", "username"]);
+  assert.equal(body.user.accountType, "USER");
+  assert.equal(body.user.email, "e0000000@u.nus.edu");
+});
+
+test("registration rejects invalid fields before hashing or persistence", async (t) => {
+  const hash = t.mock.method(bcrypt, "hash", async () => "unexpected-hash");
+  const create = t.mock.method(User, "create", async () => {
+    throw new Error("must not persist invalid registration");
+  });
+  const { state, response } = responseDouble();
+
+  await register(
+    {
+      body: {
+        email: "not-an-email",
+        username: "ab",
+        password: "password123!password123!",
+      },
+    } as Request,
+    response,
+  );
+
+  assert.equal(state.status, 400);
+  assert.deepEqual(state.body, {
+    error: "Invalid registration input",
+    fields: {
+      email: "Email must use the NUS student email format.",
+      username: "Username must be 3–30 letters, numbers, or underscores.",
+      password: "Password must be rated strong or better.",
+    },
+  });
+  assert.equal(hash.mock.callCount(), 0);
+  assert.equal(create.mock.callCount(), 0);
+});
+
+test("registration handles a missing or non-object request body as 400", async (t) => {
+  const create = t.mock.method(User, "create", async () => {
+    throw new Error("must not persist malformed body");
+  });
+  const { state, response } = responseDouble();
+
+  await register({ body: null } as unknown as Request, response);
+
+  assert.equal(state.status, 400);
+  assert.deepEqual(state.body, {
+    error: "Invalid registration input",
+    fields: { body: "Expected a JSON object containing registration fields." },
+  });
+  assert.equal(create.mock.callCount(), 0);
+});
+
+test("registration maps MongoDB duplicate email and username errors to field-specific 409 responses", async (t) => {
+  for (const [field, expectedMessage] of [
+    ["email", "This email is already registered. Try logging in instead."],
+    ["username", "This username is already taken. Please choose another."],
+  ] as const) {
+    const duplicate = Object.assign(new Error("duplicate key"), {
+      code: 11000,
+      keyPattern: { [field]: 1 },
+    });
+    t.mock.method(User, "create", async () => { throw duplicate; });
+    const { state, response } = responseDouble();
+
+    await register(requestDouble({
+      email: "e1234567@u.nus.edu",
+      username: "alice",
+      password: strongRegistrationPassword,
+    }), response);
+
+    assert.equal(state.status, 409);
+    assert.deepEqual(state.body, {
+      error: "Registration conflict",
+      fields: { [field]: expectedMessage },
+    });
+    t.mock.reset();
+  }
+});
+
+test("current-user endpoint rejects a missing or expired/revoked session", async (t) => {
+  const missing = responseDouble();
+  await currentUser(requestDouble({}), missing.response);
+  assert.equal(missing.state.status, 401);
+  assert.deepEqual(missing.state.body, { error: "Not authenticated" });
+
+  const findSession = t.mock.method(Session, "findOne", async () => null);
+  const expired = responseDouble();
+  await currentUser(requestDouble({}, { session_token: "opaque-token" }), expired.response);
+  assert.equal(expired.state.status, 401);
+  assert.deepEqual(expired.state.body, { error: "Session is invalid or expired" });
+
+  const query = findSession.mock.calls[0]?.arguments[0] as Record<string, any>;
+  assert.equal(query.tokenHash, hashSessionToken("opaque-token"));
+  assert.deepEqual(query.revokedAt, { $exists: false });
+  assert.ok(query.expiresAt.$gt instanceof Date);
+});
+
+test("current-user endpoint returns only safe user details for a valid session", async (t) => {
+  const activeUser = new User({
+    email: "e7654321@u.nus.edu", username: "activeuser", passwordHash: user.passwordHash,
+  });
+  t.mock.method(Session, "findOne", async () => ({ userId: activeUser._id }));
+  t.mock.method(User, "findById", async () => activeUser);
+  const { state, response } = responseDouble();
+
+  await currentUser(requestDouble({}, { session_token: "valid-session" }), response);
+
+  assert.equal(state.status, 200);
+  assert.deepEqual(state.body, { user: {
+    id: activeUser._id.toString(), email: activeUser.email,
+    username: activeUser.username, accountType: "USER",
+  } });
 });
 
 for (const mode of ["production", "development"]) {

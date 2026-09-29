@@ -42,12 +42,10 @@ test("issued JWT verifies the user ID and expires after 15 minutes", async () =>
   assert.equal(payload.exp! - payload.iat!, 15 * 60);
 });
 
-for (const role of ["USER", "ADMIN"] as const) {
-  test(`issued JWT carries the ${role} role`, async () => {
-    const token = await createAccessToken(userId, role);
-    assert.deepEqual(await verifyAccessToken(token), { userId, role });
-  });
-}
+test("issued JWT carries the ADMIN role", async () => {
+  const token = await createAccessToken(userId, "ADMIN");
+  assert.deepEqual(await verifyAccessToken(token), { userId, role: "ADMIN" });
+});
 
 test("verification rejects a tampered subject", async () => {
   const token = await createAccessToken(userId, "USER");

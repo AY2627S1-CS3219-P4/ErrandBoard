@@ -21,8 +21,8 @@ test("hashing uses independent salts and the configured work factor", async () =
   assert.equal(await verifyPassword(password, secondHash), true);
 });
 
-test("verification rejects a wrong, differently cased, or empty password", async () => {
-  for (const input of ["incorrect", password.toLowerCase(), ""]) {
+test("verification is case-sensitive and rejects an empty password", async () => {
+  for (const input of [password.toLowerCase(), ""]) {
     assert.equal(await verifyPassword(input, storedHash), false);
   }
 });

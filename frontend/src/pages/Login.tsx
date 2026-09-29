@@ -1,14 +1,20 @@
 import { useState, type SubmitEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../auth/useAuth";
+import "./AuthForm.css";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { refreshAuth } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    typeof location.state?.message === "string" ? location.state.message : "",
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -59,7 +65,12 @@ export default function Login() {
         return;
       }
 
-      navigate("/home");
+      const authenticated = await refreshAuth(false);
+      if (!authenticated) {
+        setError("Login succeeded, but your session could not be verified. Please try again.");
+        return;
+      }
+      navigate("/home", { replace: true });
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error("Unable to reach the User Service", {
@@ -79,38 +90,46 @@ export default function Login() {
   }
 
   return (
-    <main>
+    <main className="auth-page">
       <h1>Login</h1>
 
-      <form onSubmit={handleSubmit}>
-        <label>
-          Email
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <div className="auth-field">
+          <div className="auth-field-heading">
+            <label htmlFor="login-email">Email</label>
+          </div>
           <input
+            id="login-email"
             type="email"
+            placeholder="e.g. e1234567@u.nus.edu"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             required
           />
-        </label>
+        </div>
 
-        <label>
-          Password
+        <div className="auth-field">
+          <div className="auth-field-heading">
+            <label htmlFor="login-password">Password</label>
+          </div>
           <input
+            id="login-password"
             type="password"
+            placeholder="Enter your password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
           />
-        </label>
+        </div>
 
-        {error && <p role="alert">{error}</p>}
+        {error && <p className="auth-tip auth-form-error" role="alert">{error}</p>}
 
-        <button type="submit" disabled={isSubmitting}>
+        <button className="auth-submit" type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Logging in..." : "Login"}
         </button>
       </form>
 
-      <p>
+      <p className="auth-alternate-link">
         Need an account? <Link to="/register">Register</Link>
       </p>
     </main>

@@ -65,3 +65,22 @@ export async function revokeUserSession(rawToken: string): Promise<void> {
     { $set: { revokedAt: new Date() } },
   );
 }
+
+export async function getUserForActiveSession(rawToken: string) {
+  const session = await Session.findOne({
+    tokenHash: hashSessionToken(rawToken),
+    revokedAt: { $exists: false },
+    expiresAt: { $gt: new Date() },
+  });
+
+  if (!session) return null;
+  const user = await User.findById(session.userId);
+  if (!user) return null;
+
+  return {
+    id: user._id.toString(),
+    email: user.email,
+    username: user.username,
+    accountType: user.accountType,
+  };
+}

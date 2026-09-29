@@ -12,7 +12,7 @@ import {
 } from "../src/services/auth.service.js";
 
 const input = {
-  email: "alice@example.com",
+  email: "e1234567@u.nus.edu",
   username: "alice",
   password: "A test password!",
 };
