@@ -4,6 +4,7 @@ import {
     type SupplierCategory,
     type SupplierDocument,
     type SupplierCoords,
+    type OpeningHours,
 }   from "../models/Supplier.js"
 
 //Input interfaces which specify what kind of input CRUD functions expect
@@ -13,8 +14,7 @@ export interface CreateSupplierInput {
     category: SupplierCategory;
     building: string;
     coordinates?: SupplierCoords;
-    openingHour?: string;
-    closingHour?: string;
+    openingHours?: OpeningHours;
     imageUrl?: string;
     description?: string;
 }
@@ -25,8 +25,7 @@ export interface UpdateSupplierInput {
     category?: SupplierCategory;
     building?: string;
     coordinates?: SupplierCoords;
-    openingHour?: string;
-    closingHour?: string;
+    openingHours?: OpeningHours;
     imageUrl?: string;
     description?: string;
 }
