@@ -1,7 +1,9 @@
 import type { Request, Response } from "express";
 import {
   authenticateUser,
+  createUserSession,
   registerUser,
+  revokeUserSession,
 } from "../services/auth.service.js";
 import { createAccessToken } from "../security/token.js";
 import { validateRegistration } from "../validators/registration.validator.js";
@@ -38,13 +40,29 @@ export async function login(
     return;
   }
 
-  const token = await createAccessToken(user._id.toString(), user.accountType);
+  const accessToken = await createAccessToken(
+    user._id.toString(),
+    user.accountType,
+  );
+  const sessionToken = await createUserSession(
+    user._id.toString(),
+    req.get("user-agent"),
+    req.ip,
+  );
 
-  res.cookie("access_token", token, {
+  res.cookie("access_token", accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 15 * 60 * 1000,
+    path: "/",
+  });
+
+  res.cookie("session_token", sessionToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
     path: "/",
   });
 
@@ -58,8 +76,21 @@ export async function login(
   });
 }
 
-export function logout(_req: Request, res: Response): void {
+export async function logout(req: Request, res: Response): Promise<void> {
+  const sessionToken = req.cookies?.session_token;
+
+  if (typeof sessionToken === "string") {
+    await revokeUserSession(sessionToken);
+  }
+
   res.clearCookie("access_token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  });
+
+  res.clearCookie("session_token", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

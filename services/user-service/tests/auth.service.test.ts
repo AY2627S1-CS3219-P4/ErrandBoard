@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
 import { before, test } from "node:test";
+import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword, verifyPassword } from "../src/security/password.js";
-import { authenticateUser, registerUser } from "../src/services/auth.service.js";
+import { hashSessionToken } from "../src/security/session-token.js";
+import {
+  authenticateUser,
+  createUserSession,
+  registerUser,
+  revokeUserSession,
+} from "../src/services/auth.service.js";
 
 const input = {
   email: "alice@example.com",
@@ -78,4 +85,50 @@ test("database failure during login is not reported as invalid credentials", asy
     select: async () => { throw failure; },
   }));
   await assert.rejects(authenticateUser(input.email, input.password), (error) => error === failure);
+});
+
+test("session creation stores a hashed token and expiry metadata", async (t) => {
+  let persisted: Record<string, unknown> | undefined;
+  t.mock.method(Session, "create", async (document: Record<string, unknown>) => {
+    persisted = document;
+    return undefined as never;
+  });
+
+  const beforeCreation = Date.now();
+  const token = await createUserSession("507f1f77bcf86cd799439011", "node-test", "127.0.0.1");
+  const afterCreation = Date.now();
+
+  assert.match(token, /^[a-f0-9]{64}$/);
+  assert.ok(persisted);
+  assert.equal(persisted.userId, "507f1f77bcf86cd799439011");
+  assert.equal(persisted.tokenHash, hashSessionToken(token));
+  assert.equal(persisted.userAgent, "node-test");
+  assert.equal(persisted.ipAddress, "127.0.0.1");
+  assert.ok(persisted.expiresAt instanceof Date);
+
+  const expiry = (persisted.expiresAt as Date).getTime();
+  const sevenDays = 7 * 24 * 60 * 60 * 1000;
+  assert.ok(expiry >= beforeCreation + sevenDays);
+  assert.ok(expiry <= afterCreation + sevenDays);
+});
+
+test("session revocation updates only active, unexpired matching sessions", async (t) => {
+  let filter: Record<string, unknown> | undefined;
+  let update: Record<string, unknown> | undefined;
+  t.mock.method(Session, "updateOne", async (query: Record<string, unknown>, changes: Record<string, unknown>) => {
+    filter = query;
+    update = changes;
+    return undefined as never;
+  });
+
+  const rawToken = "session-token-for-test";
+  await revokeUserSession(rawToken);
+
+  assert.ok(filter);
+  assert.equal(filter.tokenHash, hashSessionToken(rawToken));
+  assert.deepEqual(filter.revokedAt, { $exists: false });
+  assert.ok(filter.expiresAt instanceof Object);
+  assert.ok((filter.expiresAt as { $gt: Date }).$gt instanceof Date);
+  assert.ok(update);
+  assert.ok((update.$set as { revokedAt: Date }).revokedAt instanceof Date);
 });

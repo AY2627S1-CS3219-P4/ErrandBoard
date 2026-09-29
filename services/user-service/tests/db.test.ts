@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import mongoose from "mongoose";
 import { connectDb } from "../src/db.js";
+import { Session } from "../src/models/Session.js";
 
 const keys = ["MONGO_USER_SERVICE_PASSWORD", "MONGO_HOST", "MONGO_DB_NAME"] as const;
 let original: (string | undefined)[];
@@ -22,6 +23,7 @@ afterEach(() => {
 
 test("connection uses the configured database and service credentials", async (t) => {
   const connect = t.mock.method(mongoose, "connect", async () => mongoose);
+  t.mock.method(Session, "createIndexes", async () => []);
   await connectDb();
   assert.equal(connect.mock.callCount(), 1);
   const [uri, options] = connect.mock.calls[0]!.arguments;

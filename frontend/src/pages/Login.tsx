@@ -27,14 +27,53 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
 
+      const responseText = await response.text();
+      let responseBody: unknown = responseText;
+
+      try {
+        responseBody = responseText ? JSON.parse(responseText) : undefined;
+      } catch {
+        // Keep the raw response text for debugging non-JSON errors.
+      }
+
+      if (import.meta.env.DEV) {
+        console.debug("User Service login response", {
+          url: `${API_URL}/auth/login`,
+          status: response.status,
+          statusText: response.statusText,
+          body: responseBody,
+        });
+      }
+
       if (!response.ok) {
-        setError("Invalid email or password.");
+        const serverMessage =
+          typeof responseBody === "object" && responseBody !== null &&
+          "error" in responseBody && typeof responseBody.error === "string"
+            ? responseBody.error
+            : undefined;
+
+        setError(
+          import.meta.env.DEV && serverMessage
+            ? `${serverMessage} (HTTP ${response.status})`
+            : "Invalid email or password.",
+        );
         return;
       }
 
       navigate("/home");
-    } catch {
-      setError("Unable to reach the User Service.");
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error("Unable to reach the User Service", {
+          url: `${API_URL}/auth/login`,
+          error,
+        });
+      }
+
+      setError(
+        import.meta.env.DEV && error instanceof Error
+          ? `Unable to reach the User Service: ${error.message}`
+          : "Unable to reach the User Service.",
+      );
     } finally {
       setIsSubmitting(false);
     }
