@@ -44,9 +44,10 @@ export async function list(req: Request, res: Response): Promise<void> {
     const search = typeof req.query.search === "string" ? req.query.search : undefined;
     const category = toArray(req.query.category) as SupplierCategory[] | undefined;
     const building = toArray(req.query.building);
+    const address = toArray(req.query.address);
     const showInactive = req.query.showInactive == "true"; //this needs an auth check?
 
-    const suppliers = await listSuppliers({ search, category, building, showInactive });
+    const suppliers = await listSuppliers({ search, category, building, address, showInactive });
 
     res.json({ suppliers });
 }
