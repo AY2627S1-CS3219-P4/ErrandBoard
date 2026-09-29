@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
 import { login, logout } from "../src/controllers/auth.controller.js";
+import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
 import { verifyAccessToken } from "../src/security/token.js";
@@ -38,6 +39,20 @@ function setEnv(t: TestContext, key: string, value: string | undefined) {
   });
 }
 
+function requestDouble(
+  body: Record<string, unknown>,
+  cookies: Record<string, string> = {},
+): Request {
+  return {
+    body,
+    cookies,
+    get(header: string) {
+      return header.toLowerCase() === "user-agent" ? "node-test" : undefined;
+    },
+    ip: "127.0.0.1",
+  } as unknown as Request;
+}
+
 const password = "Controller test password!";
 let user: InstanceType<typeof User>;
 before(async () => {
@@ -52,8 +67,10 @@ for (const mode of ["production", "development"]) {
     setEnv(t, "NODE_ENV", mode);
     setEnv(t, "JWT_SECRET", "controller-test-key-not-for-deployment-123456789");
     t.mock.method(User, "findOne", () => ({ select: async () => user }));
+    t.mock.method(Session, "create", async () => undefined as never);
+    t.mock.method(Session, "updateOne", async () => undefined as never);
     const { state, response } = responseDouble();
-    const request = { body: { email: user.email, password } } as Request;
+    const request = requestDouble({ email: user.email, password });
 
     await login(request, response);
     assert.equal(state.status, 200);
@@ -61,21 +78,32 @@ for (const mode of ["production", "development"]) {
       id: user._id.toString(), email: user.email,
       username: user.username, accountType: "USER",
     } });
-    assert.equal(state.cookies.length, 1);
-    const cookie = state.cookies[0]!;
-    assert.equal(cookie.name, "access_token");
-    assert.deepEqual(await verifyAccessToken(cookie.value), {
+    assert.equal(state.cookies.length, 2);
+    const accessCookie = state.cookies.find((cookie) => cookie.name === "access_token");
+    const sessionCookie = state.cookies.find((cookie) => cookie.name === "session_token");
+    assert.ok(accessCookie);
+    assert.ok(sessionCookie);
+    assert.deepEqual(await verifyAccessToken(accessCookie.value), {
       userId: user._id.toString(), role: "USER",
     });
-    assert.deepEqual(cookie.options, {
+    assert.deepEqual(accessCookie.options, {
       httpOnly: true, secure: mode === "production", sameSite: "lax",
       maxAge: 900_000, path: "/",
     });
+    assert.deepEqual(sessionCookie.options, {
+      httpOnly: true, secure: mode === "production", sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, path: "/",
+    });
 
-    logout(request, response);
+    await logout(requestDouble(
+      { email: user.email, password },
+      { session_token: sessionCookie.value },
+    ), response);
     assert.equal(state.status, 204);
-    const { maxAge: _maxAge, ...matchingOptions } = cookie.options;
-    assert.deepEqual(state.cleared, [{ name: cookie.name, options: matchingOptions }]);
+    assert.deepEqual(
+      state.cleared.map(({ name }) => name).sort(),
+      ["access_token", "session_token"].sort(),
+    );
   });
 }
 
@@ -86,13 +114,15 @@ test("admin login issues a token carrying the ADMIN role", async (t) => {
     passwordHash: user.passwordHash, accountType: "ADMIN",
   });
   t.mock.method(User, "findOne", () => ({ select: async () => admin }));
+  t.mock.method(Session, "create", async () => undefined as never);
   const { state, response } = responseDouble();
 
-  await login({ body: { email: admin.email, password } } as Request, response);
+  await login(requestDouble({ email: admin.email, password }), response);
   assert.equal(state.status, 200);
   assert.equal((state.body as { user: { accountType: string } }).user.accountType, "ADMIN");
-  const token = state.cookies[0]!.value;
-  assert.deepEqual(await verifyAccessToken(token), {
+  const accessCookie = state.cookies.find((cookie) => cookie.name === "access_token");
+  assert.ok(accessCookie);
+  assert.deepEqual(await verifyAccessToken(accessCookie.value), {
     userId: admin._id.toString(), role: "ADMIN",
   });
 });
@@ -103,7 +133,7 @@ test("failed login returns a generic 401 and never issues a cookie", async (t) =
   for (const account of [null, user]) {
     found = account;
     const { state, response } = responseDouble();
-    await login({ body: { email: user.email, password: "wrong" } } as Request, response);
+    await login(requestDouble({ email: user.email, password: "wrong" }), response);
     assert.equal(state.status, 401);
     assert.deepEqual(state.body, { error: "Invalid email or password" });
     assert.equal(state.cookies.length, 0);
@@ -115,7 +145,7 @@ test("missing signing configuration rejects login before issuing a cookie or suc
   t.mock.method(User, "findOne", () => ({ select: async () => user }));
   const { state, response } = responseDouble();
   await assert.rejects(
-    login({ body: { email: user.email, password } } as Request, response),
+    login(requestDouble({ email: user.email, password }), response),
     /JWT_SECRET is required/,
   );
   assert.equal(state.cookies.length, 0);
