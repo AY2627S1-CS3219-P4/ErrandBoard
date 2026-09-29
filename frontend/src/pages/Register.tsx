@@ -61,6 +61,7 @@ export default function Register() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const emailIsValid = validateEmail(email);
@@ -72,6 +73,7 @@ export default function Register() {
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setServerFieldErrors({});
 
     if (!emailIsValid || !usernameIsValid || !passwordCheck.valid) {
       setError("Please correct the highlighted registration fields.");
@@ -91,7 +93,15 @@ export default function Register() {
       });
 
       if (!response.ok) {
-        setError("Unable to register with those details.");
+        const body = await response.json().catch(() => null) as {
+          error?: string;
+          fields?: Record<string, unknown>;
+        } | null;
+        const messages = Object.fromEntries(
+          Object.entries(body?.fields ?? {}).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+        );
+        setServerFieldErrors(messages);
+        setError(Object.keys(messages).length ? "Please review the registration details below." : (body?.error ?? "Unable to register with those details."));
         return;
       }
 
@@ -116,6 +126,7 @@ export default function Register() {
                 Enter an email in the required NUS format.
               </span>
             )}
+            {serverFieldErrors.email && <span className="auth-tip" role="alert">{serverFieldErrors.email}</span>}
           </div>
           <input
             id="register-email"
@@ -136,6 +147,7 @@ export default function Register() {
                 Use 3–30 characters: letters, numbers, underscores.
               </span>
             )}
+            {serverFieldErrors.username && <span className="auth-tip" role="alert">{serverFieldErrors.username}</span>}
           </div>
           <input
             id="register-username"
@@ -147,6 +159,8 @@ export default function Register() {
             required
           />
         </div>
+
+        {serverFieldErrors.registration && <p className="auth-tip auth-form-error" role="alert">{serverFieldErrors.registration}</p>}
 
         <div className="auth-field">
           <div className="auth-field-heading">
