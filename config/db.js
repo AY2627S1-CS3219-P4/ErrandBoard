@@ -59,3 +59,9 @@ db.createUser({
 // Order Service
 
 // Credit Service
+
+/* Collection creation */
+
+// Supplier Service
+db.createCollection("suppliers")
+db.suppliers.createIndex( { name: 1, building: 1}, { unique: true })
