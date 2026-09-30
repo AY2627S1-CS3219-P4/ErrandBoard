@@ -1,0 +1,8 @@
+email,username,passwordHash,accountType
+e1234567@u.nus.edu,alex_tan,$2b$12$AMqFcc0aOy9C/kduyX6w4OwmhA3IMUlo8rUPd/EnBjgvVe6FqLW..,USER
+e2345678@u.nus.edu,beatrice_lim,$2b$12$Ru.CC2kVufVVONbnlJ3hxeVxjweg8eyfwFTArAGRCbccQT4M9McfO,USER
+e3456789@u.nus.edu,charlie_ng,$2b$12$sCjFTtszvauNtsLWHtCC.OoDJiEZRBMfS2UdjWMvBCBy/xk9execm,USER
+e4567890@u.nus.edu,farah_lee,$2b$12$buNKO6Sta7Os1lKg8u.k3eok9dEOFnijkOg7DwCzvS6jb0tjwFD6m,USER
+e5678901@u.nus.edu,george_koh,$2b$12$25zN.y04fJ55Y.qqKIVNUufUM7wp0tU0M/XVTxdZoZpg3PrFn6FFq,USER
+e6789012@u.nus.edu,diana_ong,$2b$12$sP2HoZRpVI9JBq9wuOq3Xuy.BYwDAiaXBHx1xnPcZXWWHyr5mudVi,ADMIN
+e7890123@u.nus.edu,admin_ops,$2b$12$oeik7QviXG5aq6ZNnaRkSObaksCj/g0NAnzmxngF1VuFeBuq00S4e,ADMIN
