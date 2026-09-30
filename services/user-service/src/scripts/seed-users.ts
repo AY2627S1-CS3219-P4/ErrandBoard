@@ -26,7 +26,7 @@ function toUser(row: SeedRow, line: number) {
     throw new Error(`Line ${line} (${row.email}): invalid bcrypt password hash`);
   }
 
-  if (row.accountType !== "USER" && row.accountType !== "ADMIN") {
+  if (!(["USER", "ADMIN", "SUPERADMIN"] as AccountType[]).includes(row.accountType)) {
     throw new Error(`Line ${line} (${row.email}): invalid account type`);
   }
 

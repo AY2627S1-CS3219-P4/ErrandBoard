@@ -1,6 +1,6 @@
 import { model, Schema } from "mongoose";
 
-export const ACCOUNT_TYPES = ["USER", "ADMIN"] as const;
+export const ACCOUNT_TYPES = ["USER", "ADMIN", "SUPERADMIN"] as const;
 export type AccountType = (typeof ACCOUNT_TYPES)[number];
 
 export interface UserDocument {
@@ -38,7 +38,7 @@ const userSchema = new Schema<UserDocument>(
     },
     accountType: {
       type: String,
-      enum: ["USER", "ADMIN"],
+      enum: ACCOUNT_TYPES,
       default: "USER",
       required: true,
     },
