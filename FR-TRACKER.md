@@ -86,7 +86,7 @@
 |  |  | [ ] F7.2.2 | <details><summary>The search should be case-insensitive and match on partial substrings.</summary><br>The search should be case-insensitive and match on partial substrings.<br><br>Priority: High - Sprint: 7 - Issue: -</details> |
 |  |  | [ ] F7.2.3 | <details><summary>The search results should update dynamically as the user types, not requiring a manual search action.</summary><br>The search results should update dynamically as the user types, not requiring a manual search action.<br><br>Priority: Medium - Sprint: 10 - Issue: -</details> |
 |  |  | [ ] F7.2.4 | <details><summary>The search should be combinable with existing filters (if any).</summary><br>The search should be combinable with existing filters (if any).<br><br>Priority: Medium - Sprint: 10 - Issue: -</details> |
-|  | [ ] F7.3 |  | <details><summary>Users should be able to filter suppliers by category and building (campus location).</summary><br>Users should be able to filter suppliers by category and building (campus location).<br><br>Priority: High - Sprint: 7 - Issue: -</details> |
+|  | [x] F7.3 |  | <details><summary>Users should be able to filter suppliers by category and building (campus location).</summary><br>Users should be able to filter suppliers by category and building (campus location).<br><br>Priority: High - Sprint: 7 - Issue: [Issue #3](https://github.com/AY2627S1-CS3219-P4/ErrandBoard/issues/3)</details> |
 |  |  | [ ] F7.3.1 | <details><summary>Filtering should support the selection of multiple options.</summary><br>Filtering should support the selection of multiple options.<br><br>Priority: High - Sprint: 7 - Issue: -</details> |
 
 ## Order Service
