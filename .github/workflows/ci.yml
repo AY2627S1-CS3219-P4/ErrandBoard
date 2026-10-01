@@ -68,11 +68,11 @@ jobs:
       fail-fast: false
       matrix:
         node: [22, 24]
-      defaults:
-        run:
-          working-directory: services/supplier-service
-      
-      steps:
+    defaults:
+      run:
+        working-directory: services/supplier-service
+    
+    steps:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
