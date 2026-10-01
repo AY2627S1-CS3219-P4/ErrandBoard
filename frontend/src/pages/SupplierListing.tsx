@@ -1,31 +1,68 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { IoFilterOutline } from "react-icons/io5";
+import FilterModal from "../components/FilterModal";
+import SupplierCard from "../components/SupplierCard";
+import type { Supplier, SupplierFilters } from "../types/supplier";
+import "./SupplierListing.css";
 
 const SUPPLIER_API_URL =
   import.meta.env.VITE_SUPPLIER_API_BASE_URL ?? "http://localhost:3002";
 
-interface Supplier {
-  _id: string;
-  name: string;
-  category: string;
-  building: string;
-  description?: string;
-}
 
 export default function SupplierListing() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<SupplierFilters>({ categories: [], buildings: [] });
+  const [buildings, setBuildings] = useState<string[]>([]);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const filterButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
+
+    fetch(`${SUPPLIER_API_URL}/suppliers`, {
+      credentials: "include",
+      signal: controller.signal,
+    })
+      .then((response) => (response.ok ? response.json() : { suppliers: [] }))
+      .then((data: { suppliers: Supplier[] }) => {
+        const unique = new Set(data.suppliers.map((supplier) => supplier.building));
+        setBuildings([...unique].sort((a, b) => a.localeCompare(b)));
+      })
+      .catch(() => {
+
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  // Wait for the user to pause typing before querying the Supplier Service
+  useEffect(() => {
+    const timeout = setTimeout(() => setSearch(searchInput.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  useEffect(() => {
+    // Aborting cancels stale requests so older results do not overwrite new ones
+    const controller = new AbortController();
 
     async function loadSuppliers() {
       setIsLoading(true);
       setError("");
 
       try {
-        const response = await fetch(`${SUPPLIER_API_URL}/suppliers`, {
+        const params = new URLSearchParams();
+        if (search) params.set("search", search);
+        filters.categories.forEach((category) => params.append("category", category));
+        filters.buildings.forEach((building) => params.append("building", building));
+        const query = params.size > 0 ? `?${params}` : "";
+
+        const response = await fetch(`${SUPPLIER_API_URL}/suppliers${query}`, {
           credentials: "include",
+          signal: controller.signal,
         });
 
         if (!response.ok) {
@@ -33,16 +70,13 @@ export default function SupplierListing() {
         }
 
         const data: { suppliers: Supplier[] } = await response.json();
-
-        if (!cancelled) {
-          setSuppliers(data.suppliers);
-        }
+        setSuppliers(data.suppliers);
       } catch {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setError("Unable to reach the Supplier Service.");
         }
       } finally {
-        if (!cancelled) {
+        if (!controller.signal.aborted) {
           setIsLoading(false);
         }
       }
@@ -51,15 +85,64 @@ export default function SupplierListing() {
     loadSuppliers();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, []);
+  }, [search, filters]);
+
+  const hasLoaded = !isLoading || suppliers.length > 0;
+  const activeFilterCount = filters.categories.length + filters.buildings.length;
+
+  function closeFilter() {
+    setIsFilterOpen(false);
+    filterButtonRef.current?.focus();
+  }
 
   return (
-    <main>
+    <main className="supplier-page">
       <h1>Suppliers</h1>
 
-      {isLoading && <p>Loading suppliers...</p>}
+      <div className="supplier-search">
+        <label htmlFor="supplier-search" className="visually-hidden">
+          Search suppliers by name
+        </label>
+        <input
+          id="supplier-search"
+          type="search"
+          placeholder="Search suppliers"
+          autoComplete="off"
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+        />
+        <button
+          ref={filterButtonRef}
+          type="button"
+          className="supplier-filter-button"
+          aria-label="Filter suppliers"
+          aria-haspopup="dialog"
+          aria-expanded={isFilterOpen}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => (isFilterOpen ? closeFilter() : setIsFilterOpen(true))}
+        >
+          <IoFilterOutline aria-hidden="true" />
+          {activeFilterCount > 0 && (
+            <span className="supplier-filter-count">{activeFilterCount}</span>
+          )}
+        </button>
+
+        {isFilterOpen && (
+          <FilterModal
+            buildings={buildings}
+            initialFilters={filters}
+            onApply={(nextFilters) => {
+              setFilters(nextFilters);
+              closeFilter();
+            }}
+            onClose={closeFilter}
+          />
+        )}
+      </div>
+
+      {!hasLoaded && <p>Loading suppliers...</p>}
 
       {error && <p role="alert">{error}</p>}
 
@@ -67,13 +150,9 @@ export default function SupplierListing() {
         <p>No suppliers found.</p>
       )}
 
-      <ul>
+      <ul className="supplier-list">
         {suppliers.map((supplier) => (
-          <li key={supplier._id}>
-            <strong>{supplier.name}</strong> — {supplier.category} (
-            {supplier.building})
-            {supplier.description && <p>{supplier.description}</p>}
-          </li>
+          <SupplierCard key={supplier._id} supplier={supplier} />
         ))}
       </ul>
     </main>
