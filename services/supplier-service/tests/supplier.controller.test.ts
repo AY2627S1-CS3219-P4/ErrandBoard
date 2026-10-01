@@ -78,7 +78,7 @@ test("getById responds 404 when the supplier doesn't exist", async (t) => {
 });
 
 test("getById responds 200 with the supplier when found", async (t) => {
-  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3" };
+  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3", isActive: true };
   t.mock.method(Supplier, "findById", async () => fakeDoc);
 
   const req = { params: { id: "1" } } as unknown as Request;
@@ -90,7 +90,68 @@ test("getById responds 200 with the supplier when found", async (t) => {
   assert.deepEqual(res.body, { supplier: fakeDoc });
 });
 
-test("list responds 200 without requiring req.auth (F7 is public)", async (t) => {
+test("getSupplierById throws SupplierNotFoundError if user is not an admin", async (t) => {
+  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3", isActive: false };
+  t.mock.method(Supplier, "findById", async () => fakeDoc);
+
+  const req = {
+    params: { id: "1" },
+    user: { userId: "user-1", role: "USER" },
+  } as unknown as Request;
+  const res = mockResponse();
+
+  await getById(req, res as unknown as Response);
+
+  // The controller translates SupplierNotFoundError into a 404
+  assert.equal(res.statusCode, 404);
+  assert.deepEqual(res.body, { error: "Supplier not found" });
+});
+
+test("getById responds 404 for an inactive supplier when the caller is anonymous", async (t) => {
+  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3", isActive: false };
+  t.mock.method(Supplier, "findById", async () => fakeDoc);
+
+  const req = { params: { id: "1" } } as unknown as Request;
+  const res = mockResponse();
+
+  await getById(req, res as unknown as Response);
+
+  assert.equal(res.statusCode, 404);
+});
+
+test("getById responds 200 with an inactive supplier when the caller is an admin", async (t) => {
+  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3", isActive: false };
+  t.mock.method(Supplier, "findById", async () => fakeDoc);
+
+  const req = {
+    params: { id: "1" },
+    user: { userId: "admin-1", role: "ADMIN" },
+  } as unknown as Request;
+  const res = mockResponse();
+
+  await getById(req, res as unknown as Response);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { supplier: fakeDoc });
+});
+
+test("getById responds 200 with an inactive supplier when the caller is a superadmin", async (t) => {
+  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3", isActive: false };
+  t.mock.method(Supplier, "findById", async () => fakeDoc);
+
+  const req = {
+    params: { id: "1" },
+    user: { userId: "superadmin-1", role: "SUPERADMIN" },
+  } as unknown as Request;
+  const res = mockResponse();
+
+  await getById(req, res as unknown as Response);
+
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { supplier: fakeDoc });
+});
+
+test("list responds 200 without requiring req.user (F7 is public)", async (t) => {
   t.mock.method(Supplier, "find", () => ({ sort: () => [{ _id: "1" }] }));
 
   const req = { query: {} } as unknown as Request;
@@ -102,7 +163,7 @@ test("list responds 200 without requiring req.auth (F7 is public)", async (t) =>
   assert.deepEqual(res.body, { suppliers: [{ _id: "1" }] });
 });
 
-test("list ignores includeInactive when the caller isn't an admin", async (t) => {
+test("list ignores showInactive when the caller isn't an admin", async (t) => {
   let capturedQuery: Record<string, unknown> = {};
   t.mock.method(Supplier, "find", (query: Record<string, unknown>) => {
     capturedQuery = query;
@@ -110,14 +171,65 @@ test("list ignores includeInactive when the caller isn't an admin", async (t) =>
   });
 
   const req = {
-    query: { includeInactive: "true" },
-    auth: { sub: "user-1", accountType: "USER" },
+    query: { showInactive: "true" },
+    user: { userId: "user-1", role: "USER" },
   } as unknown as Request;
   const res = mockResponse();
 
   await list(req, res as unknown as Response);
 
   // A non-admin asking for showInactive should still only see active suppliers
+  assert.equal(capturedQuery.isActive, true);
+});
+
+test("list ignores showInactive when the caller is anonymous", async (t) => {
+  let capturedQuery: Record<string, unknown> = {};
+  t.mock.method(Supplier, "find", (query: Record<string, unknown>) => {
+    capturedQuery = query;
+    return { sort: () => [] };
+  });
+
+  const req = { query: { showInactive: "true" } } as unknown as Request;
+  const res = mockResponse();
+
+  await list(req, res as unknown as Response);
+
+  assert.equal(capturedQuery.isActive, true);
+});
+
+test("list includes inactive suppliers when an admin passes showInactive", async (t) => {
+  let capturedQuery: Record<string, unknown> = {};
+  t.mock.method(Supplier, "find", (query: Record<string, unknown>) => {
+    capturedQuery = query;
+    return { sort: () => [] };
+  });
+
+  const req = {
+    query: { showInactive: "true" },
+    user: { userId: "admin-1", role: "ADMIN" },
+  } as unknown as Request;
+  const res = mockResponse();
+
+  await list(req, res as unknown as Response);
+
+  assert.equal("isActive" in capturedQuery, false);
+});
+
+test("list still filters to active suppliers for an admin who doesn't pass showInactive", async (t) => {
+  let capturedQuery: Record<string, unknown> = {};
+  t.mock.method(Supplier, "find", (query: Record<string, unknown>) => {
+    capturedQuery = query;
+    return { sort: () => [] };
+  });
+
+  const req = {
+    query: {},
+    user: { userId: "admin-1", role: "ADMIN" },
+  } as unknown as Request;
+  const res = mockResponse();
+
+  await list(req, res as unknown as Response);
+
   assert.equal(capturedQuery.isActive, true);
 });
 
