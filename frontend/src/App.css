@@ -17,6 +17,233 @@
   }
 }
 
+.admin-dashboard-link {
+  display: inline-block;
+  margin-top: 24px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  color: white;
+  background: var(--accent);
+  text-decoration: none;
+}
+
+.admin-dashboard-link:hover {
+  opacity: 0.88;
+}
+
+.admin-dashboard {
+  width: min(100% - 48px, 1040px);
+  margin: 0 auto;
+  padding: 48px 0 72px;
+  text-align: left;
+}
+
+.admin-page-heading,
+.section-heading,
+.account-admin-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.admin-page-heading h1 {
+  margin: 8px 0 12px;
+}
+
+.admin-page-heading p:not(.eyebrow),
+.section-heading p:not(.eyebrow) {
+  color: var(--text);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+
+.role-badge {
+  padding: 7px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+.admin-stat-grid,
+.admin-tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.admin-stat-card,
+.admin-tool-card,
+.account-admin-panel {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.admin-stat-card {
+  display: flex;
+  min-height: 120px;
+  padding: 20px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-stat-card span,
+.admin-stat-card small,
+.admin-tool-card span,
+.admin-tool-card small {
+  color: var(--text);
+}
+
+.admin-stat-card strong {
+  margin-top: auto;
+  color: var(--text-h);
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.admin-tools-section {
+  margin-top: 56px;
+}
+
+.section-heading h2 {
+  margin-top: 6px;
+}
+
+.admin-tool-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-tool-card {
+  display: flex;
+  min-height: 120px;
+  padding: 20px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text-h);
+  font: inherit;
+  text-align: left;
+}
+
+button.admin-tool-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.admin-tool-link {
+  text-decoration: none;
+}
+
+.admin-tool-link:hover {
+  border-color: var(--accent-border);
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: var(--accent);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.account-admin-panel {
+  margin-top: 40px;
+  padding: 24px;
+}
+
+.account-admin-heading h2 {
+  margin: 0 0 6px;
+}
+
+.primary-admin-button,
+.account-filter {
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font: inherit;
+}
+
+.primary-admin-button {
+  color: white;
+  background: var(--accent);
+}
+
+.primary-admin-button:disabled,
+.account-filter:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.account-filters {
+  display: flex;
+  gap: 8px;
+  margin-top: 28px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.account-filter {
+  color: var(--text);
+  background: transparent;
+}
+
+.account-filter.active {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.account-empty-state {
+  padding: 64px 24px 48px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  margin-bottom: 12px;
+  color: var(--accent);
+  font-size: 36px;
+}
+
+.account-empty-state h3 {
+  margin: 0 0 8px;
+  color: var(--text-h);
+}
+
+.account-empty-state p {
+  max-width: 520px;
+  margin: 0 auto;
+  color: var(--text);
+}
+
+@media (max-width: 760px) {
+  .admin-dashboard {
+    width: min(100% - 32px, 1040px);
+    padding-top: 32px;
+  }
+
+  .admin-page-heading,
+  .account-admin-heading {
+    flex-direction: column;
+  }
+
+  .admin-stat-grid,
+  .admin-tool-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .hero {
   position: relative;
 
