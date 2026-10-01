@@ -27,8 +27,8 @@ export async function registerUser(input: {
   };
 }
 
-export async function authenticateUser(email: string, password: string) {
-  const user = await User.findOne({ email }).select("+passwordHash");
+export async function authenticateUser(username: string, password: string) {
+  const user = await User.findOne({ username }).select("+passwordHash");
 
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return null;
@@ -66,7 +66,7 @@ export async function revokeUserSession(rawToken: string): Promise<void> {
   );
 }
 
-export async function getUserForActiveSession(rawToken: string) {
+async function findSessionUser(rawToken: string, includePassword = false) {
   const session = await Session.findOne({
     tokenHash: hashSessionToken(rawToken),
     revokedAt: { $exists: false },
@@ -74,7 +74,14 @@ export async function getUserForActiveSession(rawToken: string) {
   });
 
   if (!session) return null;
-  const user = await User.findById(session.userId);
+  const query = User.findById(session.userId);
+  const user = await (includePassword ? query.select("+passwordHash") : query);
+  if (!user) return null;
+  return user;
+}
+
+export async function getUserForActiveSession(rawToken: string) {
+  const user = await findSessionUser(rawToken);
   if (!user) return null;
 
   return {
@@ -82,5 +89,39 @@ export async function getUserForActiveSession(rawToken: string) {
     email: user.email,
     username: user.username,
     accountType: user.accountType,
+  };
+}
+
+export class AccountUpdateError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
+export async function updateOwnAccount(
+  rawToken: string,
+  currentPassword: string | undefined,
+  change: { username: string } | { newPassword: string },
+) {
+  const user = await findSessionUser(rawToken, true);
+  if (!user) throw new AccountUpdateError(401, "Your session has expired. Please log in again.");
+  if (currentPassword !== undefined && !(await verifyPassword(currentPassword, user.passwordHash))) {
+    throw new AccountUpdateError(403, "Current password is incorrect.");
+  }
+  if ("newPassword" in change && await verifyPassword(change.newPassword, user.passwordHash)) {
+    throw new AccountUpdateError(400, "Choose a different password from your current password.");
+  }
+
+  // Compare-and-set prevents an old password from authorizing a concurrent update.
+  // The target ID ALWAYS comes from the authenticated session, never the request body.
+  const updated = await User.findOneAndUpdate(
+    { _id: user._id, passwordHash: user.passwordHash },
+    "username" in change
+      ? { $set: { username: change.username } }
+      : { $set: { passwordHash: await hashPassword(change.newPassword) } },
+    { returnDocument: "after", runValidators: true },
+  );
+  if (!updated) throw new AccountUpdateError(409, "Your account changed. Please log in again and retry.");
+  return {
+    id: updated._id.toString(), email: updated.email,
+    username: updated.username, accountType: updated.accountType,
   };
 }

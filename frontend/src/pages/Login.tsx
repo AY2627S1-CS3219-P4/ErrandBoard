@@ -10,7 +10,7 @@ export default function Login() {
   const location = useLocation();
   const { refreshAuth } = useAuth();
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(
     typeof location.state?.message === "string" ? location.state.message : "",
@@ -29,7 +29,7 @@ export default function Login() {
           "Content-Type": "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ username, password }),
       });
 
       const responseText = await response.text();
@@ -60,7 +60,7 @@ export default function Login() {
         setError(
           import.meta.env.DEV && serverMessage
             ? `${serverMessage} (HTTP ${response.status})`
-            : "Invalid email or password.",
+            : "Invalid username or password.",
         );
         return;
       }
@@ -96,14 +96,15 @@ export default function Login() {
       <form className="auth-card" onSubmit={handleSubmit}>
         <div className="auth-field">
           <div className="auth-field-heading">
-            <label htmlFor="login-email">Email</label>
+            <label htmlFor="login-username">Username</label>
           </div>
           <input
-            id="login-email"
-            type="email"
-            placeholder="e.g. e1234567@u.nus.edu"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
+            id="login-username"
+            type="text"
+            autoComplete="username"
+            placeholder="Enter your username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
             required
           />
         </div>

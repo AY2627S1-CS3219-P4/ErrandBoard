@@ -32,7 +32,7 @@ export type RegistrationValidation =
       errors: Partial<Record<RegistrationField | "body", string>>;
     };
 
-function validatePassword(value: string): string | undefined {
+export function validatePassword(value: string): string | undefined {
   if (value.length > MAX_PASSWORD_BYTES) {
     return `Password must not exceed ${MAX_PASSWORD_BYTES} UTF-8 bytes.`;
   }
@@ -51,6 +51,16 @@ function validatePassword(value: string): string | undefined {
   if (passwordEstimator.check(value).score < MIN_ACCEPTABLE_PASSWORD_SCORE) {
     return "Password must be rated strong or better.";
   }
+}
+
+export function validUsername(value: unknown): value is string {
+  return typeof value === "string" && USER_REGEX.test(value);
+}
+
+// Current credentials need type/size checks, not the new-password strength policy.
+export function validCredential(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 &&
+    value.length <= MAX_PASSWORD_BYTES && Buffer.byteLength(value, "utf8") <= MAX_PASSWORD_BYTES;
 }
 
 export function validateRegistration(input: unknown): RegistrationValidation {

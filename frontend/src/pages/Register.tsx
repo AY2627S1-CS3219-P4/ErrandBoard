@@ -60,6 +60,7 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,14 +69,14 @@ export default function Register() {
   const usernameIsValid = validateUsername(username);
   const passwordCheck = useMemo(() => checkPassword(password), [password]);
   const isSubmitDisabled =
-    !emailIsValid || !usernameIsValid || !passwordCheck.valid || isSubmitting;
+    !emailIsValid || !usernameIsValid || !passwordCheck.valid || password !== confirmPassword || isSubmitting;
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setServerFieldErrors({});
 
-    if (!emailIsValid || !usernameIsValid || !passwordCheck.valid) {
+    if (!emailIsValid || !usernameIsValid || !passwordCheck.valid || password !== confirmPassword) {
       setError("Please correct the highlighted registration fields.");
       return;
     }
@@ -202,6 +203,19 @@ export default function Register() {
             aria-invalid={password.length > 0 && !passwordCheck.valid}
             required
           />
+        </div>
+
+        <div className="auth-field">
+          <div className="auth-field-heading">
+            <label htmlFor="register-confirm-password">Confirm password</label>
+            {confirmPassword.length > 0 && password !== confirmPassword && (
+              <span className="auth-tip" role="status">Passwords do not match.</span>
+            )}
+          </div>
+          <input id="register-confirm-password" type="password" autoComplete="new-password"
+            placeholder="Re-enter your password" value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            aria-invalid={confirmPassword.length > 0 && password !== confirmPassword} required />
         </div>
 
         {error && <p className="auth-tip auth-form-error" role="alert">{error}</p>}
