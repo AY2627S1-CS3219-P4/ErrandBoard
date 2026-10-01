@@ -33,7 +33,9 @@ function toSupplier(row: SeedRow, line: number) {
 
     let openingHours;
     try {
-        openingHours = JSON.parse(row.openingHours);
+        if(row.openingHours?.trim()) {
+            openingHours = JSON.parse(row.openingHours);
+        }
     } catch {
         throw new Error(`Line ${line} (${row.Name}): openingHours is not valid JSON`);
     }

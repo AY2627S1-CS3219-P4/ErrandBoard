@@ -13,7 +13,8 @@ export interface CreateSupplierInput {
     name: string;
     category: SupplierCategory;
     building: string;
-    address: string,
+    address: string;
+    locationDescription?: string;
     coordinates?: SupplierCoords;
     openingHours?: OpeningHours;
     imageUrl?: string;
@@ -27,6 +28,7 @@ export interface UpdateSupplierInput {
     building?: string;
     address?: string;
     isActive?: boolean;
+    locationDescription?: string;
     coordinates?: SupplierCoords;
     openingHours?: OpeningHours;
     imageUrl?: string;
@@ -90,7 +92,7 @@ export async function listSuppliers(input: ListSuppliersInput) {
     }
 
     if (input.address?.length) {
-        query.building = { $in: input.address };
+        query.address = { $in: input.address };
     }
     
     //return sorted ascending
@@ -98,11 +100,15 @@ export async function listSuppliers(input: ListSuppliersInput) {
 }
 
 export async function getSupplierById(
-    id: string
+    id: string,
+    isAdmin: boolean = false
 ): Promise<SupplierDocument> {
     const supplier = await Supplier.findById(id);
 
-    if (!supplier) throw new SupplierNotFoundError(`Supplier ${id} not found`);
+    //inactive suppliers are treated as not found if user is not an admin
+    if (!supplier || (!isAdmin && supplier.isActive === false)) {
+        throw new SupplierNotFoundError(`Supplier ${id} not found`);
+    }
     return supplier;
 }
 

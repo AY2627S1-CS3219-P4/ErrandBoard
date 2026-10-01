@@ -79,7 +79,7 @@ test("listSuppliers filters to active suppliers by default", async (t) => {
   assert.deepEqual(capturedQuery, { isActive: true });
 });
 
-test("listSuppliers omits the isActive filter when includeInactive is true (F6.2.2)", async (t) => {
+test("listSuppliers omits the isActive filter when showInactive is true (F6.2.2)", async (t) => {
   let capturedQuery: Record<string, unknown> = {};
   t.mock.method(Supplier, "find", (query: Record<string, unknown>) => {
     capturedQuery = query;
@@ -146,10 +146,26 @@ test("getSupplierById throws SupplierNotFoundError when nothing matches", async 
 });
 
 test("getSupplierById returns the document when found", async (t) => {
-  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3" };
+  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3", isActive: true };
   t.mock.method(Supplier, "findById", async () => fakeDoc);
 
   const result = await getSupplierById("1");
+  assert.equal(result, fakeDoc);
+});
+
+test("getSupplierById throws SupplierNotFoundError for an inactive supplier when not an admin", async (t) => {
+  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3", isActive: false };
+  t.mock.method(Supplier, "findById", async () => fakeDoc);
+
+  await assert.rejects(() => getSupplierById("1"), SupplierNotFoundError);
+  await assert.rejects(() => getSupplierById("1", false), SupplierNotFoundError);
+});
+
+test("getSupplierById returns an inactive supplier when the caller is an admin", async (t) => {
+  const fakeDoc = { _id: "1", name: "CoffeeBean@Com3", isActive: false };
+  t.mock.method(Supplier, "findById", async () => fakeDoc);
+
+  const result = await getSupplierById("1", true);
   assert.equal(result, fakeDoc);
 });
 
