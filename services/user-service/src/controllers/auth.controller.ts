@@ -5,9 +5,11 @@ import {
   getUserForActiveSession,
   registerUser,
   revokeUserSession,
+  updateOwnAccount,
+  AccountUpdateError,
 } from "../services/auth.service.js";
 import { createAccessToken } from "../security/token.js";
-import { validateRegistration } from "../validators/registration.validator.js";
+import { validateRegistration, validatePassword, validUsername, validCredential } from "../validators/registration.validator.js";
 
 function duplicateRegistrationFields(error: unknown): Record<string, string> | null {
   if (
@@ -65,13 +67,14 @@ export async function login(
   req: Request,
   res: Response,
 ): Promise<void> {
-  const user = await authenticateUser(
-    req.body.email,
-    req.body.password,
-  );
+  if (!validUsername(req.body?.username) || !validCredential(req.body?.password)) {
+    res.status(400).json({ error: "Enter a valid username and password." });
+    return;
+  }
+  const user = await authenticateUser(req.body.username, req.body.password);
 
   if (!user) {
-    res.status(401).json({ error: "Invalid email or password" });
+    res.status(401).json({ error: "Invalid username or password" });
     return;
   }
 
@@ -131,7 +134,6 @@ export async function logout(req: Request, res: Response): Promise<void> {
     secure: process.env.NODE_ENV === "production",
     path: "/",
   });
-
   res.status(204).send();
 }
 
@@ -150,3 +152,50 @@ export async function currentUser(req: Request, res: Response): Promise<void> {
 
   res.json({ user });
 }
+
+async function updateAccount(req: Request, res: Response, kind: "username" | "password"): Promise<void> {
+  const token = req.cookies?.session_token;
+  if (typeof token !== "string" || !token) {
+    res.status(401).json({ error: "Not authenticated. Please log in again." });
+    return;
+  }
+  const body = req.body;
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    res.status(400).json({ error: "Expected a JSON object containing the account change." });
+    return;
+  }
+  if (kind === "password" && !validCredential(body.currentPassword)) {
+    res.status(400).json({ error: "Enter your current password to confirm this change." });
+    return;
+  }
+  if (kind === "username" && !validUsername(body.username)) {
+    res.status(400).json({ error: "Username must be 3–30 letters, numbers, or underscores." });
+    return;
+  }
+  if (kind === "password") {
+    const error = typeof body.newPassword === "string" ? validatePassword(body.newPassword) : "Enter a new password.";
+    if (error) { res.status(400).json({ error }); return; }
+  }
+
+  try {
+    const user = await updateOwnAccount(token, kind === "password" ? body.currentPassword : undefined,
+      kind === "username" ? { username: body.username } : { newPassword: body.newPassword });
+    res.json({ user, message: kind === "password"
+      ? "Password updated. Use your new password the next time you log in."
+      : "Username updated. Use your new username the next time you log in." });
+  } catch (error) {
+    if (error instanceof AccountUpdateError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    const fields = duplicateRegistrationFields(error);
+    if (fields) {
+      res.status(409).json({ error: fields.username ?? "Those account details are already in use.", fields });
+      return;
+    }
+    throw error;
+  }
+}
+
+export const changeUsername = (req: Request, res: Response) => updateAccount(req, res, "username");
+export const changePassword = (req: Request, res: Response) => updateAccount(req, res, "password");

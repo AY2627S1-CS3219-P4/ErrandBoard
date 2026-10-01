@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { currentUser, login, logout, register } from "../src/controllers/auth.controller.js";
+import { changeUsername, changePassword, currentUser, login, logout, register } from "../src/controllers/auth.controller.js";
 import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
@@ -57,6 +57,61 @@ function requestDouble(
 
 const password = "Controller test password!";
 const strongRegistrationPassword = "qf7$Lx2@vB9!Rk3#nP5^wM8";
+
+test("account updates require a session cookie", async () => {
+  for (const handler of [changeUsername, changePassword]) {
+    const { state, response } = responseDouble();
+    await handler(requestDouble({}), response);
+    assert.equal(state.status, 401);
+  }
+});
+
+test("account updates reject invalid inputs before database access", async (t) => {
+  const lookup = t.mock.method(Session, "findOne", async () => null);
+  const cases = [
+    { handler: changeUsername, body: { username: "bad!", currentPassword: "existing" } },
+    { handler: changeUsername, body: { username: "valid_name" } },
+    { handler: changePassword, body: { newPassword: "short", currentPassword: "existing" } },
+    { handler: changePassword, body: { newPassword: 123, currentPassword: "existing" } },
+  ];
+  for (const { handler, body } of cases) {
+    const { state, response } = responseDouble();
+    await handler(requestDouble(body, { session_token: "test-token" }), response);
+    assert.equal(state.status, 400);
+  }
+  assert.equal(lookup.mock.callCount(), 0);
+});
+
+test("username update reports a duplicate username as a readable conflict", async (t) => {
+  t.mock.method(Session, "findOne", async () => ({ userId: user._id }));
+  t.mock.method(User, "findById", () => ({ select: async () => user }));
+  t.mock.method(User, "findOneAndUpdate", async () => {
+    throw { code: 11000, keyPattern: { username: 1 } };
+  });
+  const { state, response } = responseDouble();
+  await changeUsername(requestDouble(
+    { username: "taken_name", currentPassword: password },
+    { session_token: "test-token" },
+  ), response);
+  assert.equal(state.status, 409);
+  assert.match((state.body as { error: string }).error, /username.*taken/i);
+});
+
+test("password update returns success without clearing the existing session cookies", async (t) => {
+  t.mock.method(Session, "findOne", async () => ({ userId: user._id }));
+  t.mock.method(User, "findById", () => ({ select: async () => user }));
+  t.mock.method(User, "findOneAndUpdate", async () => user);
+  const { state, response } = responseDouble();
+  await changePassword(requestDouble(
+    { newPassword: strongRegistrationPassword, currentPassword: password },
+    { session_token: "test-token" },
+  ), response);
+  assert.equal(state.status, 200);
+  assert.match((state.body as { message: string }).message, /Password updated/);
+  assert.equal(state.cleared.length, 0);
+  assert.equal(JSON.stringify(state.body).includes("passwordHash"), false);
+});
+
 let user: InstanceType<typeof User>;
 before(async () => {
   user = new User({
@@ -221,7 +276,7 @@ for (const mode of ["production", "development"]) {
     t.mock.method(Session, "create", async () => undefined as never);
     t.mock.method(Session, "updateOne", async () => undefined as never);
     const { state, response } = responseDouble();
-    const request = requestDouble({ email: user.email, password });
+    const request = requestDouble({ username: user.username, password });
 
     await login(request, response);
     assert.equal(state.status, 200);
@@ -268,7 +323,7 @@ test("admin login issues a token carrying the ADMIN role", async (t) => {
   t.mock.method(Session, "create", async () => undefined as never);
   const { state, response } = responseDouble();
 
-  await login(requestDouble({ email: admin.email, password }), response);
+  await login(requestDouble({ username: admin.username, password }), response);
   assert.equal(state.status, 200);
   assert.equal((state.body as { user: { accountType: string } }).user.accountType, "ADMIN");
   const accessCookie = state.cookies.find((cookie) => cookie.name === "access_token");
@@ -284,9 +339,9 @@ test("failed login returns a generic 401 and never issues a cookie", async (t) =
   for (const account of [null, user]) {
     found = account;
     const { state, response } = responseDouble();
-    await login(requestDouble({ email: user.email, password: "wrong" }), response);
+    await login(requestDouble({ username: user.username, password: "wrong" }), response);
     assert.equal(state.status, 401);
-    assert.deepEqual(state.body, { error: "Invalid email or password" });
+    assert.deepEqual(state.body, { error: "Invalid username or password" });
     assert.equal(state.cookies.length, 0);
   }
 });
@@ -296,7 +351,7 @@ test("missing signing configuration rejects login before issuing a cookie or suc
   t.mock.method(User, "findOne", () => ({ select: async () => user }));
   const { state, response } = responseDouble();
   await assert.rejects(
-    login(requestDouble({ email: user.email, password }), response),
+    login(requestDouble({ username: user.username, password }), response),
     /JWT_SECRET is required/,
   );
   assert.equal(state.cookies.length, 0);

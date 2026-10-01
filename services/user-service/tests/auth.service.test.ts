@@ -52,7 +52,7 @@ test("registration sends only a hash to persistence and returns safe account fie
 
 test("login retrieves the password hash and accepts valid credentials", async (t) => {
   t.mock.method(User, "findOne", (filter: unknown) => {
-    assert.deepEqual(filter, { email: input.email });
+    assert.deepEqual(filter, { username: input.username });
     return {
       select: async (projection: string) => {
         assert.equal(projection, "+passwordHash");
@@ -60,15 +60,15 @@ test("login retrieves the password hash and accepts valid credentials", async (t
       },
     };
   });
-  assert.equal(await authenticateUser(input.email, input.password), storedUser);
+  assert.equal(await authenticateUser(input.username, input.password), storedUser);
 });
 
 test("unknown account and wrong password both produce authentication failure", async (t) => {
   let found: typeof storedUser | null = null;
   t.mock.method(User, "findOne", () => ({ select: async () => found }));
-  assert.equal(await authenticateUser(input.email, input.password), null);
+  assert.equal(await authenticateUser(input.username, input.password), null);
   found = storedUser;
-  assert.equal(await authenticateUser(input.email, "wrong-password"), null);
+  assert.equal(await authenticateUser(input.username, "wrong-password"), null);
 });
 
 test("registration propagates duplicate-key and database failures", async (t) => {
@@ -84,7 +84,7 @@ test("database failure during login is not reported as invalid credentials", asy
   t.mock.method(User, "findOne", () => ({
     select: async () => { throw failure; },
   }));
-  await assert.rejects(authenticateUser(input.email, input.password), (error) => error === failure);
+  await assert.rejects(authenticateUser(input.username, input.password), (error) => error === failure);
 });
 
 test("session creation stores a hashed token and expiry metadata", async (t) => {
