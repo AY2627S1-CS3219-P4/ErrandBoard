@@ -6,7 +6,7 @@ import "./AdminDashboard.css";
 import "./AccountAdministration.css";
 
 const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
-type ManagedAccount = { _id: string; email: string; username: string; accountType: "USER" | "ADMIN"; createdAt: string };
+type ManagedAccount = { _id: string; email: string; username: string; accountType: "USER" | "ADMIN"; isActive: boolean; createdAt: string };
 type Filter = "ALL" | "ADMIN" | "USER";
 
 async function apiError(response: Response): Promise<string> {
@@ -49,6 +49,18 @@ export default function AccountAdministration() {
     finally { setUpdatingId(null); }
   }
 
+  async function changeStatus(account: ManagedAccount) {
+    const isActive = !account.isActive;
+    setUpdatingId(account._id); setError(""); setNotice("");
+    try {
+      const response = await fetch(`${API_URL}/accounts/${account._id}/status`, { method: "PATCH", credentials: "include", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ isActive }) });
+      if (!response.ok) throw new Error(await apiError(response));
+      setNotice(`${account.username} is now ${isActive ? "active" : "inactive"}.`);
+      await loadAccounts();
+    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Unable to update account status."); }
+    finally { setUpdatingId(null); }
+  }
+
   return (
     <main className="admin-dashboard account-administration-page">
       <Link className="admin-back-button" to="/admin"><span aria-hidden="true">←</span>Back to dashboard</Link>
@@ -58,7 +70,7 @@ export default function AccountAdministration() {
         <div className="account-filters" aria-label="Account filters">{(["ALL", "ADMIN", "USER"] as Filter[]).map((value) => <button key={value} className={`account-filter ${filter === value ? "active" : ""}`} type="button" onClick={() => setFilter(value)}>{value === "ALL" ? "All accounts" : `${value === "ADMIN" ? "Admins" : "Users"} (${accounts.filter((account) => account.accountType === value).length})`}</button>)}</div>
         {notice && <p className="account-notice" role="status">{notice}</p>}
         {error && <p className="account-error" role="alert">{error}</p>}
-        {isLoading ? <p className="account-empty-state">Loading accounts...</p> : visibleAccounts.length === 0 ? <p className="account-empty-state">No accounts found.</p> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Account</th><th>Email</th><th>Role</th><th><span className="visually-hidden">Actions</span></th></tr></thead><tbody>{visibleAccounts.map((account) => <tr key={account._id}><td><strong>{account.username}</strong><small>Joined {new Date(account.createdAt).toLocaleDateString()}</small></td><td>{account.email}</td><td><span className={`account-role-badge ${account.accountType === "ADMIN" ? "admin" : "user"}`}>{account.accountType}</span></td><td className="account-row-actions"><button className={`account-role-button ${account.accountType === "ADMIN" ? "demote" : "promote"}`} type="button" disabled={updatingId === account._id} onClick={() => void changeRole(account)}>{updatingId === account._id ? "Updating..." : account.accountType === "ADMIN" ? "Demote to User" : "Promote to Admin"}</button></td></tr>)}</tbody></table></div>}
+        {isLoading ? <p className="account-empty-state">Loading accounts...</p> : visibleAccounts.length === 0 ? <p className="account-empty-state">No accounts found.</p> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Account</th><th>Email</th><th>Role</th><th>Status</th><th><span className="visually-hidden">Actions</span></th></tr></thead><tbody>{visibleAccounts.map((account) => <tr key={account._id}><td><strong>{account.username}</strong><small>Joined {new Date(account.createdAt).toLocaleDateString()}</small></td><td>{account.email}</td><td><span className={`account-role-badge ${account.accountType === "ADMIN" ? "admin" : "user"}`}>{account.accountType}</span></td><td><span className={`account-status-badge ${account.isActive ? "active" : "inactive"}`}>{account.isActive ? "Active" : "Inactive"}</span></td><td className="account-row-actions"><button className={`account-role-button ${account.accountType === "ADMIN" ? "demote" : "promote"}`} type="button" disabled={updatingId === account._id} onClick={() => void changeRole(account)}>{updatingId === account._id ? "Updating..." : account.accountType === "ADMIN" ? "Demote to User" : "Promote to Admin"}</button><button className={`account-role-button account-status-button ${account.isActive ? "demote" : "promote"}`} type="button" disabled={updatingId === account._id} onClick={() => void changeStatus(account)}>{updatingId === account._id ? "Updating..." : account.isActive ? "Deactivate" : "Activate"}</button></td></tr>)}</tbody></table></div>}
       </section>
     </main>
   );
