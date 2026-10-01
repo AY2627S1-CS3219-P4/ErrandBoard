@@ -1,5 +1,6 @@
 import express from "express";
 import { authRouter } from "./routes/auth.routes.js";
+import { accountRouter } from "./routes/account.routes.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 
@@ -24,3 +25,4 @@ app.get("/health", (_req, res) => {
 
 // Routes
 app.use("/auth", authRouter);
+app.use("/accounts", accountRouter);
