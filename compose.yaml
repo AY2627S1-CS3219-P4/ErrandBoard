@@ -32,8 +32,28 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      user-seed:
+        condition: service_completed_successfully
     ports:
       - "3001:3001"
+    networks:
+      - errandboard-network
+
+  user-seed:
+    build: ./services/user-service
+    image: errandboard/user-service
+    command: ["npm", "run", "seed"]
+    environment:
+      MONGO_HOST: mongodb
+      MONGO_DB_NAME: errandboard
+      MONGO_USER_SERVICE_PASSWORD: ${MONGO_USER_SERVICE_PASSWORD}
+      SEED_CSV_PATH: /seed/user-seed-data.csv
+    volumes:
+      - ./data/csv:/seed:ro
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: "no"
     networks:
       - errandboard-network
 
