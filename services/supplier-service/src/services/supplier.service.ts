@@ -26,6 +26,7 @@ export interface UpdateSupplierInput {
     category?: SupplierCategory;
     building?: string;
     address?: string;
+    isActive?: boolean;
     coordinates?: SupplierCoords;
     openingHours?: OpeningHours;
     imageUrl?: string;

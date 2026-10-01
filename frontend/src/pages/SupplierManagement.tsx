@@ -31,6 +31,11 @@ type SupplierForm = {
   imageUrl: string;
 };
 
+type StatusChange = {
+  supplier: Supplier;
+  action: "deactivate" | "reactivate";
+};
+
 const EMPTY_FORM: SupplierForm = {
   name: "",
   category: CATEGORIES[0],
@@ -72,6 +77,7 @@ export default function SupplierManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [statusChange, setStatusChange] = useState<StatusChange | null>(null);
 
   const loadSuppliers = useCallback(async () => {
     setIsLoading(true);
@@ -148,22 +154,33 @@ export default function SupplierManagement() {
     }
   }
 
-  async function deactivateSupplier(supplier: Supplier) {
-    if (!window.confirm(`Deactivate ${supplier.name}?`)) return;
+  function requestStatusChange(supplier: Supplier, action: StatusChange["action"]) {
+    setStatusChange({ supplier, action });
+  }
+
+  async function confirmStatusChange() {
+    if (!statusChange) return;
+
+    const { supplier, action } = statusChange;
     setDeletingId(supplier._id);
     setError("");
     setNotice("");
     try {
-      const response = await supplierFetch(`/suppliers/${supplier._id}`, {
-        method: "DELETE",
-      });
+      const response = action === "deactivate"
+        ? await supplierFetch(`/suppliers/${supplier._id}`, { method: "DELETE" })
+        : await supplierFetch(`/suppliers/${supplier._id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ isActive: true }),
+          });
       if (!response.ok) throw new Error(await responseError(response));
-      setNotice(`${supplier.name} was deactivated.`);
+      setNotice(`${supplier.name} was ${action === "deactivate" ? "deactivated" : "reactivated"}.`);
       await loadSuppliers();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to deactivate supplier.");
+      setError(requestError instanceof Error ? requestError.message : `Unable to ${action} supplier.`);
     } finally {
       setDeletingId(null);
+      setStatusChange(null);
     }
   }
 
@@ -216,10 +233,24 @@ export default function SupplierManagement() {
         {error && <p className="supplier-management-error" role="alert">{error}</p>}
         {isLoading ? <p className="supplier-management-empty">Loading suppliers...</p> : suppliers.length === 0 ? <p className="supplier-management-empty">No suppliers found.</p> : (
           <div className="supplier-table-wrap"><table className="supplier-table"><colgroup><col className="supplier-column-name" /><col className="supplier-column-category" /><col className="supplier-column-location" /><col className="supplier-column-status" /><col className="supplier-column-actions" /></colgroup><thead><tr><th>Name</th><th>Category</th><th>Location</th><th>Status</th><th><span className="visually-hidden">Actions</span></th></tr></thead><tbody>
-            {suppliers.map((supplier) => <tr key={supplier._id} className={!supplier.isActive ? "supplier-row-inactive" : undefined}><td><strong>{supplier.name}</strong><small>{supplier.address}</small></td><td>{CATEGORY_LABELS[supplier.category] ?? supplier.category}</td><td>{supplier.building}</td><td><span className={`supplier-status ${supplier.isActive ? "is-active" : "is-inactive"}`}>{supplier.isActive ? "Active" : "Inactive"}</span></td><td className="supplier-row-actions"><button className="supplier-row-button" type="button" onClick={() => startEditing(supplier)}>Edit</button>{supplier.isActive && <button className="supplier-row-button danger" type="button" disabled={deletingId === supplier._id} onClick={() => void deactivateSupplier(supplier)}>{deletingId === supplier._id ? "..." : "Deactivate"}</button>}</td></tr>)}
+            {suppliers.map((supplier) => <tr key={supplier._id} className={!supplier.isActive ? "supplier-row-inactive" : undefined}><td><strong>{supplier.name}</strong><small>{supplier.address}</small></td><td>{CATEGORY_LABELS[supplier.category] ?? supplier.category}</td><td>{supplier.building}</td><td><span className={`supplier-status ${supplier.isActive ? "is-active" : "is-inactive"}`}>{supplier.isActive ? "Active" : "Inactive"}</span></td><td className="supplier-row-actions"><button className="supplier-row-button" type="button" onClick={() => startEditing(supplier)}>Edit</button><button className={`supplier-row-button ${supplier.isActive ? "danger" : "reactivate"}`} type="button" disabled={deletingId === supplier._id} onClick={() => requestStatusChange(supplier, supplier.isActive ? "deactivate" : "reactivate")}>{deletingId === supplier._id ? "..." : supplier.isActive ? "Deactivate" : "Reactivate"}</button></td></tr>)}
           </tbody></table></div>
         )}
       </section>
+
+      {statusChange && (
+        <div className="supplier-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStatusChange(null); }}>
+          <section className="supplier-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="supplier-confirm-title">
+            <p className="eyebrow">CONFIRM ACTION</p>
+            <h2 id="supplier-confirm-title">{statusChange.action === "deactivate" ? "Deactivate supplier?" : "Reactivate supplier?"}</h2>
+            <p>{statusChange.action === "deactivate" ? "This supplier will be hidden from active supplier listings." : "This supplier will be available to requesters and couriers again."}</p>
+            <div className="supplier-confirm-actions">
+              <button className="supplier-secondary-button" type="button" onClick={() => setStatusChange(null)}>Cancel</button>
+              <button className={`supplier-primary-button ${statusChange.action === "deactivate" ? "supplier-confirm-danger" : ""}`} type="button" onClick={() => void confirmStatusChange()}>{statusChange.action === "deactivate" ? "Deactivate" : "Reactivate"}</button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

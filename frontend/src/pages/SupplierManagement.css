@@ -60,13 +60,21 @@
 .supplier-table td { overflow-wrap: anywhere; }
 .supplier-table td strong, .supplier-table td small { display: block; }
 .supplier-table td small { margin-top: 0.2rem; color: var(--text); }
-.supplier-row-inactive { opacity: 0.6; }
+.supplier-row-inactive > td:not(.supplier-row-actions) { opacity: 0.6; }
 .supplier-status { display: inline-flex; padding: 0.25rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 700; }
 .supplier-status.is-active { background: #eaf6ed; color: #28733c; }
 .supplier-status.is-inactive { background: var(--border); color: var(--text); }
 .supplier-row-actions { display: grid; grid-template-columns: minmax(4.25rem, 0.8fr) minmax(6.5rem, 1.2fr); align-items: start; gap: 0.5rem; white-space: nowrap; }
 .supplier-row-button { box-sizing: border-box; width: 100%; min-width: 0; }
 .supplier-row-button.danger { border-color: rgba(180, 35, 24, 0.35); color: #b42318; }
+.supplier-row-button.reactivate { border-color: rgba(40, 115, 60, 0.4); color: #28733c; }
+
+.supplier-confirm-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 1rem; background: rgba(0, 0, 0, 0.58); }
+.supplier-confirm-dialog { box-sizing: border-box; width: min(100%, 28rem); padding: 1.5rem; border: 1px solid var(--border); border-radius: 0.75rem; background: var(--bg); box-shadow: var(--shadow); }
+.supplier-confirm-dialog h2 { margin: 0.4rem 0 0.75rem; }
+.supplier-confirm-dialog > p:not(.eyebrow) { color: var(--text); }
+.supplier-confirm-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; }
+.supplier-confirm-danger { background: #b42318; }
 
 @media (max-width: 680px) {
   .supplier-management-heading, .supplier-panel-heading { flex-direction: column; }
