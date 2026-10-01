@@ -25,7 +25,7 @@ supplierRouter.get("/:id", getById);
 supplierRouter.post("/", authenticate, requireAdmin, create);
 
 //Patch routes
-supplierRouter.patch("/", authenticate, requireAdmin, update);
+supplierRouter.patch("/:id", authenticate, requireAdmin, update);
 
 //delete routes
-supplierRouter.delete("/", authenticate, requireAdmin, deactivate);
+supplierRouter.delete("/:id", authenticate, requireAdmin, deactivate);

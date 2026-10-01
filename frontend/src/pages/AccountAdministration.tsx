@@ -13,7 +13,7 @@ export default function AccountAdministration() {
           <h1>Account Administration</h1>
           <p>Manage administrator access and account status.</p>
         </div>
-        <span className="role-badge">{user?.accountType}</span>
+        <span className="role-badge"><span className="role-dot" />{user?.accountType}</span>
       </div>
 
       <section className="account-admin-panel">

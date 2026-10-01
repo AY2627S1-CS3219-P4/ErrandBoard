@@ -6,6 +6,7 @@ import Settings from "./pages/Settings";
 import SupplierListing from "./pages/SupplierListing";
 import AdminDashboard from "./pages/AdminDashboard";
 import AccountAdministration from "./pages/AccountAdministration";
+import SupplierManagement from "./pages/SupplierManagement";
 import { AuthProvider } from "./auth/AuthContext";
 import { HomeRedirect, RedirectIfAuthenticated, RequireAdmin, RequireAuth, RequireSuperadmin } from "./auth/RouteGuards";
 
@@ -26,6 +27,7 @@ export default function App() {
           </Route>
           <Route element={<RequireAdmin />}>
             <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/suppliers" element={<SupplierManagement />} />
           </Route>
           <Route element={<RequireSuperadmin />}>
             <Route path="/admin/accounts" element={<AccountAdministration />} />

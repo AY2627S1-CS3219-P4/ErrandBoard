@@ -52,4 +52,4 @@ export function requireRole(...allowedRoles: AccountType[]): RequestHandler {
 
 // Middleware function that verifies if the user has administrative privileges
 // Use after authenticate on admin-only routes
-export const requireAdmin = requireRole("ADMIN");
+export const requireAdmin = requireRole("ADMIN", "SUPERADMIN");
