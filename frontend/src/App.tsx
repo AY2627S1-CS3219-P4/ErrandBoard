@@ -2,8 +2,10 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Homepage from "./pages/Homepage";
+import AdminDashboard from "./pages/AdminDashboard";
+import AccountAdministration from "./pages/AccountAdministration";
 import { AuthProvider } from "./auth/AuthContext";
-import { HomeRedirect, RedirectIfAuthenticated, RequireAuth } from "./auth/RouteGuards";
+import { HomeRedirect, RedirectIfAuthenticated, RequireAdmin, RequireAuth, RequireSuperadmin } from "./auth/RouteGuards";
 
 
 export default function App() {
@@ -17,6 +19,12 @@ export default function App() {
           </Route>
           <Route element={<RequireAuth />}>
             <Route path="/home" element={<Homepage />} />
+          </Route>
+          <Route element={<RequireAdmin />}>
+            <Route path="/admin" element={<AdminDashboard />} />
+          </Route>
+          <Route element={<RequireSuperadmin />}>
+            <Route path="/admin/accounts" element={<AccountAdministration />} />
           </Route>
           <Route path="*" element={<HomeRedirect />} />
         </Routes>
