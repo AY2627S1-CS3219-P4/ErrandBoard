@@ -45,7 +45,8 @@ export async function list(req: Request, res: Response): Promise<void> {
     const category = toArray(req.query.category) as SupplierCategory[] | undefined;
     const building = toArray(req.query.building);
     const address = toArray(req.query.address);
-    const showInactive = req.query.showInactive == "true"; //this needs an auth check?
+    //only admins can see inactive suppliers
+    const showInactive = isAdmin(req) && req.query.showInactive === "true";
 
     const suppliers = await listSuppliers({ search, category, building, address, showInactive });
 
@@ -54,7 +55,7 @@ export async function list(req: Request, res: Response): Promise<void> {
 
 export async function getById(req: Request, res: Response): Promise<void> {
   try {
-    const supplier = await getSupplierById(String(req.params.id));
+    const supplier = await getSupplierById(String(req.params.id), isAdmin(req));
     res.json({ supplier });
   } catch (error) {
     if (error instanceof SupplierNotFoundError) {
@@ -99,6 +100,10 @@ export async function deactivate(req: Request, res: Response): Promise<void> {
   }
 }
 
+
+function isAdmin(req: Request): boolean {
+  return req.user?.role === "ADMIN" || req.user?.role === "SUPERADMIN";
+}
 
 //this function helps convert unknown req.params into either an array of strings (string[]) or undefined
 function toArray(value: unknown): string[] | undefined {

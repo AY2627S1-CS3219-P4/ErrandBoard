@@ -97,11 +97,15 @@ export async function listSuppliers(input: ListSuppliersInput) {
 }
 
 export async function getSupplierById(
-    id: string
+    id: string,
+    isAdmin: boolean = false
 ): Promise<SupplierDocument> {
     const supplier = await Supplier.findById(id);
 
-    if (!supplier) throw new SupplierNotFoundError(`Supplier ${id} not found`);
+    //inactive suppliers are treated as not found if user is not an admin
+    if (!supplier || (!isAdmin && supplier.isActive === false)) {
+        throw new SupplierNotFoundError(`Supplier ${id} not found`);
+    }
     return supplier;
 }
 
