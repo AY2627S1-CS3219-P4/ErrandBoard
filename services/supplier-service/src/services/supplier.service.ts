@@ -13,7 +13,8 @@ export interface CreateSupplierInput {
     name: string;
     category: SupplierCategory;
     building: string;
-    address: string,
+    address: string;
+    locationDescription?: string;
     coordinates?: SupplierCoords;
     openingHours?: OpeningHours;
     imageUrl?: string;
@@ -26,6 +27,7 @@ export interface UpdateSupplierInput {
     category?: SupplierCategory;
     building?: string;
     address?: string;
+    locationDescription?: string;
     coordinates?: SupplierCoords;
     openingHours?: OpeningHours;
     imageUrl?: string;
@@ -89,7 +91,7 @@ export async function listSuppliers(input: ListSuppliersInput) {
     }
 
     if (input.address?.length) {
-        query.building = { $in: input.address };
+        query.address = { $in: input.address };
     }
     
     //return sorted ascending
