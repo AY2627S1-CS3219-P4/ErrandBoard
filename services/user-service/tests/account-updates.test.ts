@@ -27,7 +27,7 @@ function session(t: TestContext) {
   });
 }
 
-test("username update verifies the password and targets only the session owner", async (t) => {
+test("username update needs only an active session and targets only its owner", async (t) => {
   session(t);
   t.mock.method(User, "findOneAndUpdate", async (query: unknown, update: unknown, options: unknown) => {
     assert.deepEqual(query, { _id: owner._id, passwordHash: owner.passwordHash });
@@ -35,17 +35,9 @@ test("username update verifies the password and targets only the session owner",
     assert.deepEqual(options, { returnDocument: "after", runValidators: true });
     return new User({ ...owner.toObject(), username: "renamed" });
   });
-  const result = await updateOwnAccount("test-token", currentPassword, { username: "renamed" });
+  const result = await updateOwnAccount("test-token", undefined, { username: "renamed" });
   assert.equal(result.username, "renamed");
   assert.deepEqual(Object.keys(result).sort(), ["accountType", "email", "id", "username"]);
-});
-
-test("a stolen session alone cannot update an account without the current password", async (t) => {
-  session(t);
-  const write = t.mock.method(User, "findOneAndUpdate", async () => null);
-  await assert.rejects(updateOwnAccount("test-token", "wrong", { username: "attacker" }),
-    (error: unknown) => error instanceof AccountUpdateError && error.status === 403);
-  assert.equal(write.mock.callCount(), 0);
 });
 
 test("password updates store a bcrypt hash rather than plaintext", async (t) => {
@@ -59,6 +51,16 @@ test("password updates store a bcrypt hash rather than plaintext", async (t) => 
     return owner;
   });
   await updateOwnAccount("test-token", currentPassword, { newPassword });
+});
+
+test("password updates reject a wrong current password without writing", async (t) => {
+  session(t);
+  const write = t.mock.method(User, "findOneAndUpdate", async () => null);
+  await assert.rejects(
+    updateOwnAccount("test-token", "wrong-current-password", { newPassword }),
+    (error: unknown) => error instanceof AccountUpdateError && error.status === 403,
+  );
+  assert.equal(write.mock.callCount(), 0);
 });
 
 test("missing sessions and deleted users cannot update an account", async (t) => {

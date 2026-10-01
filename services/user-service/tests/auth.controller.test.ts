@@ -70,7 +70,6 @@ test("account updates reject invalid inputs before database access", async (t) =
   const lookup = t.mock.method(Session, "findOne", async () => null);
   const cases = [
     { handler: changeUsername, body: { username: "bad!", currentPassword: "existing" } },
-    { handler: changeUsername, body: { username: "valid_name" } },
     { handler: changePassword, body: { newPassword: "short", currentPassword: "existing" } },
     { handler: changePassword, body: { newPassword: 123, currentPassword: "existing" } },
   ];
@@ -80,6 +79,36 @@ test("account updates reject invalid inputs before database access", async (t) =
     assert.equal(state.status, 400);
   }
   assert.equal(lookup.mock.callCount(), 0);
+
+  const { state, response } = responseDouble();
+  await changeUsername({
+    body: [],
+    cookies: { session_token: "test-token" },
+  } as unknown as Request, response);
+  assert.equal(state.status, 400);
+});
+
+test("username update accepts an active session without asking for the current password", async (t) => {
+  t.mock.method(Session, "findOne", async () => ({ userId: user._id }));
+  t.mock.method(User, "findById", () => ({ select: async () => user }));
+  t.mock.method(User, "findOneAndUpdate", async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
+    assert.equal(filter._id, user._id);
+    assert.deepEqual(update, { $set: { username: "renamed" } });
+    return new User({ ...user.toObject(), username: "renamed" });
+  });
+  const { state, response } = responseDouble();
+  await changeUsername(requestDouble(
+    { username: "renamed" },
+    { session_token: "test-token" },
+  ), response);
+  assert.equal(state.status, 200);
+  assert.deepEqual(state.body, {
+    user: {
+      id: user._id.toString(), email: user.email,
+      username: "renamed", accountType: "USER",
+    },
+    message: "Username updated. Use your new username the next time you log in.",
+  });
 });
 
 test("username update reports a duplicate username as a readable conflict", async (t) => {
@@ -90,7 +119,7 @@ test("username update reports a duplicate username as a readable conflict", asyn
   });
   const { state, response } = responseDouble();
   await changeUsername(requestDouble(
-    { username: "taken_name", currentPassword: password },
+    { username: "taken_name" },
     { session_token: "test-token" },
   ), response);
   assert.equal(state.status, 409);
@@ -344,6 +373,23 @@ test("failed login returns a generic 401 and never issues a cookie", async (t) =
     assert.deepEqual(state.body, { error: "Invalid username or password" });
     assert.equal(state.cookies.length, 0);
   }
+});
+
+test("login rejects missing or malformed username and password before querying users", async (t) => {
+  const lookup = t.mock.method(User, "findOne", () => ({ select: async () => user }));
+  for (const body of [
+    {},
+    { username: "bad username", password },
+    { username: "alice", password: "" },
+    { username: "alice", password: "é".repeat(37) },
+  ]) {
+    const { state, response } = responseDouble();
+    await login(requestDouble(body), response);
+    assert.equal(state.status, 400);
+    assert.deepEqual(state.body, { error: "Enter a valid username and password." });
+    assert.equal(state.cookies.length, 0);
+  }
+  assert.equal(lookup.mock.callCount(), 0);
 });
 
 test("missing signing configuration rejects login before issuing a cookie or success body", async (t) => {
