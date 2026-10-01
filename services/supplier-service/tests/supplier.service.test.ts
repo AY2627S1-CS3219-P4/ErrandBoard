@@ -27,6 +27,7 @@ test("createSupplier returns whatever the model returns on success", async (t) =
     name: "CoffeeBean@Com3",
     category: "FOOD_BEVERAGE",
     building: "COM3",
+    address: "test_address"
   });
 
   assert.equal(result, fakeDoc);
@@ -43,6 +44,7 @@ test("createSupplier translates a Mongo duplicate-key error (F6.3.2)", async (t)
         name: "CoffeeBean@Com3",
         category: "FOOD_BEVERAGE",
         building: "COM3",
+        address: "test_address"
       }),
     DuplicateSupplierError,
   );
@@ -59,6 +61,7 @@ test("createSupplier rethrows errors that aren't duplicate-key errors", async (t
         name: "CoffeeBean@Com3",
         category: "FOOD_BEVERAGE",
         building: "COM3",
+        address: "test_address"
       }),
     /connection lost/,
   );
