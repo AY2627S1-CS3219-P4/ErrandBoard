@@ -38,7 +38,7 @@ export interface SupplierDocument {
     address: string;
     locationDescription?: string;
     coordinates?: SupplierCoords;
-    openingHours: OpeningHours;
+    openingHours?: OpeningHours;
     imageUrl?: string;
     description?: string;
     isActive: boolean;
@@ -124,7 +124,7 @@ const supplierSchema = new Schema<SupplierDocument>(
     },
     openingHours: {
       type: openingHoursSchema,
-      default: () => ({}),
+      required: false,
     },
     imageUrl: {
       type: String,
