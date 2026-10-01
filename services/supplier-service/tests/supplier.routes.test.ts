@@ -104,7 +104,7 @@ test("DELETE /suppliers/:id requires admin, same as create/update", async () => 
   const server = await startServer();
 
   try {
-    const res = await fetch(`${server.baseUrl}/suppliers`, {
+    const res = await fetch(`${server.baseUrl}/suppliers/507f1f77bcf86cd799439011`, {
       method: "DELETE",
     });
     assert.equal(res.status, 401);
