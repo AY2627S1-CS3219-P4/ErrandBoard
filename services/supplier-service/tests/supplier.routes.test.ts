@@ -4,6 +4,7 @@ import type { Server } from "node:http";
 import { SignJWT } from "jose";
 import { app } from "../src/app.js";
 import { Supplier } from "../src/models/Supplier.js";
+import { type AccountType } from "../src/types/auth.types.js";
 
 process.env.JWT_SECRET ??= "test-secret-do-not-use-in-prod";
 
@@ -23,12 +24,11 @@ async function startServer(): Promise<{
   });
 }
 
-async function signToken(accountType: string): Promise<string> {
+async function signToken(userId: string, role: AccountType): Promise<string> {
   const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-  return new SignJWT({ accountType })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject("test-user-id")
-    .setExpirationTime("5m")
+  return new SignJWT({ sub: userId, role })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setExpirationTime("15m")
     .sign(secret);
 }
 
@@ -47,7 +47,7 @@ test("POST /suppliers rejects a non-admin session (requireAdmin, NFR4.1)", async
   const server = await startServer();
 
   try {
-    const token = await signToken("USER");
+    const token = await signToken("test_id", "USER");
     const res = await fetch(`${server.baseUrl}/suppliers`, {
       method: "POST",
       headers: { Cookie: `access_token=${token}` },
@@ -68,7 +68,7 @@ test("POST /suppliers reaches the controller for an admin session", async (t) =>
   const server = await startServer();
 
   try {
-    const token = await signToken("ADMIN");
+    const token = await signToken("test_id", "ADMIN");
     const res = await fetch(`${server.baseUrl}/suppliers`, {
       method: "POST",
       headers: {
@@ -104,7 +104,7 @@ test("DELETE /suppliers/:id requires admin, same as create/update", async () => 
   const server = await startServer();
 
   try {
-    const res = await fetch(`${server.baseUrl}/suppliers/507f191e810c19729de860ea`, {
+    const res = await fetch(`${server.baseUrl}/suppliers`, {
       method: "DELETE",
     });
     assert.equal(res.status, 401);

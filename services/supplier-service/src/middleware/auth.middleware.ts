@@ -27,7 +27,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     req.user = await verifyAccessToken(token);
   } catch {
-    res.status(401).json({ error: "Invalid token" });
+    res.status(403).json({ error: "Invalid token" });
     return;
   }
 
