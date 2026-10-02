@@ -3,8 +3,10 @@ export interface Supplier {
   name: string;
   category: string;
   building: string;
+  address: string;
   imageUrl?: string;
   description?: string;
+  isActive: boolean;
 }
 
 export interface SupplierFilters {

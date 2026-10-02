@@ -8,6 +8,7 @@ interface SeedRow {
   username: string;
   passwordHash: string;
   accountType: AccountType;
+  isActive?: string;
 }
 
 const csvPath =
@@ -30,11 +31,16 @@ function toUser(row: SeedRow, line: number) {
     throw new Error(`Line ${line} (${row.email}): invalid account type`);
   }
 
+  if (row.isActive !== undefined && row.isActive !== "true" && row.isActive !== "false") {
+    throw new Error(`Line ${line} (${row.email}): isActive must be true or false`);
+  }
+
   return {
     email: row.email.toLowerCase(),
     username: row.username,
     passwordHash: row.passwordHash,
     accountType: row.accountType,
+    isActive: row.isActive !== "false",
   };
 }
 
@@ -61,6 +67,12 @@ async function main(): Promise<void> {
   }
 
   await connectDb();
+
+  // Backfill accounts created before the isActive field was introduced.
+  await User.updateMany(
+    { isActive: { $exists: false } },
+    { $set: { isActive: true } },
+  );
 
   const result = await User.bulkWrite(
     users.map((user) => ({

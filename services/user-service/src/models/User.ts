@@ -8,6 +8,7 @@ export interface UserDocument {
   username: string;
   passwordHash: string;
   accountType: AccountType;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -40,6 +41,11 @@ const userSchema = new Schema<UserDocument>(
       type: String,
       enum: ACCOUNT_TYPES,
       default: "USER",
+      required: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
       required: true,
     },
   },

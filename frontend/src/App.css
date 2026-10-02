@@ -32,9 +32,9 @@
 }
 
 .admin-dashboard {
-  width: min(100% - 48px, 1040px);
+  width: min(100% - 64px, 1040px);
   margin: 0 auto;
-  padding: 48px 0 72px;
+  padding: 56px 0 80px;
   text-align: left;
 }
 
@@ -48,7 +48,9 @@
 }
 
 .admin-page-heading h1 {
-  margin: 8px 0 12px;
+  margin: 10px 0 12px;
+  font-size: clamp(2.25rem, 5vw, 3.5rem);
+  letter-spacing: -1.5px;
 }
 
 .admin-page-heading p:not(.eyebrow),
@@ -65,7 +67,10 @@
 }
 
 .role-badge {
-  padding: 7px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
   border: 1px solid var(--accent-border);
   border-radius: 999px;
   color: var(--accent);
@@ -75,12 +80,19 @@
   letter-spacing: 0.8px;
 }
 
+.role-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .admin-stat-grid,
 .admin-tool-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
-  margin-top: 32px;
+  margin-top: 36px;
 }
 
 .admin-stat-card,
@@ -93,11 +105,30 @@
 }
 
 .admin-stat-card {
+  position: relative;
   display: flex;
-  min-height: 120px;
-  padding: 20px;
+  min-height: 142px;
+  padding: 22px;
   flex-direction: column;
   gap: 6px;
+  overflow: hidden;
+}
+
+.admin-stat-card::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--accent);
+  content: "";
+}
+
+.stat-icon {
+  align-self: flex-end;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 
 .admin-stat-card span,
@@ -110,16 +141,24 @@
 .admin-stat-card strong {
   margin-top: auto;
   color: var(--text-h);
-  font-size: 32px;
-  font-weight: 600;
+  font-size: 36px;
+  font-weight: 500;
 }
 
 .admin-tools-section {
-  margin-top: 56px;
+  margin-top: 64px;
 }
 
 .section-heading h2 {
   margin-top: 6px;
+}
+
+.section-description {
+  max-width: 300px;
+  margin-top: 8px;
+  color: var(--text);
+  font-size: 14px;
+  text-align: right;
 }
 
 .admin-tool-grid {
@@ -128,14 +167,28 @@
 
 .admin-tool-card {
   display: flex;
-  min-height: 120px;
-  padding: 20px;
+  min-height: 148px;
+  padding: 22px;
   flex-direction: column;
   align-items: flex-start;
   gap: 8px;
   color: var(--text-h);
   font: inherit;
   text-align: left;
+  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.tool-card-label {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.admin-tool-card strong {
+  margin-top: 4px;
+  font-size: 18px;
 }
 
 button.admin-tool-card:disabled {
@@ -149,6 +202,8 @@ button.admin-tool-card:disabled {
 
 .admin-tool-link:hover {
   border-color: var(--accent-border);
+  box-shadow: 0 12px 24px rgba(170, 59, 255, 0.12);
+  transform: translateY(-2px);
 }
 
 .back-link {
@@ -160,8 +215,8 @@ button.admin-tool-card:disabled {
 }
 
 .account-admin-panel {
-  margin-top: 40px;
-  padding: 24px;
+  margin-top: 44px;
+  padding: 28px;
 }
 
 .account-admin-heading h2 {
@@ -174,6 +229,7 @@ button.admin-tool-card:disabled {
   border-radius: 8px;
   padding: 10px 14px;
   font: inherit;
+  cursor: pointer;
 }
 
 .primary-admin-button {
@@ -206,7 +262,7 @@ button.admin-tool-card:disabled {
 }
 
 .account-empty-state {
-  padding: 64px 24px 48px;
+  padding: 72px 24px 56px;
   text-align: center;
 }
 
@@ -241,6 +297,15 @@ button.admin-tool-card:disabled {
   .admin-stat-grid,
   .admin-tool-grid {
     grid-template-columns: 1fr;
+  }
+
+  .section-description {
+    max-width: none;
+    text-align: left;
+  }
+
+  .account-admin-panel {
+    padding: 20px;
   }
 }
 

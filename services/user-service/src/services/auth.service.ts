@@ -30,7 +30,7 @@ export async function registerUser(input: {
 export async function authenticateUser(username: string, password: string) {
   const user = await User.findOne({ username }).select("+passwordHash");
 
-  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+  if (!user || !(await verifyPassword(password, user.passwordHash)) || user.isActive === false) {
     return null;
   }
 
