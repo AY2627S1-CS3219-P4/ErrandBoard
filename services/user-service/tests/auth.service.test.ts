@@ -9,6 +9,7 @@ import {
   createUserSession,
   registerUser,
   revokeUserSession,
+  rotateUserSession,
 } from "../src/services/auth.service.js";
 
 const input = {
@@ -131,4 +132,89 @@ test("session revocation updates only active, unexpired matching sessions", asyn
   assert.ok((filter.expiresAt as { $gt: Date }).$gt instanceof Date);
   assert.ok(update);
   assert.ok((update.$set as { revokedAt: Date }).revokedAt instanceof Date);
+});
+
+test("refresh rotation atomically replaces the stored hash and remembers the old hash", async (t) => {
+  const sessionId = "session-id";
+  const activeSession = {
+    _id: sessionId,
+    userId: storedUser._id,
+    expiresAt: new Date(Date.now() + 60_000),
+  };
+  t.mock.method(Session, "findOne", async (query: Record<string, unknown>) => {
+    assert.equal(query.tokenHash, hashSessionToken("old-refresh-token"));
+    assert.deepEqual(query.revokedAt, { $exists: false });
+    assert.ok((query.expiresAt as { $gt: Date }).$gt instanceof Date);
+    return activeSession;
+  });
+  t.mock.method(User, "findById", async (id: unknown) => {
+    assert.equal(id, storedUser._id);
+    return storedUser;
+  });
+  let replacement: Record<string, unknown> | undefined;
+  t.mock.method(Session, "findOneAndUpdate", async (
+    query: Record<string, unknown>, update: Record<string, unknown>,
+  ) => {
+    assert.equal(query._id, sessionId);
+    assert.equal(query.tokenHash, hashSessionToken("old-refresh-token"));
+    replacement = update;
+    return activeSession;
+  });
+
+  const result = await rotateUserSession("old-refresh-token");
+  assert.ok(result);
+  assert.match(result.sessionToken, /^[a-f0-9]{64}$/);
+  assert.notEqual(result.sessionToken, "old-refresh-token");
+  assert.deepEqual(replacement, {
+    $set: { tokenHash: hashSessionToken(result.sessionToken) },
+    $addToSet: { previousTokenHashes: hashSessionToken("old-refresh-token") },
+  });
+  assert.deepEqual(result.user, {
+    id: storedUser._id.toString(), email: storedUser.email,
+    username: storedUser.username, accountType: storedUser.accountType,
+  });
+  assert.equal(result.expiresAt, activeSession.expiresAt);
+});
+
+test("reusing a rotated refresh token revokes its active session", async (t) => {
+  const activeSession = { _id: "session-id" };
+  let findCalls = 0;
+  t.mock.method(Session, "findOne", async (query: Record<string, unknown>) => {
+    findCalls += 1;
+    if (findCalls === 1) {
+      assert.equal(query.tokenHash, hashSessionToken("old-refresh-token"));
+      return null;
+    }
+    assert.deepEqual(query, {
+      previousTokenHashes: hashSessionToken("old-refresh-token"),
+      revokedAt: { $exists: false },
+    });
+    return activeSession;
+  });
+  let revoked: Record<string, unknown> | undefined;
+  t.mock.method(Session, "updateOne", async (query: Record<string, unknown>, update: Record<string, unknown>) => {
+    revoked = { query, update };
+    return undefined as never;
+  });
+
+  assert.equal(await rotateUserSession("old-refresh-token"), null);
+  assert.deepEqual(revoked?.query, { _id: "session-id", revokedAt: { $exists: false } });
+  assert.ok((revoked?.update as { $set: { revokedAt: Date } }).$set.revokedAt instanceof Date);
+});
+
+test("refresh cannot create a new access token for an inactive user", async (t) => {
+  const session = { _id: "session-id", userId: storedUser._id };
+  t.mock.method(Session, "findOne", async () => session);
+  t.mock.method(User, "findById", async () => ({ ...storedUser.toObject(), isActive: false }));
+  let revokeUpdate: Record<string, unknown> | undefined;
+  t.mock.method(Session, "updateOne", async (
+    query: Record<string, unknown>, update: Record<string, unknown>,
+  ) => {
+    revokeUpdate = { query, update };
+    return undefined as never;
+  });
+
+  assert.equal(await rotateUserSession("inactive-user-session-token"), null);
+  assert.deepEqual(revokeUpdate?.query, { _id: "session-id", revokedAt: { $exists: false } });
+  assert.ok((revokeUpdate?.update as { $set: { revokedAt: Date } }).$set.revokedAt instanceof Date);
 });

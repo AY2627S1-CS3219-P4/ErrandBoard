@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { changeUsername, changePassword, currentUser, login, logout, register } from "../src/controllers/auth.controller.js";
+import { changeUsername, changePassword, currentUser, login, logout, refresh, register } from "../src/controllers/auth.controller.js";
 import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
@@ -373,6 +373,56 @@ test("failed login returns a generic 401 and never issues a cookie", async (t) =
     assert.deepEqual(state.body, { error: "Invalid username or password" });
     assert.equal(state.cookies.length, 0);
   }
+});
+
+test("refresh rotates the session cookie and issues a new short-lived access token", async (t) => {
+  setEnv(t, "NODE_ENV", "production");
+  setEnv(t, "JWT_SECRET", "controller-test-key-not-for-deployment-123456789");
+  const session = { _id: "session-id", userId: user._id, expiresAt: new Date(Date.now() + 60_000) };
+  t.mock.method(Session, "findOne", async (query: Record<string, unknown>) => {
+    assert.equal(query.tokenHash, hashSessionToken("current-session-token"));
+    return session;
+  });
+  t.mock.method(User, "findById", async () => user);
+  t.mock.method(Session, "findOneAndUpdate", async (
+    _query: Record<string, unknown>, update: Record<string, unknown>,
+  ) => {
+    assert.equal((update.$set as { tokenHash: string }).tokenHash.length, 64);
+    return session;
+  });
+  const { state, response } = responseDouble();
+
+  await refresh(requestDouble({}, { session_token: "current-session-token" }), response);
+
+  assert.equal(state.status, 200);
+  assert.deepEqual(state.body, { user: {
+    id: user._id.toString(), email: user.email,
+    username: user.username, accountType: "USER",
+  } });
+  assert.equal(state.cookies.length, 2);
+  const accessCookie = state.cookies.find((cookie) => cookie.name === "access_token");
+  const sessionCookie = state.cookies.find((cookie) => cookie.name === "session_token");
+  assert.ok(accessCookie);
+  assert.ok(sessionCookie);
+  assert.notEqual(sessionCookie.value, "current-session-token");
+  assert.deepEqual(await verifyAccessToken(accessCookie.value), {
+    userId: user._id.toString(), role: "USER",
+  });
+  assert.equal(accessCookie.options.httpOnly, true);
+  assert.equal(sessionCookie.options.httpOnly, true);
+  assert.equal(accessCookie.options.secure, true);
+  assert.equal(sessionCookie.options.secure, true);
+});
+
+test("refresh rejects a missing session cookie", async () => {
+  const { state, response } = responseDouble();
+  await refresh(requestDouble({}), response);
+  assert.equal(state.status, 401);
+  assert.deepEqual(state.body, {
+    code: "REFRESH_SESSION_INVALID",
+    error: "Your session has expired. Please log in again.",
+  });
+  assert.equal(state.cookies.length, 0);
 });
 
 test("login rejects missing or malformed username and password before querying users", async (t) => {

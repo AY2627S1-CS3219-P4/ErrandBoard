@@ -55,6 +55,82 @@ export async function createUserSession(
   return rawToken;
 }
 
+export async function rotateUserSession(rawToken: string): Promise<{
+  sessionToken: string;
+  expiresAt: Date;
+  user: NonNullable<Awaited<ReturnType<typeof getUserForActiveSession>>>;
+} | null> {
+  const tokenHash = hashSessionToken(rawToken);
+  const now = new Date();
+  const session = await Session.findOne({
+    tokenHash,
+    revokedAt: { $exists: false },
+    expiresAt: { $gt: now },
+  });
+
+  if (session) {
+    const user = await User.findById(session.userId);
+    if (!user || user.isActive === false) {
+      await Session.updateOne(
+        { _id: session._id, revokedAt: { $exists: false } },
+        { $set: { revokedAt: now } },
+      );
+      return null;
+    }
+
+    const nextToken = createSessionToken();
+    const rotated = await Session.findOneAndUpdate(
+      {
+        _id: session._id,
+        tokenHash,
+        revokedAt: { $exists: false },
+        expiresAt: { $gt: now },
+      },
+      {
+        $set: { tokenHash: hashSessionToken(nextToken) },
+        $addToSet: { previousTokenHashes: tokenHash },
+      },
+      { returnDocument: "after" },
+    );
+
+    if (!rotated) {
+      // A second use of the same refresh token loses the compare-and-set race.
+      // Revoke the session rather than allowing a replayed token to remain valid.
+      await Session.updateOne(
+        { _id: session._id, revokedAt: { $exists: false } },
+        { $set: { revokedAt: new Date() } },
+      );
+      return null;
+    }
+
+    return {
+      sessionToken: nextToken,
+      expiresAt: rotated.expiresAt,
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        username: user.username,
+        accountType: user.accountType,
+      },
+    };
+  }
+
+  // A previously rotated token is evidence of refresh-token reuse. Revoke the
+  // remaining session so neither the old token nor its current successor works.
+  const replayedSession = await Session.findOne({
+    previousTokenHashes: tokenHash,
+    revokedAt: { $exists: false },
+  });
+  if (replayedSession) {
+    await Session.updateOne(
+      { _id: replayedSession._id, revokedAt: { $exists: false } },
+      { $set: { revokedAt: new Date() } },
+    );
+  }
+
+  return null;
+}
+
 export async function revokeUserSession(rawToken: string): Promise<void> {
   await Session.updateOne(
     {

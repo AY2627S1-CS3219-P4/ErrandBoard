@@ -1,4 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
+import { errors } from "jose";
 import { verifyAccessToken } from "../security/token.js";
 import type { AccountType } from "../types/auth.types.js";
 
@@ -20,14 +21,18 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   const token = extractToken(req);
 
   if (!token) {
-    res.status(401).json({ error: "Authentication required" });
+    res.status(401).json({ code: "AUTHENTICATION_REQUIRED", error: "Authentication required" });
     return;
   }
 
   try {
     req.user = await verifyAccessToken(token);
-  } catch {
-    res.status(403).json({ error: "Invalid token" });
+  } catch (error) {
+    if (error instanceof errors.JWTExpired) {
+      res.status(401).json({ code: "ACCESS_TOKEN_EXPIRED", error: "Access token expired" });
+      return;
+    }
+    res.status(401).json({ code: "INVALID_ACCESS_TOKEN", error: "Invalid token" });
     return;
   }
 
@@ -43,7 +48,11 @@ export async function optionalAuthenticate(req: Request, _res: Response, next: N
   if (token) {
     try {
       req.user = await verifyAccessToken(token);
-    } catch {
+    } catch (error) {
+      if (error instanceof errors.JWTExpired) {
+        _res.status(401).json({ code: "ACCESS_TOKEN_EXPIRED", error: "Access token expired" });
+        return;
+      }
       // Invalid token
     }
   }

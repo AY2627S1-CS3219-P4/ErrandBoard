@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, test } from "node:test";
 import { decodeJwt, SignJWT } from "jose";
-import { createAccessToken, verifyAccessToken } from "../src/security/token.js";
+import { createAccessToken, isAccessTokenExpired, verifyAccessToken } from "../src/security/token.js";
 
 // Public test fixture, never a deployment secret. Tests do not load .env.
 const testSecret = "unit-test-signing-key-not-for-deployment-123456789";
@@ -85,7 +85,20 @@ test("verification rejects an expired token without waiting for real time", asyn
     .setExpirationTime(Math.floor(Date.now() / 1000) - 60)
     .sign(new TextEncoder().encode(testSecret));
 
-  await assert.rejects(verifyAccessToken(token), { code: "ERR_JWT_EXPIRED" });
+  let expirationError: unknown;
+  try {
+    await verifyAccessToken(token);
+  } catch (error) {
+    expirationError = error;
+  }
+  assert.equal(isAccessTokenExpired(expirationError), true);
+});
+
+test("malformed and invalid-signature tokens are not classified as expiry", async () => {
+  await assert.rejects(verifyAccessToken("not-a-jwt"), (error) => {
+    assert.equal(isAccessTokenExpired(error), false);
+    return true;
+  });
 });
 
 test("verification rejects malformed and unsigned tokens", async () => {

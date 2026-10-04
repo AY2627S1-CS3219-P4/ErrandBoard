@@ -1,9 +1,8 @@
 import { useState, type SubmitEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import { apiFetch, userApiUrl } from "../api/client";
 import "./AuthForm.css";
-
-const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -23,12 +22,11 @@ export default function Login() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/login`, {
+      const response = await apiFetch(userApiUrl("/auth/login"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include",
         body: JSON.stringify({ username, password }),
       });
 
@@ -43,7 +41,7 @@ export default function Login() {
 
       if (import.meta.env.DEV) {
         console.debug("User Service login response", {
-          url: `${API_URL}/auth/login`,
+          url: userApiUrl("/auth/login"),
           status: response.status,
           statusText: response.statusText,
           body: responseBody,
@@ -74,7 +72,7 @@ export default function Login() {
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error("Unable to reach the User Service", {
-          url: `${API_URL}/auth/login`,
+          url: userApiUrl("/auth/login"),
           error,
         });
       }

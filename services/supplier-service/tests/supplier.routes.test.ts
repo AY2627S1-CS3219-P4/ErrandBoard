@@ -32,6 +32,14 @@ async function signToken(userId: string, role: AccountType): Promise<string> {
     .sign(secret);
 }
 
+async function signExpiredToken(userId: string, role: AccountType): Promise<string> {
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+  return new SignJWT({ sub: userId, role })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setExpirationTime(Math.floor(Date.now() / 1000) - 60)
+    .sign(secret);
+}
+
 test("POST /suppliers rejects a request with no session (requireAuth)", async () => {
   const server = await startServer();
 
@@ -53,6 +61,43 @@ test("POST /suppliers rejects a non-admin session (requireAdmin, NFR4.1)", async
       headers: { Cookie: `access_token=${token}` },
     });
     assert.equal(res.status, 403);
+  } finally {
+    await server.close();
+  }
+});
+
+test("POST /suppliers identifies an expired access token for frontend refresh", async () => {
+  const server = await startServer();
+
+  try {
+    const token = await signExpiredToken("test_id", "ADMIN");
+    const res = await fetch(`${server.baseUrl}/suppliers`, {
+      method: "POST",
+      headers: { Cookie: `access_token=${token}` },
+    });
+    assert.equal(res.status, 401);
+    assert.deepEqual(await res.json(), {
+      code: "ACCESS_TOKEN_EXPIRED",
+      error: "Access token expired",
+    });
+  } finally {
+    await server.close();
+  }
+});
+
+test("public supplier listing reports an expired optional token instead of silently downgrading an admin", async () => {
+  const server = await startServer();
+
+  try {
+    const token = await signExpiredToken("test_id", "ADMIN");
+    const res = await fetch(`${server.baseUrl}/suppliers?showInactive=true`, {
+      headers: { Cookie: `access_token=${token}` },
+    });
+    assert.equal(res.status, 401);
+    assert.deepEqual(await res.json(), {
+      code: "ACCESS_TOKEN_EXPIRED",
+      error: "Access token expired",
+    });
   } finally {
     await server.close();
   }

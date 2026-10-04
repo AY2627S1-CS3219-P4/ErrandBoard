@@ -3,6 +3,7 @@ import { model, Schema, Types } from "mongoose";
 export interface SessionDocument {
   userId: Types.ObjectId;
   tokenHash: string;
+  previousTokenHashes: string[];
   expiresAt: Date;
   revokedAt?: Date;
   userAgent?: string;
@@ -24,6 +25,10 @@ const sessionSchema = new Schema<SessionDocument>(
       required: true,
       unique: true,
     },
+    previousTokenHashes: {
+      type: [String],
+      default: [],
+    },
     expiresAt: {
       type: Date,
       required: true,
@@ -39,5 +44,6 @@ const sessionSchema = new Schema<SessionDocument>(
 );
 
 sessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+sessionSchema.index({ previousTokenHashes: 1 });
 
 export const Session = model<SessionDocument>("Session", sessionSchema);

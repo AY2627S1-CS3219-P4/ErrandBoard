@@ -3,9 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { ZxcvbnFactory } from "@zxcvbn-ts/core";
 import * as common from "@zxcvbn-ts/language-common";
 import * as english from "@zxcvbn-ts/language-en";
+import { apiFetch, userApiUrl } from "../api/client";
 import "./AuthForm.css";
-
-const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
 const EMAIL_REGEX: RegExp = /^e\d{7}@u\.nus\.edu$/;
 const USER_REGEX: RegExp = /^[a-zA-Z0-9_]{3,30}$/;
@@ -84,12 +83,11 @@ export default function Register() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_URL}/auth/register`, {
+      const response = await apiFetch(userApiUrl("/auth/register"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: "include",
         body: JSON.stringify({ email, username, password }),
       });
 

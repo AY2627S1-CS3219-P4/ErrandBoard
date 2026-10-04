@@ -6,17 +6,14 @@ import {
   type ReactNode,
 } from "react";
 import { AuthContext, type AuthStatus, type AuthUser } from "./auth-context";
-
-const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
+import { apiFetch, AUTH_SESSION_EXPIRED_EVENT, userApiUrl } from "../api/client";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
 
   const loadCurrentUser = useCallback(async (): Promise<AuthUser | null> => {
-    const response = await fetch(`${API_URL}/auth/me`, {
-      credentials: "include",
-    });
+    const response = await apiFetch(userApiUrl("/auth/me"));
 
     if (!response.ok) return null;
 
@@ -41,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/auth/logout`, {
+      const response = await apiFetch(userApiUrl("/auth/logout"), {
         method: "POST",
         credentials: "include",
       });
@@ -70,6 +67,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     return () => { active = false; };
   }, [loadCurrentUser]);
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setUser(null);
+      setStatus("unauthenticated");
+    };
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () => window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+  }, []);
 
   const value = useMemo(() => ({ status, user, refreshAuth, logout }), [status, user, refreshAuth, logout]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

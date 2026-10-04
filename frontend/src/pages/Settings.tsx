@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState, type SubmitEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import { apiFetch, userApiUrl } from "../api/client";
 import { ZxcvbnFactory } from "@zxcvbn-ts/core";
 import * as common from "@zxcvbn-ts/language-common";
 import * as english from "@zxcvbn-ts/language-en";
 import "./Settings.css";
 
-const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 const PASSWORD_SCORE_LABELS = ["Very weak", "Weak", "Fair", "Strong", "Very strong"] as const;
 const estimator = new ZxcvbnFactory({
   translations: english.translations, graphs: common.adjacencyGraphs,
@@ -61,8 +61,8 @@ export default function Settings() {
     setUsernameNotice("");
     setUsernameError("");
     try {
-      const response = await fetch(`${API_URL}/auth/me/username`, {
-        credentials: "include", headers: { "Content-Type": "application/json" },
+      const response = await apiFetch(userApiUrl("/auth/me/username"), {
+        headers: { "Content-Type": "application/json" },
         method: "PATCH", body: JSON.stringify({ username }),
       });
       if (response.status === 401) { await sessionExpired(); return; }
@@ -88,8 +88,8 @@ export default function Settings() {
     setPasswordError("");
     setPasswordNotice("");
     try {
-      const response = await fetch(`${API_URL}/auth/me/password`, {
-        credentials: "include", headers: { "Content-Type": "application/json" },
+      const response = await apiFetch(userApiUrl("/auth/me/password"), {
+        headers: { "Content-Type": "application/json" },
         method: "PATCH", body: JSON.stringify({ currentPassword, newPassword }),
       });
       if (response.status === 401) { await sessionExpired(); return; }

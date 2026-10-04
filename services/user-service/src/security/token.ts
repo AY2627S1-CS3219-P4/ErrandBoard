@@ -1,4 +1,4 @@
-import { SignJWT, jwtVerify } from "jose";
+import { errors, SignJWT, jwtVerify } from "jose";
 import { ACCOUNT_TYPES, type AccountType } from "../models/User.js";
 
 interface AccessTokenClaims {
@@ -36,4 +36,8 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenClaim
   }
 
   return { userId: payload.sub, role: payload.role as AccountType };
+}
+
+export function isAccessTokenExpired(error: unknown): boolean {
+  return error instanceof errors.JWTExpired;
 }

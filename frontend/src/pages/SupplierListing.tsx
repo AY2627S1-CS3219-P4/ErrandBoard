@@ -3,11 +3,8 @@ import { IoFilterOutline } from "react-icons/io5";
 import FilterModal from "../components/FilterModal";
 import SupplierCard from "../components/SupplierCard";
 import type { Supplier, SupplierFilters } from "../types/supplier";
+import { apiFetch, supplierApiUrl } from "../api/client";
 import "./SupplierListing.css";
-
-const SUPPLIER_API_URL =
-  import.meta.env.VITE_SUPPLIER_API_BASE_URL ?? "http://localhost:3002";
-
 
 export default function SupplierListing() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -23,8 +20,7 @@ export default function SupplierListing() {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(`${SUPPLIER_API_URL}/suppliers`, {
-      credentials: "include",
+    apiFetch(supplierApiUrl("/suppliers"), {
       signal: controller.signal,
     })
       .then((response) => (response.ok ? response.json() : { suppliers: [] }))
@@ -60,8 +56,7 @@ export default function SupplierListing() {
         filters.buildings.forEach((building) => params.append("building", building));
         const query = params.size > 0 ? `?${params}` : "";
 
-        const response = await fetch(`${SUPPLIER_API_URL}/suppliers${query}`, {
-          credentials: "include",
+        const response = await apiFetch(supplierApiUrl(`/suppliers${query}`), {
           signal: controller.signal,
         });
 

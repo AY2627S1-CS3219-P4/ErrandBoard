@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { verifyAccessToken } from "../security/token.js";
+import { isAccessTokenExpired, verifyAccessToken } from "../security/token.js";
 
 function getToken(req: Request): string | undefined {
   const authorization = req.headers.authorization;
@@ -8,10 +8,17 @@ function getToken(req: Request): string | undefined {
 
 export async function requireSuperadmin(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = getToken(req);
-  if (!token) { res.status(401).json({ error: "Authentication required" }); return; }
+  if (!token) { res.status(401).json({ code: "AUTHENTICATION_REQUIRED", error: "Authentication required" }); return; }
   try {
     const claims = await verifyAccessToken(token);
     if (claims.role !== "SUPERADMIN") { res.status(403).json({ error: "Superadmin access required" }); return; }
-  } catch { res.status(403).json({ error: "Invalid token" }); return; }
+  } catch (error) {
+    if (isAccessTokenExpired(error)) {
+      res.status(401).json({ code: "ACCESS_TOKEN_EXPIRED", error: "Access token expired" });
+      return;
+    }
+    res.status(401).json({ code: "INVALID_ACCESS_TOKEN", error: "Invalid token" });
+    return;
+  }
   next();
 }

@@ -5,6 +5,7 @@ import {
   getUserForActiveSession,
   registerUser,
   revokeUserSession,
+  rotateUserSession,
   updateOwnAccount,
   AccountUpdateError,
 } from "../services/auth.service.js";
@@ -135,6 +136,49 @@ export async function logout(req: Request, res: Response): Promise<void> {
     path: "/",
   });
   res.status(204).send();
+}
+
+export async function refresh(req: Request, res: Response): Promise<void> {
+  const sessionToken = req.cookies?.session_token;
+  if (typeof sessionToken !== "string" || !sessionToken) {
+    res.status(401).json({ code: "REFRESH_SESSION_INVALID", error: "Your session has expired. Please log in again." });
+    return;
+  }
+
+  const rotated = await rotateUserSession(sessionToken);
+  if (!rotated) {
+    res.clearCookie("access_token", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    });
+    res.clearCookie("session_token", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+    });
+    res.status(401).json({ code: "REFRESH_SESSION_INVALID", error: "Your session has expired. Please log in again." });
+    return;
+  }
+
+  const accessToken = await createAccessToken(rotated.user.id, rotated.user.accountType);
+  res.cookie("access_token", accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 15 * 60 * 1000,
+    path: "/",
+  });
+  res.cookie("session_token", rotated.sessionToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: Math.max(0, rotated.expiresAt.getTime() - Date.now()),
+    path: "/",
+  });
+  res.json({ user: rotated.user });
 }
 
 export async function currentUser(req: Request, res: Response): Promise<void> {

@@ -1,5 +1,11 @@
 # React + TypeScript + Vite
 
+## API routing
+
+The frontend calls the APIs through the same-origin paths `/api/user` and `/api/supplier`. During local development, the Vite server proxies these paths to the User Service on `localhost:3001` and Supplier Service on `localhost:3002`. This keeps HttpOnly auth cookies on the frontend origin while developing.
+
+For deployment, configure the public reverse proxy/load balancer to route `/api/user/*` to User Service and `/api/supplier/*` to Supplier Service, stripping each prefix before forwarding. Do not configure browser-visible service URLs as API base URLs; cross-origin service hosts would break this cookie-based routing model. The AWS routing itself is a deployment task and is not created by the Vite development proxy.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

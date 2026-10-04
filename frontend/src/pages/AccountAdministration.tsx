@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import type { AccountType } from "../auth/auth-context";
+import { apiFetch, userApiUrl } from "../api/client";
 import "./AdminDashboard.css";
 import "./AccountAdministration.css";
 
-const API_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 type ManagedAccount = { _id: string; email: string; username: string; accountType: "USER" | "ADMIN"; isActive: boolean; createdAt: string };
 type Filter = "ALL" | "ADMIN" | "USER";
 
@@ -26,7 +26,7 @@ export default function AccountAdministration() {
   const loadAccounts = useCallback(async () => {
     setIsLoading(true); setError("");
     try {
-      const response = await fetch(`${API_URL}/accounts`, { credentials: "include", headers: { Accept: "application/json" } });
+      const response = await apiFetch(userApiUrl("/accounts"), { headers: { Accept: "application/json" } });
       if (!response.ok) throw new Error(await apiError(response));
       const body = await response.json() as { accounts: ManagedAccount[] };
       setAccounts(body.accounts);
@@ -41,7 +41,7 @@ export default function AccountAdministration() {
     const nextRole: AccountType = account.accountType === "ADMIN" ? "USER" : "ADMIN";
     setUpdatingId(account._id); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API_URL}/accounts/${account._id}/role`, { method: "PATCH", credentials: "include", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ accountType: nextRole }) });
+      const response = await apiFetch(userApiUrl(`/accounts/${account._id}/role`), { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ accountType: nextRole }) });
       if (!response.ok) throw new Error(await apiError(response));
       setNotice(`${account.username} is now an ${nextRole === "ADMIN" ? "Admin" : "User"}.`);
       await loadAccounts();
@@ -53,7 +53,7 @@ export default function AccountAdministration() {
     const isActive = !account.isActive;
     setUpdatingId(account._id); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API_URL}/accounts/${account._id}/status`, { method: "PATCH", credentials: "include", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ isActive }) });
+      const response = await apiFetch(userApiUrl(`/accounts/${account._id}/status`), { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ isActive }) });
       if (!response.ok) throw new Error(await apiError(response));
       setNotice(`${account.username} is now ${isActive ? "active" : "inactive"}.`);
       await loadAccounts();
