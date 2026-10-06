@@ -1,5 +1,32 @@
 import type { Request, Response } from "express";
 import { ACCOUNT_TYPES, User } from "../models/User.js";
+import { AuthorizationChangeError, updateManagedAccount } from "../services/authorization.service.js";
+
+function accountResponse(account: InstanceType<typeof User>) {
+  return {
+    _id: account._id,
+    email: account.email,
+    username: account.username,
+    accountType: account.accountType,
+    isActive: account.isActive !== false,
+    createdAt: account.createdAt,
+    updatedAt: account.updatedAt,
+  };
+}
+
+async function applyManagedChange(res: Response, id: string, change: { accountType: "USER" | "ADMIN" } | { isActive: boolean }) {
+  try {
+    const account = await updateManagedAccount(id, change);
+    if (!account) { res.status(404).json({ error: "Account not found" }); return; }
+    res.json({ account: accountResponse(account) });
+  } catch (error) {
+    if (error instanceof AuthorizationChangeError) {
+      res.status(error.status).json({ error: error.message });
+      return;
+    }
+    throw error;
+  }
+}
 
 export async function listManagedAccounts(_req: Request, res: Response): Promise<void> {
   const accounts = await User.find({ accountType: { $in: ["USER", "ADMIN"] } })
@@ -16,13 +43,7 @@ export async function updateAccountRole(req: Request, res: Response): Promise<vo
     res.status(400).json({ error: "Account type must be USER or ADMIN" });
     return;
   }
-  const account = await User.findOneAndUpdate(
-    { _id: req.params.id, accountType: { $in: ["USER", "ADMIN"] } },
-    { $set: { accountType } },
-    { new: true, runValidators: true },
-  ).select("email username accountType isActive createdAt updatedAt").lean();
-  if (!account) { res.status(404).json({ error: "Account not found" }); return; }
-  res.json({ account: { ...account, isActive: account.isActive !== false } });
+  await applyManagedChange(res, req.params.id as string, { accountType });
 }
 
 export async function updateAccountStatus(req: Request, res: Response): Promise<void> {
@@ -31,11 +52,5 @@ export async function updateAccountStatus(req: Request, res: Response): Promise<
     res.status(400).json({ error: "isActive must be a boolean" });
     return;
   }
-  const account = await User.findOneAndUpdate(
-    { _id: req.params.id, accountType: { $in: ["USER", "ADMIN"] } },
-    { $set: { isActive } },
-    { new: true, runValidators: true },
-  ).select("email username accountType isActive createdAt updatedAt").lean();
-  if (!account) { res.status(404).json({ error: "Account not found" }); return; }
-  res.json({ account });
+  await applyManagedChange(res, req.params.id as string, { isActive });
 }

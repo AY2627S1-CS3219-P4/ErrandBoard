@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { Server } from "node:http";
 import { SignJWT } from "jose";
 import { app } from "../src/app.js";
+import { authorizationStore } from "../src/security/authorization-state.js";
 
 const signingSecret = "auth-route-test-secret-not-for-deployment-123456";
 
@@ -60,4 +61,24 @@ test("POST /auth/refresh is registered and rejects a missing refresh cookie", as
   } finally {
     await server.close();
   }
+});
+
+test("a demoted superadmin loses account-management access with an unexpired token", async (t) => {
+  const previousSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = signingSecret;
+  t.after(() => {
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
+  });
+  t.mock.method(authorizationStore, "read", async () => ({ version: 1, role: "ADMIN", active: true, blocked: false }));
+  const token = await new SignJWT({ sub: "507f1f77bcf86cd799439011", role: "SUPERADMIN", authzVersion: 0 })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .setExpirationTime("15m")
+    .sign(new TextEncoder().encode(signingSecret));
+  const server = await startServer();
+  try {
+    const response = await fetch(`${server.baseUrl}/accounts`, { headers: { Cookie: `access_token=${token}` } });
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).code, "ACCESS_REVOKED");
+  } finally { await server.close(); }
 });

@@ -21,7 +21,8 @@
     "csv-parse": "^7.0.3",
     "express": "^5.2.1",
     "jose": "^6.2.12",
-    "mongoose": "^9.0.0"
+    "mongoose": "^9.0.0",
+    "redis": "^5.12.1"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

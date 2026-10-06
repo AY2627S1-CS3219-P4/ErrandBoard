@@ -1,6 +1,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { errors } from "jose";
 import { verifyAccessToken } from "../security/token.js";
+import { authorizationStore, type AuthorizationDecision } from "../security/authorization-state.js";
 import type { AccountType } from "../types/auth.types.js";
 
 function extractToken(req: Request): string | undefined {
@@ -13,6 +14,18 @@ function extractToken(req: Request): string | undefined {
 
   // Fallback: read token from cookie
   return req.cookies?.access_token;
+}
+
+function rejectAuthorization(res: Response, decision: AuthorizationDecision): boolean {
+  if (decision === "allowed") return false;
+  if (decision === "unavailable") {
+    res.status(503).json({ code: "AUTHORIZATION_UNAVAILABLE", error: "Authorization temporarily unavailable" });
+  } else if (decision === "inactive") {
+    res.status(403).json({ code: "ACCOUNT_INACTIVE", error: "Account is inactive" });
+  } else {
+    res.status(401).json({ code: "ACCESS_REVOKED", error: "Access has been revoked. Please log in again." });
+  }
+  return true;
 }
 
 // Verifies if the user has a valid access token
@@ -36,6 +49,8 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     return;
   }
 
+  if (rejectAuthorization(res, await authorizationStore.check(req.user))) return;
+
   next();
 }
 
@@ -55,6 +70,7 @@ export async function optionalAuthenticate(req: Request, _res: Response, next: N
       }
       // Invalid token
     }
+    if (req.user && rejectAuthorization(_res, await authorizationStore.check(req.user))) return;
   }
 
   next();

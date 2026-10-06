@@ -10,6 +10,7 @@ import {
   AccountUpdateError,
 } from "../services/auth.service.js";
 import { createAccessToken } from "../security/token.js";
+import { AuthorizationChangeError } from "../services/authorization.service.js";
 import { validateRegistration, validatePassword, validUsername, validCredential } from "../validators/registration.validator.js";
 
 function duplicateRegistrationFields(error: unknown): Record<string, string> | null {
@@ -82,9 +83,11 @@ export async function login(
   const accessToken = await createAccessToken(
     user._id.toString(),
     user.accountType,
+    user.authzVersion ?? 0,
   );
   const sessionToken = await createUserSession(
     user._id.toString(),
+    user.authzVersion ?? 0,
     req.get("user-agent"),
     req.ip,
   );
@@ -163,7 +166,7 @@ export async function refresh(req: Request, res: Response): Promise<void> {
     return;
   }
 
-  const accessToken = await createAccessToken(rotated.user.id, rotated.user.accountType);
+  const accessToken = await createAccessToken(rotated.user.id, rotated.user.accountType, rotated.authzVersion);
   res.cookie("access_token", accessToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -224,11 +227,21 @@ async function updateAccount(req: Request, res: Response, kind: "username" | "pa
   try {
     const user = await updateOwnAccount(token, kind === "password" ? body.currentPassword : undefined,
       kind === "username" ? { username: body.username } : { newPassword: body.newPassword });
+    if (kind === "password") {
+      for (const name of ["access_token", "session_token"]) {
+        res.clearCookie(name, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+        });
+      }
+    }
     res.json({ user, message: kind === "password"
-      ? "Password updated. Use your new password the next time you log in."
+      ? "Password updated. Please log in again on every device."
       : "Username updated. Use your new username the next time you log in." });
   } catch (error) {
-    if (error instanceof AccountUpdateError) {
+    if (error instanceof AccountUpdateError || error instanceof AuthorizationChangeError) {
       res.status(error.status).json({ error: error.message });
       return;
     }

@@ -1,4 +1,16 @@
 services:
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - errandboard-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
   mongodb:
     image: mongo:latest
     command: ["--auth"]
@@ -28,9 +40,12 @@ services:
       MONGO_DB_NAME: errandboard
       MONGO_USER_SERVICE_PASSWORD: ${MONGO_USER_SERVICE_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: redis://redis:6379
       FRONTEND_ORIGIN: http://localhost:5173
     depends_on:
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       user-seed:
         condition: service_completed_successfully
@@ -84,9 +99,12 @@ services:
       MONGO_DB_NAME: errandboard
       MONGO_SUPPLIER_SERVICE_PASSWORD: ${MONGO_SUPPLIER_SERVICE_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: redis://redis:6379
       FRONTEND_ORIGIN: http://localhost:5173
     depends_on:
       mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       supplier-seed:
         condition: service_completed_successfully
@@ -98,6 +116,7 @@ services:
 
 volumes:
   mongodb_data:
+  redis_data:
 
 networks:
   errandboard-network:

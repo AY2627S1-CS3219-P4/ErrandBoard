@@ -33,8 +33,8 @@ function tamper(token: string, changes: Record<string, unknown>) {
 }
 
 test("issued JWT verifies the user ID and expires after 15 minutes", async () => {
-  const token = await createAccessToken(userId, "USER");
-  assert.deepEqual(await verifyAccessToken(token), { userId, role: "USER" });
+  const token = await createAccessToken(userId, "USER", 2);
+  assert.deepEqual(await verifyAccessToken(token), { userId, role: "USER", authzVersion: 2 });
   // Decode only to inspect claims; verification above authenticates them.
   const payload = decodeJwt(token);
   assert.equal(typeof payload.iat, "number");
@@ -43,19 +43,19 @@ test("issued JWT verifies the user ID and expires after 15 minutes", async () =>
 });
 
 test("issued JWT carries the ADMIN role", async () => {
-  const token = await createAccessToken(userId, "ADMIN");
-  assert.deepEqual(await verifyAccessToken(token), { userId, role: "ADMIN" });
+  const token = await createAccessToken(userId, "ADMIN", 4);
+  assert.deepEqual(await verifyAccessToken(token), { userId, role: "ADMIN", authzVersion: 4 });
 });
 
 test("verification rejects a tampered subject", async () => {
-  const token = await createAccessToken(userId, "USER");
+  const token = await createAccessToken(userId, "USER", 0);
   await assert.rejects(verifyAccessToken(tamper(token, { sub: "another-user" })), {
     code: "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
   });
 });
 
 test("verification rejects a role escalated after signing", async () => {
-  const token = await createAccessToken(userId, "USER");
+  const token = await createAccessToken(userId, "USER", 0);
   await assert.rejects(verifyAccessToken(tamper(token, { role: "ADMIN" })), {
     code: "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
   });
@@ -71,8 +71,13 @@ test("verification rejects a signed token with an unknown role", async () => {
   await assert.rejects(verifyAccessToken(token), /JWT role is missing or invalid/);
 });
 
+test("verification rejects legacy tokens without an authorization version", async () => {
+  const token = await signTestToken({ sub: userId, role: "ADMIN" });
+  await assert.rejects(verifyAccessToken(token), /authorization version is missing or invalid/);
+});
+
 test("verification rejects a token signed with a different secret", async () => {
-  const token = await createAccessToken(userId, "USER");
+  const token = await createAccessToken(userId, "USER", 0);
   process.env.JWT_SECRET = "a-different-unit-test-signing-key-123456789";
   await assert.rejects(verifyAccessToken(token), {
     code: "ERR_JWS_SIGNATURE_VERIFICATION_FAILED",
@@ -114,8 +119,8 @@ test("verification rejects a signed token without a subject", async () => {
 });
 
 test("signing and verification fail clearly when JWT_SECRET is missing", async () => {
-  const token = await createAccessToken(userId, "USER");
+  const token = await createAccessToken(userId, "USER", 0);
   delete process.env.JWT_SECRET;
-  await assert.rejects(createAccessToken(userId, "USER"), /JWT_SECRET is required/);
+  await assert.rejects(createAccessToken(userId, "USER", 0), /JWT_SECRET is required/);
   await assert.rejects(verifyAccessToken(token), /JWT_SECRET is required/);
 });

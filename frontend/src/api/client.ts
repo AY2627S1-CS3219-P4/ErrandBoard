@@ -12,10 +12,18 @@ export function supplierApiUrl(path: string): string {
   return `${SUPPLIER_API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-async function isAccessTokenExpired(response: Response): Promise<boolean> {
+async function shouldRefreshAccessToken(response: Response): Promise<boolean> {
   if (response.status !== 401) return false;
   const body = await response.clone().json().catch(() => null) as { code?: string } | null;
-  return body?.code === "ACCESS_TOKEN_EXPIRED";
+  // The browser may already have removed the 15-minute access cookie.
+  return body?.code === "ACCESS_TOKEN_EXPIRED" || body?.code === "AUTHENTICATION_REQUIRED";
+}
+
+async function isAccessRevoked(response: Response): Promise<boolean> {
+  if (response.status !== 401 && response.status !== 403) return false;
+  const body = await response.clone().json().catch(() => null) as { code?: string } | null;
+  return body?.code === "ACCESS_REVOKED" || body?.code === "ACCOUNT_INACTIVE" ||
+    body?.code === "INVALID_ACCESS_TOKEN";
 }
 
 async function refreshAccessToken(): Promise<boolean> {
@@ -42,10 +50,13 @@ async function fetchWithCredentials(input: string | URL, init: RequestInit): Pro
   return fetch(input, { ...init, credentials: "include" });
 }
 
-/** Fetch through the same-origin API proxy and refresh an expired access cookie once. */
+/** Fetch through the same-origin API proxy and refresh a missing or expired access cookie once. */
 export async function apiFetch(input: string | URL, init: RequestInit = {}): Promise<Response> {
   const firstResponse = await fetchWithCredentials(input, init);
-  if (!await isAccessTokenExpired(firstResponse)) return firstResponse;
+  if (!await shouldRefreshAccessToken(firstResponse)) {
+    if (await isAccessRevoked(firstResponse)) dispatchSessionExpired();
+    return firstResponse;
+  }
 
   const retryAfterRefresh = async (): Promise<Response> => {
     const refreshed = await refreshAccessToken();
@@ -55,7 +66,9 @@ export async function apiFetch(input: string | URL, init: RequestInit = {}): Pro
     }
 
     // Retry exactly once. A second expiry is returned to the caller, not looped.
-    return fetchWithCredentials(input, init);
+    const retried = await fetchWithCredentials(input, init);
+    if (await isAccessRevoked(retried) || await shouldRefreshAccessToken(retried)) dispatchSessionExpired();
+    return retried;
   };
 
   if (typeof navigator !== "undefined" && navigator.locks) {

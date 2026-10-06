@@ -94,7 +94,8 @@ export default function Settings() {
       });
       if (response.status === 401) { await sessionExpired(); return; }
       if (!response.ok) { setPasswordError(await responseError(response)); return; }
-      setPasswordNotice("Password updated. Use your new password the next time you log in.");
+      await logout();
+      navigate("/login", { replace: true, state: { message: "Password updated. Please log in again on this device." } });
     } catch {
       setPasswordError("Could not confirm the password change. If it succeeded, log in with your new password.");
     } finally {
