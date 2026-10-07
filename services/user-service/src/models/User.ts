@@ -9,6 +9,7 @@ export interface UserDocument {
   passwordHash: string;
   accountType: AccountType;
   isActive: boolean;
+  authzVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -47,6 +48,12 @@ const userSchema = new Schema<UserDocument>(
       type: Boolean,
       default: true,
       required: true,
+    },
+    authzVersion: {
+      type: Number,
+      default: 0,
+      required: true,
+      min: 0,
     },
   },
   {

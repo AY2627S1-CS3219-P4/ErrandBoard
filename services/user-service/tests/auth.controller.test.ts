@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { changeUsername, changePassword, currentUser, login, logout, register } from "../src/controllers/auth.controller.js";
+import { changeUsername, changePassword, currentUser, login, logout, refresh, register } from "../src/controllers/auth.controller.js";
 import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
 import { hashSessionToken } from "../src/security/session-token.js";
 import { verifyAccessToken } from "../src/security/token.js";
+import { authorizationStore } from "../src/security/authorization-state.js";
 
 // Small response double: no HTTP listener or database is required.
 function responseDouble() {
@@ -89,6 +90,7 @@ test("account updates reject invalid inputs before database access", async (t) =
 });
 
 test("username update accepts an active session without asking for the current password", async (t) => {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
   t.mock.method(Session, "findOne", async () => ({ userId: user._id }));
   t.mock.method(User, "findById", () => ({ select: async () => user }));
   t.mock.method(User, "findOneAndUpdate", async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
@@ -112,6 +114,7 @@ test("username update accepts an active session without asking for the current p
 });
 
 test("username update reports a duplicate username as a readable conflict", async (t) => {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
   t.mock.method(Session, "findOne", async () => ({ userId: user._id }));
   t.mock.method(User, "findById", () => ({ select: async () => user }));
   t.mock.method(User, "findOneAndUpdate", async () => {
@@ -126,10 +129,14 @@ test("username update reports a duplicate username as a readable conflict", asyn
   assert.match((state.body as { error: string }).error, /username.*taken/i);
 });
 
-test("password update returns success without clearing the existing session cookies", async (t) => {
+test("password update revokes sessions and clears cookies", async (t) => {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
+  t.mock.method(authorizationStore, "block", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
+  t.mock.method(authorizationStore, "publish", async () => {});
+  const revoke = t.mock.method(Session, "updateMany", async () => ({}));
   t.mock.method(Session, "findOne", async () => ({ userId: user._id }));
   t.mock.method(User, "findById", () => ({ select: async () => user }));
-  t.mock.method(User, "findOneAndUpdate", async () => user);
+  t.mock.method(User, "findOneAndUpdate", async () => new User({ ...user.toObject(), authzVersion: 1 }));
   const { state, response } = responseDouble();
   await changePassword(requestDouble(
     { newPassword: strongRegistrationPassword, currentPassword: password },
@@ -137,7 +144,8 @@ test("password update returns success without clearing the existing session cook
   ), response);
   assert.equal(state.status, 200);
   assert.match((state.body as { message: string }).message, /Password updated/);
-  assert.equal(state.cleared.length, 0);
+  assert.equal(revoke.mock.callCount(), 1);
+  assert.deepEqual(state.cleared.map(({ name }) => name), ["access_token", "session_token"]);
   assert.equal(JSON.stringify(state.body).includes("passwordHash"), false);
 });
 
@@ -150,6 +158,7 @@ before(async () => {
 });
 
 test("registration returns 201 with a safe user response", async (t) => {
+  t.mock.method(authorizationStore, "initialize", async () => {});
   let persisted: Record<string, unknown> | undefined;
   const create = t.mock.method(
     User,
@@ -281,6 +290,7 @@ test("current-user endpoint rejects a missing or expired/revoked session", async
 });
 
 test("current-user endpoint returns only safe user details for a valid session", async (t) => {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
   const activeUser = new User({
     email: "e7654321@u.nus.edu", username: "activeuser", passwordHash: user.passwordHash,
   });
@@ -299,6 +309,7 @@ test("current-user endpoint returns only safe user details for a valid session",
 
 for (const mode of ["production", "development"]) {
   test(`login sets a protected cookie and logout clears its matching attributes (${mode})`, async (t) => {
+    t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
     setEnv(t, "NODE_ENV", mode);
     setEnv(t, "JWT_SECRET", "controller-test-key-not-for-deployment-123456789");
     t.mock.method(User, "findOne", () => ({ select: async () => user }));
@@ -319,7 +330,7 @@ for (const mode of ["production", "development"]) {
     assert.ok(accessCookie);
     assert.ok(sessionCookie);
     assert.deepEqual(await verifyAccessToken(accessCookie.value), {
-      userId: user._id.toString(), role: "USER",
+      userId: user._id.toString(), role: "USER", authzVersion: 0,
     });
     assert.deepEqual(accessCookie.options, {
       httpOnly: true, secure: mode === "production", sameSite: "lax",
@@ -343,6 +354,7 @@ for (const mode of ["production", "development"]) {
 }
 
 test("admin login issues a token carrying the ADMIN role", async (t) => {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "ADMIN", active: true, blocked: false }));
   setEnv(t, "JWT_SECRET", "controller-test-key-not-for-deployment-123456789");
   const admin = new User({
     email: "admin@example.com", username: "admin",
@@ -358,7 +370,7 @@ test("admin login issues a token carrying the ADMIN role", async (t) => {
   const accessCookie = state.cookies.find((cookie) => cookie.name === "access_token");
   assert.ok(accessCookie);
   assert.deepEqual(await verifyAccessToken(accessCookie.value), {
-    userId: admin._id.toString(), role: "ADMIN",
+    userId: admin._id.toString(), role: "ADMIN", authzVersion: 0,
   });
 });
 
@@ -373,6 +385,57 @@ test("failed login returns a generic 401 and never issues a cookie", async (t) =
     assert.deepEqual(state.body, { error: "Invalid username or password" });
     assert.equal(state.cookies.length, 0);
   }
+});
+
+test("refresh rotates the session cookie and issues a new short-lived access token", async (t) => {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
+  setEnv(t, "NODE_ENV", "production");
+  setEnv(t, "JWT_SECRET", "controller-test-key-not-for-deployment-123456789");
+  const session = { _id: "session-id", userId: user._id, expiresAt: new Date(Date.now() + 60_000) };
+  t.mock.method(Session, "findOne", async (query: Record<string, unknown>) => {
+    assert.equal(query.tokenHash, hashSessionToken("current-session-token"));
+    return session;
+  });
+  t.mock.method(User, "findById", async () => user);
+  t.mock.method(Session, "findOneAndUpdate", async (
+    _query: Record<string, unknown>, update: Record<string, unknown>,
+  ) => {
+    assert.equal((update.$set as { tokenHash: string }).tokenHash.length, 64);
+    return session;
+  });
+  const { state, response } = responseDouble();
+
+  await refresh(requestDouble({}, { session_token: "current-session-token" }), response);
+
+  assert.equal(state.status, 200);
+  assert.deepEqual(state.body, { user: {
+    id: user._id.toString(), email: user.email,
+    username: user.username, accountType: "USER",
+  } });
+  assert.equal(state.cookies.length, 2);
+  const accessCookie = state.cookies.find((cookie) => cookie.name === "access_token");
+  const sessionCookie = state.cookies.find((cookie) => cookie.name === "session_token");
+  assert.ok(accessCookie);
+  assert.ok(sessionCookie);
+  assert.notEqual(sessionCookie.value, "current-session-token");
+  assert.deepEqual(await verifyAccessToken(accessCookie.value), {
+    userId: user._id.toString(), role: "USER", authzVersion: 0,
+  });
+  assert.equal(accessCookie.options.httpOnly, true);
+  assert.equal(sessionCookie.options.httpOnly, true);
+  assert.equal(accessCookie.options.secure, true);
+  assert.equal(sessionCookie.options.secure, true);
+});
+
+test("refresh rejects a missing session cookie", async () => {
+  const { state, response } = responseDouble();
+  await refresh(requestDouble({}), response);
+  assert.equal(state.status, 401);
+  assert.deepEqual(state.body, {
+    code: "REFRESH_SESSION_INVALID",
+    error: "Your session has expired. Please log in again.",
+  });
+  assert.equal(state.cookies.length, 0);
 });
 
 test("login rejects missing or malformed username and password before querying users", async (t) => {
@@ -393,6 +456,7 @@ test("login rejects missing or malformed username and password before querying u
 });
 
 test("missing signing configuration rejects login before issuing a cookie or success body", async (t) => {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
   setEnv(t, "JWT_SECRET", undefined);
   t.mock.method(User, "findOne", () => ({ select: async () => user }));
   const { state, response } = responseDouble();

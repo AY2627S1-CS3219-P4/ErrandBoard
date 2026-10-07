@@ -1,20 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { apiFetch, supplierApiUrl } from "../api/client";
 import { CATEGORY_LABELS, type Supplier } from "../types/supplier";
 import "./SupplierManagement.css";
 
-const SUPPLIER_API_URL = (import.meta.env.VITE_SUPPLIER_API_BASE_URL ?? "http://localhost:3002").replace(/\/$/, "");
 const CATEGORIES = Object.keys(CATEGORY_LABELS);
 
-function supplierApiUrl(path: string): string {
-  return `${SUPPLIER_API_URL}${path}`;
-}
-
 function supplierFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(supplierApiUrl(path), {
+  return apiFetch(supplierApiUrl(path), {
     ...init,
-    credentials: "include",
     headers: {
       Accept: "application/json",
       ...init.headers,

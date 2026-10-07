@@ -5,6 +5,8 @@ import {
   createSessionToken,
   hashSessionToken,
 } from "../security/session-token.js";
+import { authorizationStore, requireCurrentAuthorization } from "../security/authorization-state.js";
+import { changeAuthorization } from "./authorization.service.js";
 
 export async function registerUser(input: {
   email: string;
@@ -18,6 +20,7 @@ export async function registerUser(input: {
     username: input.username,
     passwordHash,
   });
+  await authorizationStore.initialize(user._id.toString(), user);
 
   return {
     id: user._id.toString(),
@@ -34,11 +37,14 @@ export async function authenticateUser(username: string, password: string) {
     return null;
   }
 
+  if (!(await requireCurrentAuthorization(user))) return null;
+
   return user;
 }
 
 export async function createUserSession(
   userId: string,
+  authzVersion: number,
   userAgent?: string,
   ipAddress?: string,
 ): Promise<string> {
@@ -46,6 +52,7 @@ export async function createUserSession(
 
   await Session.create({
     userId,
+    authzVersion,
     tokenHash: hashSessionToken(rawToken),
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     userAgent,
@@ -53,6 +60,86 @@ export async function createUserSession(
   });
 
   return rawToken;
+}
+
+export async function rotateUserSession(rawToken: string): Promise<{
+  sessionToken: string;
+  expiresAt: Date;
+  authzVersion: number;
+  user: NonNullable<Awaited<ReturnType<typeof getUserForActiveSession>>>;
+} | null> {
+  const tokenHash = hashSessionToken(rawToken);
+  const now = new Date();
+  const session = await Session.findOne({
+    tokenHash,
+    revokedAt: { $exists: false },
+    expiresAt: { $gt: now },
+  });
+
+  if (session) {
+    const user = await User.findById(session.userId);
+    if (!user || user.isActive === false ||
+        (session.authzVersion ?? 0) !== (user.authzVersion ?? 0) ||
+        !(await requireCurrentAuthorization(user))) {
+      await Session.updateOne(
+        { _id: session._id, revokedAt: { $exists: false } },
+        { $set: { revokedAt: now } },
+      );
+      return null;
+    }
+
+    const nextToken = createSessionToken();
+    const rotated = await Session.findOneAndUpdate(
+      {
+        _id: session._id,
+        tokenHash,
+        revokedAt: { $exists: false },
+        expiresAt: { $gt: now },
+      },
+      {
+        $set: { tokenHash: hashSessionToken(nextToken) },
+        $addToSet: { previousTokenHashes: tokenHash },
+      },
+      { returnDocument: "after" },
+    );
+
+    if (!rotated) {
+      // A second use of the same refresh token loses the compare-and-set race.
+      // Revoke the session rather than allowing a replayed token to remain valid.
+      await Session.updateOne(
+        { _id: session._id, revokedAt: { $exists: false } },
+        { $set: { revokedAt: new Date() } },
+      );
+      return null;
+    }
+
+    return {
+      sessionToken: nextToken,
+      expiresAt: rotated.expiresAt,
+      authzVersion: user.authzVersion ?? 0,
+      user: {
+        id: user._id.toString(),
+        email: user.email,
+        username: user.username,
+        accountType: user.accountType,
+      },
+    };
+  }
+
+  // A previously rotated token is evidence of refresh-token reuse. Revoke the
+  // remaining session so neither the old token nor its current successor works.
+  const replayedSession = await Session.findOne({
+    previousTokenHashes: tokenHash,
+    revokedAt: { $exists: false },
+  });
+  if (replayedSession) {
+    await Session.updateOne(
+      { _id: replayedSession._id, revokedAt: { $exists: false } },
+      { $set: { revokedAt: new Date() } },
+    );
+  }
+
+  return null;
 }
 
 export async function revokeUserSession(rawToken: string): Promise<void> {
@@ -76,7 +163,9 @@ async function findSessionUser(rawToken: string, includePassword = false) {
   if (!session) return null;
   const query = User.findById(session.userId);
   const user = await (includePassword ? query.select("+passwordHash") : query);
-  if (!user) return null;
+  if (!user || user.isActive === false ||
+      (session.authzVersion ?? 0) !== (user.authzVersion ?? 0) ||
+      !(await requireCurrentAuthorization(user))) return null;
   return user;
 }
 
@@ -112,13 +201,20 @@ export async function updateOwnAccount(
 
   // Compare-and-set prevents an old password from authorizing a concurrent update.
   // The target ID ALWAYS comes from the authenticated session, never the request body.
-  const updated = await User.findOneAndUpdate(
-    { _id: user._id, passwordHash: user.passwordHash },
-    "username" in change
-      ? { $set: { username: change.username } }
-      : { $set: { passwordHash: await hashPassword(change.newPassword) } },
-    { returnDocument: "after", runValidators: true },
-  );
+  const version = user.authzVersion ?? 0;
+  const versionFilter = version === 0 ? { $in: [null, 0] } : version;
+  const newPasswordHash = "newPassword" in change ? await hashPassword(change.newPassword) : undefined;
+  const updated = "username" in change
+    ? await User.findOneAndUpdate(
+      { _id: user._id, passwordHash: user.passwordHash, authzVersion: versionFilter },
+      { $set: { username: change.username } },
+      { returnDocument: "after", runValidators: true },
+    )
+    : await changeAuthorization(user, () => User.findOneAndUpdate(
+      { _id: user._id, passwordHash: user.passwordHash, authzVersion: versionFilter },
+      { $set: { passwordHash: newPasswordHash }, $inc: { authzVersion: 1 } },
+      { returnDocument: "after", runValidators: true },
+    ));
   if (!updated) throw new AccountUpdateError(409, "Your account changed. Please log in again and retry.");
   return {
     id: updated._id.toString(), email: updated.email,

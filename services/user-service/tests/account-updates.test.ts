@@ -5,6 +5,7 @@ import { Session } from "../src/models/Session.js";
 import { AccountUpdateError, updateOwnAccount } from "../src/services/auth.service.js";
 import { hashPassword, verifyPassword } from "../src/security/password.js";
 import { hashSessionToken } from "../src/security/session-token.js";
+import { authorizationStore } from "../src/security/authorization-state.js";
 
 const currentPassword = "Current test password!";
 const newPassword = "qf7$Lx2@vB9!Rk3#nP5^wM8";
@@ -15,6 +16,7 @@ before(async () => {
 });
 
 function session(t: TestContext) {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
   t.mock.method(Session, "findOne", async (query: Record<string, unknown>) => {
     assert.equal(query.tokenHash, hashSessionToken("test-token"));
     assert.deepEqual(query.revokedAt, { $exists: false });
@@ -30,7 +32,7 @@ function session(t: TestContext) {
 test("username update needs only an active session and targets only its owner", async (t) => {
   session(t);
   t.mock.method(User, "findOneAndUpdate", async (query: unknown, update: unknown, options: unknown) => {
-    assert.deepEqual(query, { _id: owner._id, passwordHash: owner.passwordHash });
+    assert.deepEqual(query, { _id: owner._id, passwordHash: owner.passwordHash, authzVersion: { $in: [null, 0] } });
     assert.deepEqual(update, { $set: { username: "renamed" } });
     assert.deepEqual(options, { returnDocument: "after", runValidators: true });
     return new User({ ...owner.toObject(), username: "renamed" });
@@ -42,15 +44,20 @@ test("username update needs only an active session and targets only its owner", 
 
 test("password updates store a bcrypt hash rather than plaintext", async (t) => {
   session(t);
+  t.mock.method(authorizationStore, "block", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
+  const publish = t.mock.method(authorizationStore, "publish", async () => {});
+  const revoke = t.mock.method(Session, "updateMany", async () => ({}));
   t.mock.method(User, "findOneAndUpdate", async (_query: unknown, update: {
-    $set: { passwordHash: string };
+    $set: { passwordHash: string }; $inc: { authzVersion: number };
   }) => {
     assert.notEqual(update.$set.passwordHash, newPassword);
     assert.equal(await verifyPassword(newPassword, update.$set.passwordHash), true);
-    assert.deepEqual(Object.keys(update), ["$set"]);
-    return owner;
+    assert.equal(update.$inc.authzVersion, 1);
+    return new User({ ...owner.toObject(), authzVersion: 1 });
   });
   await updateOwnAccount("test-token", currentPassword, { newPassword });
+  assert.equal(revoke.mock.callCount(), 1);
+  assert.equal(publish.mock.callCount(), 1);
 });
 
 test("password updates reject a wrong current password without writing", async (t) => {
