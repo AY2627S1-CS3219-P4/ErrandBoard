@@ -20,9 +20,11 @@ services:
       MONGO_INITDB_DATABASE: errandboard
       MONGO_USER_SERVICE_PASSWORD: ${MONGO_USER_SERVICE_PASSWORD}
       MONGO_SUPPLIER_SERVICE_PASSWORD: ${MONGO_SUPPLIER_SERVICE_PASSWORD}
+      MONGO_CREDIT_SERVICE_PASSWORD: ${MONGO_CREDIT_SERVICE_PASSWORD}
     volumes:
       - mongodb_data:/data/db
       - ./config/db.js:/docker-entrypoint-initdb.d/init.js:ro
+      - ./config/migrations:/migrations:ro
     ports:
       - "27017:27017"
     networks:
@@ -110,6 +112,20 @@ services:
         condition: service_completed_successfully
     ports:
       - "3002:3002"
+    networks:
+      - errandboard-network
+
+  credit-service:
+    build: ./services/credit-service
+    environment:
+      PORT: 3004
+      MONGO_HOST: mongodb
+      MONGO_DB_NAME: errandboard
+      MONGO_CREDIT_SERVICE_PASSWORD: ${MONGO_CREDIT_SERVICE_PASSWORD}
+      CREDIT_INTERNAL_API_KEY: ${CREDIT_INTERNAL_API_KEY}
+    depends_on:
+      mongodb:
+        condition: service_healthy
     networks:
       - errandboard-network
 
