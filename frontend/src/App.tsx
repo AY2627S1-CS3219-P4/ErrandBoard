@@ -4,6 +4,7 @@ import Register from "./pages/Register";
 import Homepage from "./pages/Homepage";
 import Settings from "./pages/Settings";
 import SupplierListing from "./pages/SupplierListing";
+import SupplierDetail from "./pages/SupplierDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import AccountAdministration from "./pages/AccountAdministration";
 import SupplierManagement from "./pages/SupplierManagement";
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/home" element={<Homepage />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/suppliers" element={<SupplierListing />} />
+            <Route path="/supplier/:id" element={<SupplierDetail />} />
           </Route>
           <Route element={<RequireAdmin />}>
             <Route path="/admin" element={<AdminDashboard />} />
