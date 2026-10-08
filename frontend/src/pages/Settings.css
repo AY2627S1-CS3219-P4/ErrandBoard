@@ -13,7 +13,7 @@
   margin-bottom: 2.5rem;
 }
 .app-page-header h1 { margin: 0; text-align: center; font-size: clamp(1.65rem, 4vw, 2.35rem); letter-spacing: -0.04em; line-height: 1.2; }
-.settings-link, .settings-back-link, .settings-logout-button, .settings-primary-button {
+.settings-link, .settings-logout-button, .settings-primary-button {
   display: inline-flex;
   box-sizing: border-box;
   align-items: center;
@@ -30,10 +30,9 @@
   text-decoration: none;
   cursor: pointer;
 }
-.settings-back-link, .settings-logout-button { width: 6.4rem; }
-.settings-back-link { justify-self: start; }
+.settings-logout-button { width: 6.4rem; }
 .settings-link, .settings-logout-button { justify-self: end; }
-.settings-link:hover, .settings-back-link:hover, .settings-logout-button:hover { background: var(--accent-bg); border-color: var(--accent-border); }
+.settings-link:hover, .settings-logout-button:hover { background: var(--accent-bg); border-color: var(--accent-border); }
 .settings-shell button:disabled { opacity: 0.55; cursor: not-allowed; }
 .account-settings { max-width: 34rem; margin: 0 auto; }
 .settings-intro h2 { font-size: 1.4rem; font-weight: 650; margin-bottom: 0.6rem; }

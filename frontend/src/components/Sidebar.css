@@ -1,0 +1,95 @@
+.app-with-sidebar {
+  display: flex;
+  align-items: stretch;
+  min-height: 100svh;
+}
+.app-content { flex: 1; min-width: 0; }
+.sidebar {
+  flex: 0 0 13rem;
+  box-sizing: border-box;
+  padding: 1.5rem 0.75rem;
+  border-right: 1px solid var(--border);
+  text-align: left;
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+.sidebar-brand {
+  margin: 0 0 1.25rem;
+  padding: 0 0.75rem;
+  color: var(--text-h);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sidebar-link {
+  display: block;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.45rem;
+  color: var(--text-h);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.sidebar-link:hover { background: var(--accent-bg); }
+.sidebar-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sidebar-link-active { background: var(--accent-bg); color: var(--accent); }
+.sidebar-link-disabled,
+.sidebar-link-disabled:hover {
+  background: none;
+  color: var(--text);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.sidebar-account {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: auto;
+  padding: 1rem 0.75rem 0;
+  border-top: 1px solid var(--border);
+}
+.sidebar-user { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.sidebar-username {
+  overflow: hidden;
+  color: var(--text-h);
+  font-size: 0.9rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-role { color: var(--accent); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; }
+.sidebar-error { color: #b42318; font-size: 0.75rem; }
+.sidebar-logout-button {
+  min-height: 2.4rem;
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.45rem;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sidebar-logout-button:hover { background: var(--accent-bg); border-color: var(--accent-border); }
+.sidebar-logout-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sidebar-logout-button:disabled { opacity: 0.55; cursor: not-allowed; }
+@media (prefers-color-scheme: dark) {
+  .sidebar-error { color: #fca5a5; }
+}
+@media (max-width: 720px) {
+  .app-with-sidebar { flex-direction: column; }
+  .sidebar { position: static; height: auto; flex-basis: auto; padding: 0.75rem; border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar-brand, .sidebar-account { display: none; }
+  .sidebar-list { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+}
