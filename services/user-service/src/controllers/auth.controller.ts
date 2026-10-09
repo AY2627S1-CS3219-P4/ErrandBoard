@@ -11,6 +11,7 @@ import {
 } from "../services/auth.service.js";
 import { createAccessToken } from "../security/token.js";
 import { AuthorizationChangeError } from "../services/authorization.service.js";
+import { CreditAccountUnavailableError } from "../services/credit-account.client.js";
 import { validateRegistration, validatePassword, validUsername, validCredential } from "../validators/registration.validator.js";
 
 function duplicateRegistrationFields(error: unknown): Record<string, string> | null {
@@ -53,6 +54,13 @@ export async function register(
   try {
     user = await registerUser(validation.data);
   } catch (error) {
+    if (error instanceof CreditAccountUnavailableError) {
+      res.status(503).json({
+        code: "CREDIT_SETUP_PENDING",
+        error: "Your user account was created, but credit setup failed. Please contact support rather than registering again.",
+      });
+      return;
+    }
     const fields = duplicateRegistrationFields(error);
     if (!fields) throw error;
     res.status(409).json({

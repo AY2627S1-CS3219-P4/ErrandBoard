@@ -29,13 +29,28 @@ before(async () => {
 });
 
 test("registration sends only a hash to persistence and returns safe account fields", async (t) => {
+  process.env.CREDIT_SERVICE_URL = "http://credit-service:3004";
+  process.env.CREDIT_INTERNAL_API_KEY = "test-credit-key";
+  t.after(() => {
+    delete process.env.CREDIT_SERVICE_URL;
+    delete process.env.CREDIT_INTERNAL_API_KEY;
+  });
   t.mock.method(authorizationStore, "initialize", async () => {});
+  let createdId: string | undefined;
+  const creditCall = t.mock.method(globalThis, "fetch", async (url: URL | string | Request, options?: RequestInit) => {
+    assert.equal(url.toString(), `http://credit-service:3004/credit/accounts/${createdId}`);
+    assert.equal(options?.method, "PUT");
+    assert.equal(options?.headers && (options.headers as Record<string, string>).Authorization, "Bearer test-credit-key");
+    assert.deepEqual(JSON.parse(options?.body as string), { isActive: true });
+    return new Response(null, { status: 204 });
+  });
   let persisted: Record<string, unknown> | undefined;
   t.mock.method(User, "create", async (document: Record<string, unknown>) => {
     persisted = document;
     // Simulate model validation/defaults, not actual database persistence.
     const user = new User(document);
     await user.validate();
+    createdId = user._id.toString();
     return user;
   });
 
@@ -51,6 +66,8 @@ test("registration sends only a hash to persistence and returns safe account fie
   assert.equal(result.email, input.email);
   assert.equal(result.username, input.username);
   assert.match(result.id, /^[a-f0-9]{24}$/);
+  assert.equal(result.id, createdId);
+  assert.equal(creditCall.mock.callCount(), 1);
 });
 
 test("login retrieves the password hash and accepts valid credentials", async (t) => {

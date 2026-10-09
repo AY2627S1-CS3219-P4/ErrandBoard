@@ -5,9 +5,10 @@ import { UserCredit } from "../dist/models/UserCredit.js";
 
 const userId = "507f1f77bcf86cd799439011";
 
-function request(key, id = userId) {
+function request(key, id = userId, body) {
   return {
     params: { userId: id },
+    body,
     get: (name) => name === "authorization" ? key : undefined,
   };
 }
@@ -53,28 +54,60 @@ test("one credit account per user is declared as a unique index", () => {
   ));
 });
 
-test("repeated provisioning uses insert-only defaults", async () => {
+test("provisioning creates one account with matching ID and initial balances, then only changes status", async () => {
+  const original = UserCredit.updateOne;
+  let account;
+  let insertCount = 0;
+  UserCredit.updateOne = async (filter, update, options) => {
+    if (!account) {
+      assert.equal(options.upsert, true);
+      account = { ...update.$setOnInsert, ...update.$set };
+      insertCount += 1;
+      return { acknowledged: true, matchedCount: 0, upsertedCount: 1 };
+    }
+    assert.equal(filter.userId.toString(), account.userId.toString());
+    account = { ...account, ...update.$set };
+    return { acknowledged: true, matchedCount: 1, upsertedCount: 0 };
+  };
+
+  try {
+    for (const isActive of [true, false, true]) {
+      const result = response();
+      await provisionCreditAccount(request("Bearer test-service-key", userId, { isActive }), result);
+      assert.equal(result.statusCode, 204);
+      assert.equal(account.userId.toString(), userId);
+      assert.equal(account.available, 100);
+      assert.equal(account.reserve, 0);
+      assert.equal(account.isActive, isActive);
+    }
+    assert.equal(insertCount, 1);
+  } finally {
+    UserCredit.updateOne = original;
+  }
+});
+
+test("provisioning rejects a non-boolean account status", async () => {
+  const result = response();
+  await provisionCreditAccount(request("Bearer test-service-key", userId, { isActive: "false" }), result);
+  assert.equal(result.statusCode, 400);
+});
+
+test("a concurrent unique-index race updates status without resetting the winning balance", async () => {
   const original = UserCredit.updateOne;
   const calls = [];
   UserCredit.updateOne = async (...args) => {
     calls.push(args);
-    return { acknowledged: true, matchedCount: calls.length - 1, upsertedCount: 1 };
+    if (calls.length === 1) throw Object.assign(new Error("duplicate key"), { code: 11000 });
+    return { acknowledged: true, matchedCount: 1, upsertedCount: 0 };
   };
 
   try {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const result = response();
-      await provisionCreditAccount(request("Bearer test-service-key"), result);
-      assert.equal(result.statusCode, 204);
-    }
+    const result = response();
+    await provisionCreditAccount(request("Bearer test-service-key", userId, { isActive: false }), result);
+    assert.equal(result.statusCode, 204);
     assert.equal(calls.length, 2);
-    for (const [filter, update, options] of calls) {
-      assert.equal(filter.userId.toString(), userId);
-      assert.equal(update.$setOnInsert.available, 100);
-      assert.equal(update.$setOnInsert.reserve, 0);
-      assert.equal(options.upsert, true);
-      assert.equal(update.$set, undefined);
-    }
+    assert.equal(calls[1][0].userId.toString(), userId);
+    assert.deepEqual(calls[1][1], { $set: { isActive: false } });
   } finally {
     UserCredit.updateOne = original;
   }
