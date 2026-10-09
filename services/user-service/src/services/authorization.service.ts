@@ -1,6 +1,7 @@
 import { Session } from "../models/Session.js";
 import { User, type AccountType } from "../models/User.js";
 import { authorizationStore, checkAuthorization } from "../security/authorization-state.js";
+import { syncCreditAccount } from "./credit-account.client.js";
 
 export class AuthorizationChangeError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -46,8 +47,7 @@ export async function updateManagedAccount(
 ) {
   const user = await User.findOne({ _id: userId, accountType: { $in: ["USER", "ADMIN"] } });
   if (!user) return null;
-  if (("accountType" in change && user.accountType === change.accountType) ||
-      ("isActive" in change && user.isActive === change.isActive)) {
+  if ("accountType" in change && user.accountType === change.accountType) {
     const decision = await checkAuthorization(user._id.toString(), user.accountType, user.authzVersion ?? 0);
     if (decision === "unavailable" || decision === "revoked") {
       throw new AuthorizationChangeError(503, "Authorization state is unavailable. Please retry later.");
@@ -56,13 +56,24 @@ export async function updateManagedAccount(
   }
 
   const version = user.authzVersion ?? 0;
-  return changeAuthorization(user, () => User.findOneAndUpdate(
-    {
-      _id: user._id,
-      accountType: user.accountType,
-      authzVersion: version === 0 ? { $in: [null, 0] } : version,
-    },
-    { $set: change, $inc: { authzVersion: 1 } },
-    { returnDocument: "after", runValidators: true },
-  ));
+  return changeAuthorization(user, async () => {
+    const updated = await User.findOneAndUpdate(
+      {
+        _id: user._id,
+        accountType: user.accountType,
+        authzVersion: version === 0 ? { $in: [null, 0] } : version,
+      },
+      { $set: change, $inc: { authzVersion: 1 } },
+      { returnDocument: "after", runValidators: true },
+    );
+    if (updated && "isActive" in change) {
+      try {
+        await syncCreditAccount(updated._id.toString(), updated.isActive);
+      } catch {
+        // The Redis block remains in place until operator reconciliation.
+        throw new AuthorizationChangeError(503, "Credit account update failed. Account access remains blocked; contact an administrator.");
+      }
+    }
+    return updated;
+  });
 }

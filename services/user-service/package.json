@@ -9,6 +9,7 @@
     "build": "tsc --project tsconfig.json",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "seed": "node dist/scripts/seed-users.js",
+    "credits:backfill": "node dist/scripts/backfill-user-credits.js",
     "seed:dev": "tsx --env-file=../../.env src/scripts/seed-users.ts",
     "authz:rebuild": "node dist/scripts/rebuild-authorization.js",
     "typecheck:tests": "tsc --project tsconfig.test.json",

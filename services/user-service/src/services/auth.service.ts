@@ -7,6 +7,7 @@ import {
 } from "../security/session-token.js";
 import { authorizationStore, requireCurrentAuthorization } from "../security/authorization-state.js";
 import { changeAuthorization } from "./authorization.service.js";
+import { syncCreditAccount } from "./credit-account.client.js";
 
 export async function registerUser(input: {
   email: string;
@@ -21,6 +22,7 @@ export async function registerUser(input: {
     passwordHash,
   });
   await authorizationStore.initialize(user._id.toString(), user);
+  await syncCreditAccount(user._id.toString(), user.isActive);
 
   return {
     id: user._id.toString(),

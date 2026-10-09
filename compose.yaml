@@ -42,6 +42,8 @@ services:
       MONGO_DB_NAME: errandboard
       MONGO_USER_SERVICE_PASSWORD: ${MONGO_USER_SERVICE_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
+      CREDIT_SERVICE_URL: http://credit-service:3004
+      CREDIT_INTERNAL_API_KEY: ${CREDIT_INTERNAL_API_KEY}
       REDIS_URL: redis://redis:6379
       FRONTEND_ORIGIN: http://localhost:5173
     depends_on:
@@ -51,6 +53,8 @@ services:
         condition: service_healthy
       user-seed:
         condition: service_completed_successfully
+      credit-service:
+        condition: service_healthy
     ports:
       - "3001:3001"
     networks:
@@ -64,11 +68,15 @@ services:
       MONGO_HOST: mongodb
       MONGO_DB_NAME: errandboard
       MONGO_USER_SERVICE_PASSWORD: ${MONGO_USER_SERVICE_PASSWORD}
+      CREDIT_SERVICE_URL: http://credit-service:3004
+      CREDIT_INTERNAL_API_KEY: ${CREDIT_INTERNAL_API_KEY}
       SEED_CSV_PATH: /seed/user-seed-data.csv
     volumes:
       - ./data/csv:/seed:ro
     depends_on:
       mongodb:
+        condition: service_healthy
+      credit-service:
         condition: service_healthy
     restart: "no"
     networks:
@@ -126,6 +134,11 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3004/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - errandboard-network
 

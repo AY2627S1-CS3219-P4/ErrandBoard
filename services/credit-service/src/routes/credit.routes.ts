@@ -33,7 +33,13 @@ export async function provisionCreditAccount(req: Request, res: Response): Promi
     return;
   }
 
-  await ensureCreditAccount(new Types.ObjectId(userId));
+  const isActive = req.body?.isActive === undefined ? true : req.body.isActive;
+  if (typeof isActive !== "boolean") {
+    res.status(400).json({ error: "isActive must be a boolean" });
+    return;
+  }
+
+  await ensureCreditAccount(new Types.ObjectId(userId), isActive);
   res.sendStatus(204);
 }
 
