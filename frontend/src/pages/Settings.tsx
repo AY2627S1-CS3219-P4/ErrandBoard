@@ -1,6 +1,7 @@
-import { useMemo, useRef, useState, type SubmitEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type SubmitEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import { useLeaveGuard } from "../components/leave-guard";
 import { apiFetch, userApiUrl } from "../api/client";
 import { ZxcvbnFactory } from "@zxcvbn-ts/core";
 import * as common from "@zxcvbn-ts/language-common";
@@ -49,6 +50,13 @@ export default function Settings() {
     usernameInput.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     return true;
   }
+
+  // Sidebar links check this before leaving Settings.
+  const { setLeaveGuard } = useLeaveGuard();
+  useEffect(() => {
+    setLeaveGuard(blockLeaveForUnsavedUsername);
+    return () => setLeaveGuard(null);
+  });
 
   async function sessionExpired() {
     await refreshAuth(false);
@@ -121,9 +129,7 @@ export default function Settings() {
   return (
     <main className="settings-shell">
       <header className="app-page-header">
-        <Link className="settings-back-link" to="/home" onClick={(event) => {
-          if (blockLeaveForUnsavedUsername()) event.preventDefault();
-        }}>← Home</Link>
+        <span />
         <h1>Settings</h1>
         <button className="settings-logout-button" type="button" onClick={handleLogout} disabled={busy !== null}>
           {busy === "logout" ? "Logging out…" : "Log out"}

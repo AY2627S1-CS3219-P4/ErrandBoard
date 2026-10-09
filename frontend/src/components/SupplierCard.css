@@ -10,7 +10,17 @@
   border-radius: 0.75rem;
   background: var(--bg);
   box-shadow: var(--shadow);
+  color: inherit;
   text-align: left;
+  text-decoration: none;
+}
+
+.supplier-card:hover {
+  border-color: var(--accent-border);
+}
+
+.supplier-card:focus-visible {
+  outline: 2px solid var(--accent-border);
 }
 
 .supplier-card-image {

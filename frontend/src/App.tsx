@@ -4,9 +4,11 @@ import Register from "./pages/Register";
 import Homepage from "./pages/Homepage";
 import Settings from "./pages/Settings";
 import SupplierListing from "./pages/SupplierListing";
+import SupplierDetail from "./pages/SupplierDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import AccountAdministration from "./pages/AccountAdministration";
 import SupplierManagement from "./pages/SupplierManagement";
+import AppLayout from "./components/AppLayout";
 import { AuthProvider } from "./auth/AuthContext";
 import { HomeRedirect, RedirectIfAuthenticated, RequireAdmin, RequireAuth, RequireSuperadmin } from "./auth/RouteGuards";
 
@@ -21,16 +23,19 @@ export default function App() {
             <Route path="/register" element={<Register />} />
           </Route>
           <Route element={<RequireAuth />}>
-            <Route path="/home" element={<Homepage />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/suppliers" element={<SupplierListing />} />
-          </Route>
-          <Route element={<RequireAdmin />}>
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/suppliers" element={<SupplierManagement />} />
-          </Route>
-          <Route element={<RequireSuperadmin />}>
-            <Route path="/admin/accounts" element={<AccountAdministration />} />
+            <Route element={<AppLayout />}>
+              <Route path="/home" element={<Homepage />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/suppliers" element={<SupplierListing />} />
+              <Route path="/supplier/:id" element={<SupplierDetail />} />
+              <Route element={<RequireAdmin />}>
+                <Route path="/admin" element={<AdminDashboard />} />
+                <Route path="/admin/suppliers" element={<SupplierManagement />} />
+                <Route element={<RequireSuperadmin />}>
+                  <Route path="/admin/accounts" element={<AccountAdministration />} />
+                </Route>
+              </Route>
+            </Route>
           </Route>
           <Route path="*" element={<HomeRedirect />} />
         </Routes>

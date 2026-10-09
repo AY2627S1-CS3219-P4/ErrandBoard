@@ -1,0 +1,134 @@
+.supplier-detail-page {
+  --supplier-detail-max-width: 40rem;
+  --supplier-detail-section-gap: 1.5rem;
+
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(1rem, 4vw, 2.5rem);
+}
+
+.supplier-detail-back {
+  width: min(100%, var(--supplier-detail-max-width));
+  margin-bottom: 1rem;
+  color: var(--accent);
+  text-align: left;
+  text-decoration: none;
+}
+
+.supplier-detail {
+  display: flex;
+  width: min(100%, var(--supplier-detail-max-width));
+  flex-direction: column;
+  gap: var(--supplier-detail-section-gap);
+  text-align: left;
+}
+
+.supplier-detail-image {
+  display: flex;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 3rem;
+  font-weight: 600;
+}
+
+.supplier-detail-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.supplier-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+/* Slightly smaller than the global h1 (56px / 36px) */
+.supplier-detail-name {
+  margin: 0;
+  font-size: 44px;
+  line-height: 1.1;
+
+  @media (max-width: 1024px) {
+    font-size: 30px;
+  }
+}
+
+.supplier-detail-meta {
+  font-size: 0.9rem;
+}
+
+.supplier-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.supplier-detail-section h2 {
+  margin: 0;
+}
+
+.supplier-detail-hours summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+}
+
+.supplier-detail-hours summary::-webkit-details-marker {
+  display: none;
+}
+
+.supplier-detail-hours summary::after {
+  content: "▾";
+  color: var(--text);
+  transition: transform 0.2s ease;
+}
+
+.supplier-detail-hours[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.supplier-detail-hours-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.supplier-detail-hours-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.supplier-detail-hours-row dt {
+  color: var(--text-h);
+}
+
+.supplier-detail-hours-row dd {
+  margin: 0;
+  text-align: right;
+}
+
+.supplier-detail-errand-button {
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+}

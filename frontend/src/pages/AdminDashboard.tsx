@@ -8,11 +8,6 @@ export default function AdminDashboard() {
 
   return (
     <main className="admin-dashboard">
-      <Link className="admin-back-button" to="/home">
-        <span aria-hidden="true">←</span>
-        Back to home
-      </Link>
-
       <div className="admin-page-heading">
         <div>
           <p className="eyebrow">ERRANDBOARD / CONTROL CENTRE</p>

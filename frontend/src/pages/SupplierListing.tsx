@@ -4,6 +4,7 @@ import FilterModal from "../components/FilterModal";
 import SupplierCard from "../components/SupplierCard";
 import type { Supplier, SupplierFilters } from "../types/supplier";
 import { apiFetch, supplierApiUrl } from "../api/client";
+import "./Settings.css";
 import "./SupplierListing.css";
 
 export default function SupplierListing() {
@@ -94,7 +95,11 @@ export default function SupplierListing() {
 
   return (
     <main className="supplier-page">
-      <h1>Suppliers</h1>
+      <header className="app-page-header supplier-page-header">
+        <span />
+        <h1>Suppliers</h1>
+        <span />
+      </header>
 
       <div className="supplier-search">
         <label htmlFor="supplier-search" className="visually-hidden">
