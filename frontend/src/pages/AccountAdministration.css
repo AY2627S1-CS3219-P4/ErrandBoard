@@ -33,4 +33,46 @@
 .account-role-button:disabled { cursor: not-allowed; opacity: 0.55; }
 .account-status-button { border-color: rgba(180, 35, 24, 0.35); color: #b42318; }
 .account-status-button.promote { border-color: rgba(40, 115, 60, 0.35); color: #28733c; }
-@media (max-width: 760px) { .account-summary { align-items: flex-start; } .account-table { min-width: 0; } .account-table th, .account-table td { padding-inline: 0.3rem; overflow-wrap: anywhere; } .account-role-button { padding-inline: 0.45rem; font-size: 0.8rem; } }
+@media (max-width: 760px) {
+  .account-summary { align-items: flex-start; }
+  .account-filters { width: 100%; box-sizing: border-box; border-radius: 0.75rem; }
+  .account-filter { flex: 1 1 auto; padding-inline: 0.6rem; }
+  .account-table-wrap { overflow: visible; }
+  .account-table { display: block; min-width: 0; width: 100%; table-layout: auto; }
+  .account-table thead { display: none; }
+  .account-table tbody { display: block; }
+  .account-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 0.75rem;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .account-table td {
+    min-width: 0;
+    padding: 0.5rem 0.25rem;
+    border: 0;
+    overflow-wrap: anywhere;
+  }
+  .account-table td::before {
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--text);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    content: attr(data-label);
+  }
+  .account-table td:first-child, .account-row-actions { grid-column: 1 / -1; }
+  .account-table td:first-child { padding-bottom: 0.65rem; }
+  .account-table td:first-child::before, .account-row-actions::before { display: none; }
+  .account-row-actions {
+    display: flex;
+    gap: 0.5rem;
+    padding-top: 0.65rem;
+    text-align: left !important;
+  }
+  .account-row-actions .account-role-button + .account-role-button { margin-left: 0; }
+  .account-row-actions .account-role-button { flex: 1 1 0; min-width: 0; padding-inline: 0.45rem; font-size: 0.8rem; }
+}
