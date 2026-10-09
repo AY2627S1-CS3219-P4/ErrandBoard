@@ -1,0 +1,35 @@
+{
+  "name": "@errandboard/supplier-service",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "seed": "node dist/scripts/seed-suppliers.js",
+    "seed:dev": "tsx --env-file=../../.env src/scripts/seed-suppliers.ts",
+    "typecheck:tests": "tsc --project tsconfig.test.json",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:integration": "node --import tsx --test tests/integration/*.test.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "csv-parse": "^7.0.3",
+    "express": "^5.2.1",
+    "jose": "^6.2.12",
+    "mongoose": "^9.0.0",
+    "redis": "^5.12.1"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}
