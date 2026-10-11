@@ -26,7 +26,13 @@ db.createRole({
 });
 
 // Order Service
-
+db.createRole({
+    role: "order_service_role",
+        privileges: [
+            { resource: { db: "errandboard", collection: "errands" }, actions: ["find", "insert", "update", "remove"] },
+        ],
+        roles: []
+})
 // Credit Service
 db.createRole({
     role: "credit_service_role",
@@ -65,6 +71,16 @@ db.createUser({
 });
 
 // Order Service
+db.createUser({
+    user: "order_service",
+    pwd: process.env.MONGO_ORDER_SERVICE_PASSWORD,
+    roles: [
+        {
+            role: "order_service_role",
+            db: process.env.MONGO_INITDB_DATABASE
+        }
+    ]
+});
 
 // Credit Service
 db.createUser({
@@ -83,6 +99,16 @@ db.createUser({
 // Supplier Service
 db.createCollection("suppliers")
 db.suppliers.createIndex( { name: 1, building: 1}, { unique: true })
+
+// Order serivce
+db.createCollection("errands");
+db.errands.createIndex({ status: 1, expiresAt: 1});
+db.errands.createIndex({ status: 1, confirmBy: 1});
+db.errands.createIndex({ status: 1, completeBy: 1});
+db.errands.createIndex({ requesterId: 1, status: 1});
+db.errands.createIndex({ courierId: 1, status: 1});
+db.errand.createIndex({ createdAt: -1});
+
 
 // Credit Service
 db.createCollection("UserCredits");
