@@ -1,6 +1,6 @@
 import type { NextFunction, Request, RequestHandler, Response } from "express";
 import { verifyAccessToken } from "../security/token.js";
-import type { AccountType } from "../../../types/auth.types.js";
+import type { AccountType } from "../types/auth.types.js";
 
 function extractToken(req: Request): string | undefined {
   // Check if the request contains an Authorization header

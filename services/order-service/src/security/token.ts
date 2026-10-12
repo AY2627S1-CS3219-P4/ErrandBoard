@@ -1,5 +1,5 @@
 import { jwtVerify } from "jose";
-import { ACCOUNT_TYPES, type AccessTokenClaims, type AccountType } from "../../../types/auth.types.js";
+import { ACCOUNT_TYPES, type AccessTokenClaims, type AccountType } from "../types/auth.types.js";
 
 function getSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;

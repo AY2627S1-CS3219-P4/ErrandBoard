@@ -34,6 +34,25 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5672:5672"
+      - "15672:15672"   # management UI: http://localhost:15672
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - errandboard-network
+
   user-service:
     build: ./services/user-service
     environment:
@@ -133,11 +152,15 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       REDIS_URL: redis://redis:6379
       FRONTEND_ORIGIN: http://localhost:5173
+      SUPPLIER_SERVICE_URL: http://supplier-service:3002
+      CREDIT_SERVICE_URL: http://credit-service:3004
     depends_on:
       mongodb:
         condition: service_healthy
       redis:
         condition: service_healthy
+      supplier-service:
+        condition: service_started
     ports:
       - "3003:3003"
     networks:
