@@ -12,7 +12,7 @@ export interface ErrandEvent {
     errandId: string;
     requesterId: string;
     courierId: string | null;
-    reward: number;
+    credit: number;
     occurredAt: string;
 }
 
