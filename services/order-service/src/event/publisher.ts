@@ -10,10 +10,11 @@ export function getEventPublisher(): EventPublisher {
   }
   return current;
 }
-
+//prob no need for this since get already sets?
+/*
 export function setEventPublisher(publisher: EventPublisher | undefined): void {
   current = publisher;
-}
+}*/
 
 export async function closeEventPublisher(): Promise<void> {
   const publisher = current;
