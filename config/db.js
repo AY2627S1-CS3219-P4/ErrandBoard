@@ -107,7 +107,7 @@ db.errands.createIndex({ status: 1, confirmBy: 1});
 db.errands.createIndex({ status: 1, completeBy: 1});
 db.errands.createIndex({ requesterId: 1, status: 1});
 db.errands.createIndex({ courierId: 1, status: 1});
-db.errand.createIndex({ createdAt: -1});
+db.errands.createIndex({ createdAt: -1});
 
 
 // Credit Service
