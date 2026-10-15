@@ -68,4 +68,20 @@ creditDb.UserCredits.createIndex({ userId: 1 }, { unique: true });
 if (!creditDb.getCollectionInfos({ name: "transactionLog" }).length) {
   creditDb.createCollection("transactionLog");
 }
-creditDb.transactionLog.createIndex({ orderId: 1 });
+// Old per-account logs use RESERVE/REFUND/DEDUCT/ADD and must be reconciled
+// before enabling the new operation-level model. Do not silently reinterpret them.
+const legacyLog = creditDb.transactionLog.findOne({
+  transactionType: { $nin: ["ORDER_START", "ORDER_END"] },
+});
+if (legacyLog) {
+  throw new Error("Legacy transactionLog entries require manual reconciliation before migration");
+}
+const duplicatePhase = creditDb.transactionLog.aggregate([
+  { $group: { _id: { orderId: "$orderId", transactionType: "$transactionType" }, count: { $sum: 1 } } },
+  { $match: { count: { $gt: 1 } } },
+  { $limit: 1 },
+]).toArray()[0];
+if (duplicatePhase) {
+  throw new Error("Duplicate transactionLog order phases must be resolved before creating the unique index");
+}
+creditDb.transactionLog.createIndex({ orderId: 1, transactionType: 1 }, { unique: true });
