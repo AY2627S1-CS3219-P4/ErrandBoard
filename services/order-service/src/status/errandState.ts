@@ -12,7 +12,7 @@ export const ACTIVE_STATUSES: readonly ErrandStatus[] = ["OPEN", "ACCEPTED", "PI
 export const ALLOWED_TRANSITIONS: Record<ErrandStatus, ErrandStatus[]> = {
     OPEN: ["ACCEPTED", "CANCELLED", "EXPIRED"],
     ACCEPTED: ["PICKED_UP", "CANCELLED"],
-    PICKED_UP: ["PENDING_COMPLETION"], //add cancelled as well for admin dispute
+    PICKED_UP: ["PENDING_COMPLETION", "CANCELLED"], //admin can cancel errand after dispute raised
     PENDING_COMPLETION: ["COMPLETED"],
 
     //terminal

@@ -1,6 +1,21 @@
 import { Types } from "mongoose";
-import { Errand, type ErrandRecord } from "../model/Errand.js";
+import { ErrandNotFoundError, InvalidStatusTransitionError, SelfAssignErrandError, UpdateConflictError } from "../errors/order.errors.js";
+import { Errand, type ErrandRecord } from "../models/Errand.js";
+import { SupplierCopy } from "../models/Errand.js";
 import { ACTIVE_STATUSES } from "../status/errandState.js";
+import { ERRAND_STATUSES, type ErrandStatus, validTransition } from "../status/errandState.js";
+
+// all deadlines are two days for now
+const EXPIRY_DEADLINE = 2 * 24 * 60 * 60 * 1000;
+const COMPLETION_DEADLINE = 2 * 24 * 60 * 60 * 1000;
+const CONFIRMATION_DEADLINE = 2 * 24 * 60 * 60 * 1000;
+export interface CreateErrandInput {
+    requesterId: string;
+    supplier: SupplierCopy;
+    dropoff: string;
+    description: string;
+    credit: number;
+}
 
 export interface ListFilters {
   supplierId?: string[];
@@ -20,14 +35,6 @@ export function isObjectIdString(value: unknown): value is string {
   return typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
 }
 
-//maybe have a file specifically for errors same as above
-export class ErrandNotFoundError extends Error {
-  constructor() {
-    super("Errand not found");
-  }
-}
-
-
 //read functions
 export async function listOpenErrands(viewId: string, filters: ListFilters) {
     const now = new Date();
@@ -38,8 +45,8 @@ export async function listOpenErrands(viewId: string, filters: ListFilters) {
     if (filters.building?.length) query["supplier.building"] = { $in: filters.building};
     if (filters.address?.length) query["supplier.address"] = { $in: filters.address };
     if (filters.dropoff) query["dropoff"] = { $regex: escapeRegex(filters.dropoff), $options: "i" };
-    if (filters.q) query["q"] = { $regex: escapeRegex(filters.q), $options: "i" };
-    if (filters.since) query["since"] = { $gte: filters.since };
+    if (filters.q) query["description"] = { $regex: escapeRegex(filters.q), $options: "i" };
+    if (filters.since) query["createdAt"] = { $gte: filters.since };
     
     const errands = await Errand.find(query).sort({ createdAt : -1});
 
@@ -62,10 +69,114 @@ export async function getErrand(userId: string, id: string): Promise<ErrandRecor
     const errand = (await Errand.findById(id)) as ErrandRecord | null;
     if (!errand) throw new ErrandNotFoundError();
 
-    const involved = errand.requesterId === userId || errand.requesterId === userId;
+    const involved = errand.requesterId === userId || errand.courierId === userId;
     const publicListing = errand.status === "OPEN" && errand.expiresAt > new Date();
     if (!involved && !publicListing) throw new ErrandNotFoundError();
 
     return errand;
 }
 
+export async function createErrand(input: CreateErrandInput): Promise<ErrandRecord> {
+  // TODO: check if supplier is still active
+
+  const errand = await Errand.create({
+    ...input,
+    status: "OPEN",
+    expiresAt: new Date(Date.now() + EXPIRY_DEADLINE),
+  });
+
+  return errand;
+}
+
+async function updateErrand(id: string, from: ErrandStatus, to: ErrandStatus, filter: Record<string, unknown> = {}, update: Record<string, unknown> = {}) {
+  if (!validTransition(from, to)) {
+    throw new InvalidStatusTransitionError(from, to);
+  }
+  if (!isObjectIdString(id)) throw new ErrandNotFoundError;
+
+  const updated = await Errand.findOneAndUpdate(
+    // checking and updating of errand are in the same operation
+    { _id: id, status: from, ...filter },
+    { $set: { status: to, ...update } },
+    { new: true, runValidators: true }
+  ) as ErrandRecord | null;
+
+  if (!updated) {
+    const existing = await Errand.findById(id);
+    if (!existing) throw new ErrandNotFoundError();
+    throw new UpdateConflictError();
+  }
+
+  return updated;
+}
+
+// assign courier and update errand status to "ACCEPTED"
+export async function acceptErrand(id: string, courierId: string) {
+  try {
+    const updated = await updateErrand(id, "OPEN", "ACCEPTED", 
+      { 
+        courierId: { $exists: false },  // courier must not have been assigned before
+        requesterId: { $ne: courierId },    // requester cannot take their own errand
+        expiresAt: { $gt: new Date() } // expired errands cannot be accepted
+      }, { courierId })
+
+    return updated;
+  } catch (error) {
+    if (error instanceof UpdateConflictError) {
+      const existing = await Errand.findById(id);
+      if (existing?.requesterId === courierId) throw new SelfAssignErrandError();
+    }
+    throw error;
+  }
+}
+
+export async function pickUpErrand(id: string, courierId: string) {
+  const updated = await updateErrand(id, "ACCEPTED", "PICKED_UP",
+    { courierId },
+    { completeBy: new Date(Date.now() + COMPLETION_DEADLINE) }
+  );
+
+  return updated;
+}
+
+export async function deliverErrand(id: string, courierId: string) {
+  const updated = await updateErrand(id, "PICKED_UP", "PENDING_COMPLETION",
+    { courierId },
+    { confirmBy: new Date(Date.now() + CONFIRMATION_DEADLINE) }
+  );
+
+  return updated;
+}
+
+export async function completeErrand(id: string, requesterId: string) {
+  const updated = await updateErrand(id, "PENDING_COMPLETION", "COMPLETED",
+    { requesterId }
+  );
+
+  return updated;
+}
+
+// requesters can cancel only an open errand they created
+export async function cancelErrandByRequester(id: string, requesterId: string) {
+  const updated = await updateErrand(id, "OPEN", "CANCELLED",
+    { requesterId }
+  );
+
+  return updated;
+}
+
+// couriers can cancel only an errand they accepted
+export async function cancelErrandByCourier(id: string, courierId: string) {
+  const updated = await updateErrand(id, "ACCEPTED", "CANCELLED",
+    { courierId }
+  );
+
+  return updated;
+}
+
+// this requires admin auth check
+export async function cancelErrand(id: string) {
+  const updated = await updateErrand(id, "ACCEPTED", "CANCELLED");
+
+  return updated;
+}
