@@ -22,5 +22,9 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenClaim
     throw new Error("JWT role is missing or invalid");
   }
 
-  return { userId: payload.sub, role: payload.role as AccountType };
+  if (!Number.isSafeInteger(payload.authzVersion) || (payload.authzVersion as number < 0)) {
+    throw new Error("JWT authorization version is missing or invalid");
+  }
+
+  return { userId: payload.sub, role: payload.role as AccountType, authzVersion: payload.authzVersion as number};
 }
