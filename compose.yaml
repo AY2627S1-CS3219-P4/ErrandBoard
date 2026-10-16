@@ -13,18 +13,21 @@ services:
       retries: 5
   mongodb:
     image: mongo:latest
-    command: ["--auth"]
+    entrypoint: ["sh", "/mongodb/start.sh"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: errandboard
       MONGO_USER_SERVICE_PASSWORD: ${MONGO_USER_SERVICE_PASSWORD}
       MONGO_SUPPLIER_SERVICE_PASSWORD: ${MONGO_SUPPLIER_SERVICE_PASSWORD}
+      MONGO_ORDER_SERVICE_PASSWORD: ${MONGO_ORDER_SERVICE_PASSWORD}
       MONGO_CREDIT_SERVICE_PASSWORD: ${MONGO_CREDIT_SERVICE_PASSWORD}
+      MONGO_REPLICA_SET_KEY: ${MONGO_REPLICA_SET_KEY:?Set a high-entropy replica-set key}
     volumes:
       - mongodb_data:/data/db
       - ./config/db.js:/docker-entrypoint-initdb.d/init.js:ro
       - ./config/migrations:/migrations:ro
+      - ./config/mongodb:/mongodb:ro
     ports:
       - "27017:27017"
     networks:
@@ -34,6 +37,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  mongodb-rs-init:
+    image: mongo:latest
+    entrypoint: ["mongosh", "mongodb://mongodb:27017/admin?directConnection=true", "--quiet", "--file", "/mongodb/init-replica-set.js"]
+    environment:
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    volumes:
+      - ./config/mongodb/init-replica-set.js:/mongodb/init-replica-set.js:ro
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - errandboard-network
       
   rabbitmq:
     image: rabbitmq:4-management
@@ -68,6 +85,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      mongodb-rs-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       user-seed:
@@ -95,6 +114,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      mongodb-rs-init:
+        condition: service_completed_successfully
       credit-service:
         condition: service_healthy
     restart: "no"
@@ -115,6 +136,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      mongodb-rs-init:
+        condition: service_completed_successfully
     restart: "no"
     networks:
       - errandboard-network
@@ -133,6 +156,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      mongodb-rs-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       supplier-seed:
@@ -154,9 +179,12 @@ services:
       FRONTEND_ORIGIN: http://localhost:5173
       SUPPLIER_SERVICE_URL: http://supplier-service:3002
       CREDIT_SERVICE_URL: http://credit-service:3004
+      ORDER_CREDIT_API_KEY: ${ORDER_CREDIT_API_KEY:?Set an Order-to-Credit API key}
     depends_on:
       mongodb:
         condition: service_healthy
+      mongodb-rs-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       supplier-service:
@@ -175,8 +203,15 @@ services:
       MONGO_DB_NAME: errandboard
       MONGO_CREDIT_SERVICE_PASSWORD: ${MONGO_CREDIT_SERVICE_PASSWORD}
       CREDIT_INTERNAL_API_KEY: ${CREDIT_INTERNAL_API_KEY}
+      ORDER_CREDIT_API_KEY: ${ORDER_CREDIT_API_KEY:?Set an Order-to-Credit API key}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: redis://redis:6379
     depends_on:
       mongodb:
+        condition: service_healthy
+      mongodb-rs-init:
+        condition: service_completed_successfully
+      redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3004/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]

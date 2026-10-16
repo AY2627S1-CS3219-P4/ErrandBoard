@@ -107,11 +107,11 @@ db.errands.createIndex({ status: 1, confirmBy: 1});
 db.errands.createIndex({ status: 1, completeBy: 1});
 db.errands.createIndex({ requesterId: 1, status: 1});
 db.errands.createIndex({ courierId: 1, status: 1});
-db.errand.createIndex({ createdAt: -1});
+db.errands.createIndex({ createdAt: -1});
 
 
 // Credit Service
 db.createCollection("UserCredits");
 db.UserCredits.createIndex({ userId: 1 }, { unique: true });
 db.createCollection("transactionLog");
-db.transactionLog.createIndex({ orderId: 1 });
+db.transactionLog.createIndex({ orderId: 1, transactionType: 1 }, { unique: true });

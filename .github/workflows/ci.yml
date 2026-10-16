@@ -105,10 +105,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      # Interpolation placeholders only; no containers are started.
+      # Compose interpolation placeholders only; no containers are started and
+      # these values are never used for deployment or exposed as real secrets.
       MONGO_ROOT_PASSWORD: ci-placeholder-root
       MONGO_USER_SERVICE_PASSWORD: ci-placeholder-user
       MONGO_SUPPLIER_SERVICE_PASSWORD: ci-placeholder-supplier
+      MONGO_ORDER_SERVICE_PASSWORD: ci-placeholder-order
+      MONGO_CREDIT_SERVICE_PASSWORD: ci-placeholder-credit
+      MONGO_REPLICA_SET_KEY: ci-placeholder-replica-set-key-1234567890
+      RABBITMQ_DEFAULT_USER: ci-placeholder-rabbit-user
+      RABBITMQ_DEFAULT_PASS: ci-placeholder-rabbit-password
+      JWT_SECRET: ci-placeholder-jwt-secret
+      CREDIT_INTERNAL_API_KEY: ci-placeholder-credit-internal-key
+      ORDER_CREDIT_API_KEY: ci-placeholder-order-credit-key
 
     steps:
       - name: Checkout repository
