@@ -1,17 +1,18 @@
 import { Types } from "mongoose";
-import { ErrandNotFoundError, InvalidStatusTransitionError, SelfAssignErrandError, UpdateConflictError } from "../errors/order.errors.js";
+import { fetchActiveSupplier } from "../clients/supplier.client.js";
+import { DeliveryDeadlinePassedError, ErrandNotFoundError, InvalidStatusTransitionError, SelfAssignErrandError, UpdateConflictError, ValidationError } from "../errors/order.errors.js";
+import { publishTerminalEvent } from "../event/errand.events.js";
 import { Errand, type ErrandRecord } from "../models/Errand.js";
-import { SupplierCopy } from "../models/Errand.js";
 import { ACTIVE_STATUSES } from "../status/errandState.js";
 import { ERRAND_STATUSES, type ErrandStatus, validTransition } from "../status/errandState.js";
 
 // all deadlines are two days for now
 const EXPIRY_DEADLINE = 2 * 24 * 60 * 60 * 1000;
-const COMPLETION_DEADLINE = 2 * 24 * 60 * 60 * 1000;
-const CONFIRMATION_DEADLINE = 2 * 24 * 60 * 60 * 1000;
+const COMPLETION_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for courier to indicate delivery has been completed
+const CONFIRMATION_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for requester to confirm receipt of delivery
 export interface CreateErrandInput {
     requesterId: string;
-    supplier: SupplierCopy;
+    supplierId: string;
     dropoff: string;
     description: string;
     credit: number;
@@ -77,10 +78,19 @@ export async function getErrand(userId: string, id: string): Promise<ErrandRecor
 }
 
 export async function createErrand(input: CreateErrandInput): Promise<ErrandRecord> {
-  // TODO: check if supplier is still active
+  // supplier service would fail with a 500 on a malformed id, so reject it here
+  if (!isObjectIdString(input.supplierId)) {
+    throw new ValidationError({ supplierId: "supplierId must be a valid supplier id" });
+  }
+  // throws if the supplier does not exist or has been deactivated
+  const supplier = await fetchActiveSupplier(input.supplierId);
 
   const errand = await Errand.create({
-    ...input,
+    requesterId: input.requesterId,
+    supplier,
+    dropoff: input.dropoff,
+    description: input.description,
+    credit: input.credit,
     status: "OPEN",
     expiresAt: new Date(Date.now() + EXPIRY_DEADLINE),
   });
@@ -107,6 +117,8 @@ async function updateErrand(id: string, from: ErrandStatus, to: ErrandStatus, fi
     throw new UpdateConflictError();
   }
 
+  await publishTerminalEvent(updated);
+  
   return updated;
 }
 
@@ -125,6 +137,7 @@ export async function acceptErrand(id: string, courierId: string) {
     if (error instanceof UpdateConflictError) {
       const existing = await Errand.findById(id);
       if (existing?.requesterId === courierId) throw new SelfAssignErrandError();
+      throw error;
     }
     throw error;
   }
@@ -140,13 +153,26 @@ export async function pickUpErrand(id: string, courierId: string) {
 }
 
 export async function deliverErrand(id: string, courierId: string) {
-  const updated = await updateErrand(id, "PICKED_UP", "PENDING_COMPLETION",
-    { courierId },
-    { confirmBy: new Date(Date.now() + CONFIRMATION_DEADLINE) }
-  );
+  try {
+    const updated = await updateErrand(id, "PICKED_UP", "PENDING_COMPLETION",
+      { courierId,
+        completeBy: { $gt: new Date() } },  // courier should not be able to deliver errand later than the deadline
+      { confirmBy: new Date(Date.now() + CONFIRMATION_DEADLINE) }
+    );
 
-  return updated;
+    return updated;
+  } catch (error) {
+    if (error instanceof UpdateConflictError) {
+      const existing = await Errand.findById(id);
+      if (existing?.status === "PICKED_UP" && existing.courierId === courierId
+          && existing.completeBy && existing.completeBy <= new Date()) {
+        throw new DeliveryDeadlinePassedError();
+      }
+    }
+    throw error;
+  }
 }
+
 
 export async function completeErrand(id: string, requesterId: string) {
   const updated = await updateErrand(id, "PENDING_COMPLETION", "COMPLETED",
@@ -174,9 +200,3 @@ export async function cancelErrandByCourier(id: string, courierId: string) {
   return updated;
 }
 
-// this requires admin auth check
-export async function cancelErrand(id: string) {
-  const updated = await updateErrand(id, "ACCEPTED", "CANCELLED");
-
-  return updated;
-}

@@ -2,13 +2,16 @@ import assert from "node:assert/strict";
 import { describe, test, type TestContext } from "node:test";
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
 import {
+  DeliveryDeadlinePassedError,
   ErrandNotFoundError,
   SelfAssignErrandError,
+  SupplierNotFoundError,
+  SupplierUnavailableError,
   UpdateConflictError,
+  ValidationError,
 } from "../src/errors/order.errors.js";
 import {
   acceptErrand,
-  cancelErrand,
   cancelErrandByCourier,
   cancelErrandByRequester,
   completeErrand,
@@ -229,50 +232,130 @@ describe("getErrand", () => {
 });
 
 describe("createErrand", () => {
-  test("persists the input as an OPEN errand that expires in two days", async (t) => {
-    const input: CreateErrandInput = {
-      requesterId: REQUESTER_ID,
-      supplier,
-      dropoff: "COM1 lobby",
-      description: "Chicken rice",
-      credit: 5,
-    };
-    let persisted: Record<string, unknown> | undefined;
-    t.mock.method(Errand, "create", (async (document: Record<string, unknown>) => {
-      persisted = document;
+  const SUPPLIER_ID = "64b7f0c2a1b2c3d4e5f60718";
+  const SUPPLIER_SERVICE_URL = "http://supplier-service:3002";
+  const input: CreateErrandInput = {
+    requesterId: REQUESTER_ID,
+    supplierId: SUPPLIER_ID,
+    dropoff: "COM1 lobby",
+    description: "Chicken rice",
+    credit: 5,
+  };
+  // what supplier-service returns for GET /suppliers/:id
+  const supplierBody = {
+    supplier: {
+      _id: SUPPLIER_ID,
+      name: "Fine Food",
+      category: "FOOD_BEVERAGE",
+      building: "Town Plaza",
+      address: "1 Create Way",
+      imageUrl: "https://example.com/fine-food.png",
+      isActive: true,
+    },
+  };
+
+  function useSupplierService(t: TestContext, respond: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+    process.env.SUPPLIER_SERVICE_URL = SUPPLIER_SERVICE_URL;
+    t.after(() => { delete process.env.SUPPLIER_SERVICE_URL; });
+    return t.mock.method(globalThis, "fetch", (async (url: URL | string, init?: RequestInit) => respond(url.toString(), init)) as never);
+  }
+
+  function capturePersisted(t: TestContext) {
+    const persisted: Record<string, unknown>[] = [];
+    const create = t.mock.method(Errand, "create", (async (document: Record<string, unknown>) => {
+      persisted.push(document);
       return makeErrand(document);
     }) as never);
+    return { persisted, create };
+  }
+
+  test("persists an OPEN errand with the supplier copy from supplier-service", async (t) => {
+    const fetchCall = useSupplierService(t, (url, init) => {
+      assert.equal(url, `${SUPPLIER_SERVICE_URL}/suppliers/${SUPPLIER_ID}`);
+      assert.equal(new Headers(init?.headers).get("authorization"), null, "must use the public endpoint so inactive suppliers are hidden");
+      assert.ok(init?.signal, "request must have a timeout");
+      return Response.json(supplierBody);
+    });
+    const { persisted } = capturePersisted(t);
 
     const before = Date.now();
     await createErrand(input);
     const after = Date.now();
 
-    assert.ok(persisted);
-    const { status, expiresAt, ...rest } = persisted;
+    assert.equal(fetchCall.mock.callCount(), 1);
+    const { status, expiresAt, ...rest } = persisted[0];
     assert.equal(status, "OPEN");
     assertWithin(expiresAt, before + TWO_DAYS_MS, after + TWO_DAYS_MS);
-    assert.deepEqual(rest, input);
+    assert.deepEqual(rest, {
+      requesterId: REQUESTER_ID,
+      supplier: {
+        supplierId: SUPPLIER_ID,
+        name: "Fine Food",
+        building: "Town Plaza",
+        address: "1 Create Way",
+        imageUrl: "https://example.com/fine-food.png",
+      },
+      dropoff: "COM1 lobby",
+      description: "Chicken rice",
+      credit: 5,
+    });
   });
 
-  test("ignores a status or courier smuggled into the input", async (t) => {
-    let persisted: Record<string, unknown> | undefined;
-    t.mock.method(Errand, "create", (async (document: Record<string, unknown>) => {
-      persisted = document;
-      return makeErrand(document);
-    }) as never);
+  test("ignores a supplier copy, status or courier smuggled into the input", async (t) => {
+    useSupplierService(t, () => Response.json(supplierBody));
+    const { persisted } = capturePersisted(t);
 
-    const input = { requesterId: REQUESTER_ID, supplier, dropoff: "x", description: "y", credit: 1, status: "COMPLETED" };
-    await createErrand(input as CreateErrandInput);
-    assert.equal(persisted?.status, "OPEN");
+    const smuggled = { ...input, supplier: { name: "Fake Shop" }, status: "COMPLETED", courierId: COURIER_ID };
+    await createErrand(smuggled as CreateErrandInput);
+
+    assert.equal(persisted[0].status, "OPEN");
+    assert.equal(persisted[0].courierId, undefined);
+    assert.equal((persisted[0].supplier as { name: string }).name, "Fine Food");
+  });
+
+  test("rejects a malformed supplierId without calling supplier-service", async (t) => {
+    const fetchCall = useSupplierService(t, () => Response.json(supplierBody));
+    const { create } = capturePersisted(t);
+
+    await assert.rejects(createErrand({ ...input, supplierId: "not-an-id" }), (error) =>
+      isError(ValidationError)(error) && "supplierId" in (error as ValidationError).fields);
+    await assert.rejects(createErrand({ ...input, supplierId: undefined as unknown as string }), isError(ValidationError));
+    assert.equal(fetchCall.mock.callCount(), 0);
+    assert.equal(create.mock.callCount(), 0);
+  });
+
+  test("missing or deactivated supplier is not persisted", async (t) => {
+    // supplier-service returns 404 for both on its public endpoint
+    useSupplierService(t, () => Response.json({ error: "Supplier not found" }, { status: 404 }));
+    const { create } = capturePersisted(t);
+
+    await assert.rejects(createErrand(input), isError(SupplierNotFoundError));
+    assert.equal(create.mock.callCount(), 0);
+  });
+
+  test("supplier-service errors, network failures and malformed responses mean unavailable", async (t) => {
+    const responses: (() => Response)[] = [
+      () => Response.json({ error: "boom" }, { status: 500 }),
+      () => { throw new TypeError("fetch failed"); },
+      () => { throw new DOMException("The operation was aborted due to timeout", "TimeoutError"); },
+      () => new Response("<html>not json</html>", { status: 200 }),
+      () => Response.json({ supplier: {} }),
+    ];
+    let next = 0;
+    useSupplierService(t, () => responses[next++]());
+    const { create } = capturePersisted(t);
+
+    for (let i = 0; i < responses.length; i++) {
+      await assert.rejects(createErrand(input), isError(SupplierUnavailableError), `response #${i}`);
+    }
+    assert.equal(create.mock.callCount(), 0);
   });
 
   test("propagates database errors", async (t) => {
+    useSupplierService(t, () => Response.json(supplierBody));
     const failure = new Error("database unavailable");
     t.mock.method(Errand, "create", (async () => { throw failure; }) as never);
-    await assert.rejects(
-      createErrand({ requesterId: REQUESTER_ID, supplier, dropoff: "x", description: "y", credit: 1 }),
-      (error) => error === failure,
-    );
+    await assert.rejects(createErrand(input), (error) => error === failure);
   });
 });
 
@@ -366,10 +449,22 @@ describe("deliverErrand", () => {
     assert.equal(await deliverErrand(ERRAND_ID, COURIER_ID), delivered);
     const after = Date.now();
 
-    assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "PICKED_UP", courierId: COURIER_ID });
+    const { completeBy, ...filter } = calls[0].filter as { completeBy: { $gt: Date } };
+    assert.deepEqual(filter, { _id: ERRAND_ID, status: "PICKED_UP", courierId: COURIER_ID });
+    assertWithin(completeBy.$gt, before, after);
     const { confirmBy, ...set } = calls[0].update.$set;
     assert.deepEqual(set, { status: "PENDING_COMPLETION" });
     assertWithin(confirmBy, before + TWO_DAYS_MS, after + TWO_DAYS_MS);
+  });
+
+  test("assigned courier delivering after the completion deadline is told the deadline passed", async (t) => {
+    mockUpdate(t, null, makeErrand({ status: "PICKED_UP", courierId: COURIER_ID, completeBy: new Date(Date.now() - 1000) }));
+    await assert.rejects(deliverErrand(ERRAND_ID, COURIER_ID), isError(DeliveryDeadlinePassedError));
+  });
+
+  test("another courier is not told about the deadline", async (t) => {
+    mockUpdate(t, null, makeErrand({ status: "PICKED_UP", courierId: "courier-2", completeBy: new Date(Date.now() - 1000) }));
+    await assert.rejects(deliverErrand(ERRAND_ID, COURIER_ID), isError(UpdateConflictError));
   });
 
   test("errand not yet picked up is a conflict", async (t) => {
@@ -411,12 +506,5 @@ describe("cancellation", () => {
     const calls = mockUpdate(t, makeErrand({ status: "CANCELLED", courierId: COURIER_ID }));
     await cancelErrandByCourier(ERRAND_ID, COURIER_ID);
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "ACCEPTED", courierId: COURIER_ID });
-  });
-
-  test("admin cancel moves ACCEPTED -> CANCELLED with no ownership filter", async (t) => {
-    const calls = mockUpdate(t, makeErrand({ status: "CANCELLED" }));
-    await cancelErrand(ERRAND_ID);
-    assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "ACCEPTED" });
-    assert.deepEqual(calls[0].update, { $set: { status: "CANCELLED" } });
   });
 });
