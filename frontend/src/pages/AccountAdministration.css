@@ -1,4 +1,41 @@
 .account-administration-page .account-admin-panel { margin-top: 2.5rem; }
+@media (min-width: 761px) {
+  .account-administration-page {
+    width: min(100% - 2rem, 80rem);
+  }
+
+  .account-table {
+    min-width: 0;
+  }
+
+  .account-table-wrap {
+    overflow-x: hidden;
+  }
+
+  .account-table th:nth-child(1) { width: 18%; }
+  .account-table th:nth-child(2) { width: 27%; }
+  .account-table th:nth-child(3) { width: 10%; }
+  .account-table th:nth-child(4) { width: 11%; }
+  .account-table th:nth-child(5) { width: 34%; }
+
+  .account-table td[data-label="Email"] {
+    overflow-wrap: anywhere;
+  }
+
+  .account-row-actions .account-role-button {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding-inline: 0.55rem;
+    font-size: 0.9rem;
+    white-space: normal;
+  }
+
+  .account-row-actions .account-role-button + .account-role-button {
+    margin: 0.35rem 0 0;
+  }
+}
 .account-summary { display: flex; flex-direction: column; align-items: flex-end; color: var(--text); font-size: 0.8rem; }
 .account-summary strong { color: var(--text-h); font-size: 1.8rem; line-height: 1; }
 .account-filters { width: fit-content; max-width: 100%; flex-wrap: wrap; gap: 0.25rem; margin-top: 1.5rem; padding: 0.25rem; border: 1px solid var(--border); border-bottom: 1px solid var(--border); border-radius: 999px; background: var(--accent-bg); }
