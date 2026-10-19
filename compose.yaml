@@ -206,6 +206,8 @@ services:
       ORDER_CREDIT_API_KEY: ${ORDER_CREDIT_API_KEY:?Set an Order-to-Credit API key}
       JWT_SECRET: ${JWT_SECRET}
       REDIS_URL: redis://redis:6379
+    ports:
+      - "127.0.0.1:3004:3004"
     depends_on:
       mongodb:
         condition: service_healthy

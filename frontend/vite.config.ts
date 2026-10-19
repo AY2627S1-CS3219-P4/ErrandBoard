@@ -20,7 +20,12 @@ export default defineConfig({
         target: "http://localhost:3003",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/order/, "")
-      }
+      },
+      "/api/credit": {
+        target: "http://localhost:3004",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/credit/, ""),
+      },
     },
   },
 })
