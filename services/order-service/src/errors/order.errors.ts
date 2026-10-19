@@ -64,3 +64,14 @@ export class InvalidStatusTransitionError extends Error {
     Object.setPrototypeOf(this, InvalidStatusTransitionError.prototype);
   }
 }
+
+export class InsufficientCreditsError extends Error {}
+
+export class UpstreamError extends Error {
+  constructor(
+    public readonly service: string,
+    public readonly upstreamStatus?: number,
+  ) {
+    super(`${service} request failed${upstreamStatus ? ` (${upstreamStatus})` : ""}`);
+  }
+}

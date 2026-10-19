@@ -1,5 +1,6 @@
 import { Types } from "mongoose";
 import { fetchActiveSupplier } from "../clients/supplier.client.js";
+import { reserveCredits } from "../clients/credit.client.js";
 import { DeliveryDeadlinePassedError, ErrandNotFoundError, InvalidStatusTransitionError, SelfAssignErrandError, UpdateConflictError, ValidationError } from "../errors/order.errors.js";
 import { publishTerminalEvent } from "../event/errand.events.js";
 import { Errand, type ErrandRecord } from "../models/Errand.js";
@@ -85,7 +86,16 @@ export async function createErrand(input: CreateErrandInput): Promise<ErrandReco
   // throws if the supplier does not exist or has been deactivated
   const supplier = await fetchActiveSupplier(input.supplierId);
 
+  //manually assign id for credit reservation
+  const _id = new Types.ObjectId();
+  await reserveCredits({
+    orderId: _id.toString(),
+    requesterId: input.requesterId,
+    amount: input.credit,
+  });
+
   const errand = await Errand.create({
+    _id,
     requesterId: input.requesterId,
     supplier,
     dropoff: input.dropoff,
