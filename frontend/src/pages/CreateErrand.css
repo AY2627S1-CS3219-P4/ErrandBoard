@@ -1,0 +1,36 @@
+.create-errand-page {
+  --create-errand-max-width: 36rem;
+
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  text-align: left;
+}
+.create-errand-page > * { width: min(100%, var(--create-errand-max-width)); }
+.create-errand-back { color: var(--accent); text-decoration: none; }
+.create-errand-title { margin: 0; font-size: clamp(1.6rem, 4vw, 2.2rem); }
+.create-errand-supplier { cursor: default; }
+.create-errand-supplier:hover { border-color: var(--border); }
+
+.create-errand-form { display: flex; flex-direction: column; gap: 0.4rem; }
+.create-errand-form label { margin-top: 0.6rem; color: var(--text-h); font-size: 0.85rem; font-weight: 600; }
+.create-errand-form input, .create-errand-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  resize: vertical;
+}
+.create-errand-form input:focus, .create-errand-form textarea:focus { border-color: var(--accent-border); outline: 2px solid var(--accent-bg); }
+.create-errand-form [aria-invalid="true"] { border-color: #c0392b; }
+.create-errand-count { align-self: flex-end; font-size: 0.75rem; }
+.create-errand-error { color: #c0392b; font-size: 0.85rem; }
+.create-errand-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.75rem; }

@@ -23,40 +23,39 @@ export interface ErrandSupplier {
     supplierId: string;
     name: string;
     building: string;
-    address: string;
+    address?: string;
     imageUrl?: string;
 }
 
-export interface ErrandDocument {
-    requesterId: string;
-    courierId?: string;
-    supplier: ErrandSupplier;
-    dropoff: string;
-    description: string;
-    credit: number;
-    status: ErrandStatus;
-    expiresAt: Date;
-    completeBy?: Date;
-    confirmBy?: Date;
-    createdAt: Date;
-    updatedAt: Date;
+export interface Errand {
+  _id: string;
+  requesterId: string;
+  courierId?: string;
+  supplier: ErrandSupplier;
+  dropoff: string;
+  description: string;
+  credit: number;
+  status: ErrandStatus;
+  expiresAt: string;
+  completeBy?: string;
+  confirmBy?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateErrandInput {
-    requesterId: string;
     supplierId: string;
     dropoff: string;
     description: string;
     credit: number;
 }
 
-export interface ListFilters {
-  supplierId?: string[];
-  building?: string[];   
-  address?: string[];
+export interface ErrandFilters {
+  q?: string;
   dropoff?: string;
-  q?: string; //matching keyword in errand description            
-  since?: Date; 
+  building?: string[];
+  supplierId?: string[];
+  since?: string; // ISO date
 }
 
 export type ErrandAction = "cancel" | "courier-cancel" | "pickup" | "deliver" | "complete";

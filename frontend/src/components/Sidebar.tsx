@@ -53,10 +53,14 @@ export default function Sidebar() {
                     </NavLink>
                 </li>
                 <li>
-                    {/* Switch to NavLink once the errands page exists */}
-                    <span className="sidebar-link sidebar-link-disabled" aria-disabled="true" title="Coming soon">
+                    <NavLink className={({ isActive }) => linkClass(isActive)} to="/errands" end onClick={handleNavigate}>
                         Errands
-                    </span>
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink className={({ isActive }) => linkClass(isActive)} to="/errands/active" end onClick={handleNavigate}>
+                        My Errands
+                    </NavLink>
                 </li>
                 {isAdmin && (
                     <li>

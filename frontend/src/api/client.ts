@@ -1,5 +1,6 @@
 export const USER_API_BASE_URL = "/api/user";
 export const SUPPLIER_API_BASE_URL = "/api/supplier";
+export const ORDER_API_BASE_URL = "/api/order";
 export const AUTH_SESSION_EXPIRED_EVENT = "errandboard:auth-session-expired";
 
 let refreshInFlight: Promise<boolean> | null = null;
@@ -10,6 +11,10 @@ export function userApiUrl(path: string): string {
 
 export function supplierApiUrl(path: string): string {
   return `${SUPPLIER_API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export function orderApiUrl(path: string): string {
+  return `${ORDER_API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 async function shouldRefreshAccessToken(response: Response): Promise<boolean> {

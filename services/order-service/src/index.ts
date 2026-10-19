@@ -3,8 +3,7 @@ import { app } from "./app.js";
 import { connectDb, disconnectDb } from "./config/db.js";
 import { authorizationStore } from "./security/authorization-state.js";
 
-//Note: User service -> defaults to 3001
-const port = Number(process.env.PORT ?? 3002);
+const port = Number(process.env.PORT ?? 3003);
 
 async function main(): Promise<void> {
     await connectDb();
