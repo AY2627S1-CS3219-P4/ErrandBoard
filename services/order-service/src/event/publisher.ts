@@ -10,11 +10,10 @@ export function getEventPublisher(): EventPublisher {
   }
   return current;
 }
-//prob no need for this since get already sets?
-/*
+// lets tests inject a fake publisher so they don't open a real RabbitMQ connection
 export function setEventPublisher(publisher: EventPublisher | undefined): void {
   current = publisher;
-}*/
+}
 
 export async function closeEventPublisher(): Promise<void> {
   const publisher = current;

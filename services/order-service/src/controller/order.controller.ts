@@ -21,6 +21,8 @@ import {
   SupplierNotFoundError,
   SupplierUnavailableError,
   DeliveryDeadlinePassedError,
+  InsufficientCreditsError,
+  UpstreamError,
 } from "../errors/order.errors.js";
 
 function toArray(value: unknown): string[] | undefined {
@@ -73,7 +75,12 @@ function sendKnownError(res: Response, error: unknown): boolean {
     res.status(404).json({ code: "SUPPLIER_NOT_FOUND", error: "Supplier not found or no longer active" });
   } else if (error instanceof SupplierUnavailableError) {
     res.status(503).json({ code: "SUPPLIER_UNAVAILABLE", error: error.message });
-  } else {
+  } else if (error instanceof InsufficientCreditsError) {
+    res.status(400).json({ code: "INSUFFICIENT_CREDITS", error: "Insufficient credits" });
+  } else if (error instanceof UpstreamError) {
+    res.status(503).json({ code: "SERVICE_UPSTREAM_ERROR", error: error.message });
+  }
+  else {
     return false;
   }
   return true;

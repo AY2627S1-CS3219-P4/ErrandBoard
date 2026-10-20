@@ -16,10 +16,12 @@
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^2.2.0",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.3.17",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "csv-parse": "^7.0.3",
     "express": "^5.2.1",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.12",
     "mongoose": "^9.0.0",
     "redis": "^5.12.1"

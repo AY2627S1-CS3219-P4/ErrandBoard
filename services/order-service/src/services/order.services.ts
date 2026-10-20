@@ -5,11 +5,11 @@ import { DeliveryDeadlinePassedError, ErrandNotFoundError, InvalidStatusTransiti
 import { publishTerminalEvent } from "../event/errand.events.js";
 import { Errand, type ErrandRecord } from "../models/Errand.js";
 import { ACTIVE_STATUSES } from "../status/errandState.js";
-import { ERRAND_STATUSES, type ErrandStatus, validTransition } from "../status/errandState.js";
+import { type ErrandStatus, validTransition } from "../status/errandState.js";
 
 // all deadlines are two days for now
-const EXPIRY_DEADLINE = 2 * 24 * 60 * 60 * 1000;
-const COMPLETION_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for courier to indicate delivery has been completed
+const EXPIRY_DEADLINE = 60 * 1000;
+const DELIVERY_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for courier to indicate delivery has been completed
 const CONFIRMATION_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for requester to confirm receipt of delivery
 export interface CreateErrandInput {
     requesterId: string;
@@ -156,7 +156,7 @@ export async function acceptErrand(id: string, courierId: string) {
 export async function pickUpErrand(id: string, courierId: string) {
   const updated = await updateErrand(id, "ACCEPTED", "PICKED_UP",
     { courierId },
-    { completeBy: new Date(Date.now() + COMPLETION_DEADLINE) }
+    { deliverBy: new Date(Date.now() + DELIVERY_DEADLINE) }
   );
 
   return updated;
@@ -166,7 +166,7 @@ export async function deliverErrand(id: string, courierId: string) {
   try {
     const updated = await updateErrand(id, "PICKED_UP", "PENDING_COMPLETION",
       { courierId,
-        completeBy: { $gt: new Date() } },  // courier should not be able to deliver errand later than the deadline
+        deliverBy: { $gt: new Date() } },  // courier should not be able to deliver errand later than the deadline
       { confirmBy: new Date(Date.now() + CONFIRMATION_DEADLINE) }
     );
 
@@ -175,7 +175,7 @@ export async function deliverErrand(id: string, courierId: string) {
     if (error instanceof UpdateConflictError) {
       const existing = await Errand.findById(id);
       if (existing?.status === "PICKED_UP" && existing.courierId === courierId
-          && existing.completeBy && existing.completeBy <= new Date()) {
+          && existing.deliverBy && existing.deliverBy <= new Date()) {
         throw new DeliveryDeadlinePassedError();
       }
     }
@@ -210,3 +210,14 @@ export async function cancelErrandByCourier(id: string, courierId: string) {
   return updated;
 }
 
+export async function cancelErrandAfterDeadline(id: string) {
+  return await updateErrand(id, "PICKED_UP", "CANCELLED");
+}
+
+export async function expireOpenErrand(id: string) {
+  return await updateErrand(id, "OPEN", "EXPIRED");
+}
+
+export async function completeErrandAfterDeadline(id: string) {
+  return await updateErrand(id, "PENDING_COMPLETION", "COMPLETED");
+}
