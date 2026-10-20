@@ -1,0 +1,18 @@
+.errand-btn {
+  min-height: 2.6rem;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.errand-btn:hover:not(:disabled) { border-color: var(--accent-border); background: var(--accent-bg); }
+.errand-btn:focus-visible { outline: 2px solid var(--accent-border); }
+.errand-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.errand-btn-primary { border-color: var(--accent); background: var(--accent); color: #fff; }
+.errand-btn-primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.1); }
+.errand-btn-danger { color: #c0392b; }

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { errandRouter } from "./routes/order.routes.js";
 
 
 export const app = express();
@@ -23,4 +24,4 @@ app.get("/health", (_req, res) => {
 });
 
 
-//app.use("/errands", errandRouter);
+app.use("/errands", errandRouter);

@@ -18,15 +18,16 @@ export class RabbitPublisher implements EventPublisher {
     }
 
     async publish(event: ErrandEvent): Promise<void> {
-        await this.channel.publish(EXCHANGE_NAME, event.type, Buffer.from(JSON.stringify(event)), {
+        const eventInfo = event.value;
+        await this.channel.publish(EXCHANGE_NAME, eventInfo.type, Buffer.from(JSON.stringify(event)), {
             persistent: true,
             mandatory: true,
-            messageId: event.eventId,
+            messageId: eventInfo.eventId,
             contentType: "application/json",
         });
 
-        if (this.returnMessages.delete(event.eventId)) {
-            throw new Error(`message for ${event.type} failed to deliver`);
+        if (this.returnMessages.delete(eventInfo.eventId)) {
+            throw new Error(`message for ${eventInfo.type} failed to deliver`);
         }
     }
 
@@ -37,10 +38,14 @@ export class RabbitPublisher implements EventPublisher {
 
 
 export function connectRabbit(url: string): RabbitPublisher {
+    console.log("starting publisher")
     const returnMessages = new Set<string>();
     const connection = amqp.connect([url]);
 
-    //on connection call the function specified in setup
+    connection.on("connect", () => console.log("RabbitMQ connected"));
+    connection.on("connectFailed", ({ err }) => console.error("RabbitMQ connect failed:", err.message));
+    connection.on("disconnect", ({ err }) => console.error("RabbitMQ disconnected:", err?.message));
+    
     //setup function uses the ConfirmChannel interface to verify 
     const channel = connection.createChannel({
     json: false,
