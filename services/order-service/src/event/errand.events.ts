@@ -10,13 +10,15 @@ export async function publishTerminalEvent(errand: ErrandRecord): Promise<void> 
   const errandId = errand._id.toString();
   const event: ErrandEvent = {
     // deterministic: an errand reaches a terminal state once, so this doubles as the consumer's dedupe key
-    eventId: `${errandId}:${type}`,
-    type,
-    errandId,
-    requesterId: errand.requesterId,
-    courierId: errand.courierId ?? null,
-    credit: errand.credit,
-    occurredAt: errand.updatedAt.toISOString(),
+    key: errandId,
+    value: {
+      eventId: `${errandId}:${type}`,
+      type,
+      requesterId: errand.requesterId,
+      courierId: errand.courierId ?? null,
+      credit: errand.credit,
+      occurredAt: errand.updatedAt.toISOString(),
+    }
   };
   await getEventPublisher().publish(event);
 }
