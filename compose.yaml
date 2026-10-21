@@ -224,6 +224,22 @@ services:
     networks:
       - errandboard-network
 
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      user-service:
+        condition: service_started
+      supplier-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      credit-service:
+        condition: service_started
+    networks:
+      - errandboard-network
+
 
 volumes:
   mongodb_data:
