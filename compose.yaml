@@ -180,6 +180,7 @@ services:
       SUPPLIER_SERVICE_URL: http://supplier-service:3002
       CREDIT_SERVICE_URL: http://credit-service:3004
       ORDER_CREDIT_API_KEY: ${ORDER_CREDIT_API_KEY:?Set an Order-to-Credit API key}
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
     depends_on:
       mongodb:
         condition: service_healthy

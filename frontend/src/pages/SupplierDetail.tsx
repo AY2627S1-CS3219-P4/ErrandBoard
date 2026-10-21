@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { CATEGORY_LABELS, type OpeningHours, type Supplier } from "../types/supplier";
 import { apiFetch, supplierApiUrl } from "../api/client";
 import "./SupplierDetail.css";
@@ -16,6 +16,7 @@ const DAYS: { key: keyof OpeningHours; label: string }[] = [
 
 export default function SupplierDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -124,7 +125,7 @@ export default function SupplierDetail() {
             )}
           </details>
           
-          <button type="button" className="supplier-detail-errand-button">
+          <button type="button" className="supplier-detail-errand-button" onClick={() => navigate(`/supplier/${supplier._id}/errand`)}>
             Open Errand
           </button>
         </article>

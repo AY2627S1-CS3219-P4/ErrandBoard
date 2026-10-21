@@ -11,6 +11,9 @@ import SupplierManagement from "./pages/SupplierManagement";
 import AppLayout from "./components/AppLayout";
 import { AuthProvider } from "./auth/AuthContext";
 import { HomeRedirect, RedirectIfAuthenticated, RequireAdmin, RequireAuth, RequireSuperadmin } from "./auth/RouteGuards";
+import CreateErrand from "./pages/CreateErrand";
+import ErrandListing from "./pages/ErrandListing";
+import ActiveErrands from "./pages/ActiveErrands";
 
 
 export default function App() {
@@ -28,6 +31,9 @@ export default function App() {
               <Route path="/settings" element={<Settings />} />
               <Route path="/suppliers" element={<SupplierListing />} />
               <Route path="/supplier/:id" element={<SupplierDetail />} />
+              <Route path="/supplier/:id/errand" element={<CreateErrand />} />
+              <Route path="/errands" element={<ErrandListing />} />
+              <Route path="/errands/active" element={<ActiveErrands />} />
               <Route element={<RequireAdmin />}>
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/admin/suppliers" element={<SupplierManagement />} />

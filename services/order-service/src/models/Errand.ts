@@ -6,7 +6,7 @@ export interface SupplierCopy {
     name: string;
     building: string;
     address: string;
-    imageURL?: string; //maybe for frontend stuff
+    imageUrl?: string; //maybe for frontend stuff
 }
 
 export interface ErrandDocument {

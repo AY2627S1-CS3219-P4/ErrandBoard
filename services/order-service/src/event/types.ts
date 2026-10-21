@@ -7,13 +7,15 @@ export const EXCHANGE_NAME = "errand.events";
 export type EventType = "errand.completed" | "errand.cancelled" | "errand.expired";
 
 export interface ErrandEvent {
-    eventId: string;
-    type: EventType;
-    errandId: string;
-    requesterId: string;
-    courierId: string | null;
-    credit: number;
-    occurredAt: string;
+    key: string //errandId
+    value: {
+        eventId: string;
+        type: EventType;
+        requesterId: string;
+        courierId: string | null;
+        credit: number;
+        occurredAt: string;
+    } 
 }
 
 export interface EventPublisher {
