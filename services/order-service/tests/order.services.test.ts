@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { describe, test, type TestContext } from "node:test";
+import { afterEach, beforeEach, describe, test, type TestContext } from "node:test";
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
+import { setEventPublisher } from "../src/event/publisher.js";
 import {
   DeliveryDeadlinePassedError,
   ErrandNotFoundError,
@@ -14,10 +15,13 @@ import {
   acceptErrand,
   cancelErrandByCourier,
   cancelErrandByRequester,
+  COMPLETION_DEADLINE,
   completeErrand,
+  CONFIRMATION_DEADLINE,
   createErrand,
   deliverErrand,
   escapeRegex,
+  EXPIRY_DEADLINE,
   getErrand,
   isObjectIdString,
   listMyErrands,
@@ -26,7 +30,6 @@ import {
   type CreateErrandInput,
 } from "../src/services/order.services.js";
 
-const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000;
 const ERRAND_ID = "507f1f77bcf86cd799439011";
 const REQUESTER_ID = "requester-1";
 const COURIER_ID = "courier-1";
@@ -54,6 +57,10 @@ function makeErrand(overrides: Partial<ErrandRecord> = {}): ErrandRecord {
     ...overrides,
   } as unknown as ErrandRecord;
 }
+
+// terminal transitions publish an event; inject a no-op publisher so tests never open a real RabbitMQ connection
+beforeEach(() => setEventPublisher({ isReady: () => true, publish: async () => {}, close: async () => {} }));
+afterEach(() => setEventPublisher(undefined));
 
 // instanceof alone is not enough: it would also pass if an error class had the wrong prototype
 function isError(expected: new (...args: never[]) => Error) {
@@ -254,10 +261,28 @@ describe("createErrand", () => {
     },
   };
 
-  function useSupplierService(t: TestContext, respond: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+  const CREDIT_SERVICE_URL = "http://credit-service:3004";
+  const CREDIT_API_KEY = "test-credit-key";
+
+  // createErrand reserves credits after the supplier lookup; answer that call with success unless a test overrides it
+  function useSupplierService(
+    t: TestContext,
+    respond: (url: string, init?: RequestInit) => Response | Promise<Response>,
+    creditRespond: (url: string, init?: RequestInit) => Response | Promise<Response> = () => new Response(null, { status: 201 }),
+  ) {
     process.env.SUPPLIER_SERVICE_URL = SUPPLIER_SERVICE_URL;
-    t.after(() => { delete process.env.SUPPLIER_SERVICE_URL; });
-    return t.mock.method(globalThis, "fetch", (async (url: URL | string, init?: RequestInit) => respond(url.toString(), init)) as never);
+    process.env.CREDIT_SERVICE_URL = CREDIT_SERVICE_URL;
+    process.env.ORDER_CREDIT_API_KEY = CREDIT_API_KEY;
+    t.after(() => {
+      delete process.env.SUPPLIER_SERVICE_URL;
+      delete process.env.CREDIT_SERVICE_URL;
+      delete process.env.ORDER_CREDIT_API_KEY;
+    });
+    return t.mock.method(globalThis, "fetch", (async (url: URL | string, init?: RequestInit) => {
+      const target = url.toString();
+      if (target.includes("/credit/")) return creditRespond(target, init);
+      return respond(target, init);
+    }) as never);
   }
 
   function capturePersisted(t: TestContext) {
@@ -282,10 +307,12 @@ describe("createErrand", () => {
     await createErrand(input);
     const after = Date.now();
 
-    assert.equal(fetchCall.mock.callCount(), 1);
-    const { status, expiresAt, ...rest } = persisted[0];
+    assert.equal(fetchCall.mock.callCount(), 2); // supplier lookup + credit reservation
+    // _id is pre-assigned so the credit reservation can reference the order before it is persisted
+    const { status, expiresAt, _id, ...rest } = persisted[0];
     assert.equal(status, "OPEN");
-    assertWithin(expiresAt, before + TWO_DAYS_MS, after + TWO_DAYS_MS);
+    assert.ok(_id, "errand should be created with a pre-assigned id");
+    assertWithin(expiresAt, before + EXPIRY_DEADLINE, after + EXPIRY_DEADLINE);
     assert.deepEqual(rest, {
       requesterId: REQUESTER_ID,
       supplier: {
@@ -418,9 +445,9 @@ describe("pickUpErrand", () => {
     const after = Date.now();
 
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "ACCEPTED", courierId: COURIER_ID });
-    const { completeBy, ...set } = calls[0].update.$set;
+    const { deliverBy, ...set } = calls[0].update.$set;
     assert.deepEqual(set, { status: "PICKED_UP" });
-    assertWithin(completeBy, before + TWO_DAYS_MS, after + TWO_DAYS_MS);
+    assertWithin(deliverBy, before + COMPLETION_DEADLINE, after + COMPLETION_DEADLINE);
   });
 
   test("does not filter on listing expiry", async (t) => {
@@ -449,21 +476,21 @@ describe("deliverErrand", () => {
     assert.equal(await deliverErrand(ERRAND_ID, COURIER_ID), delivered);
     const after = Date.now();
 
-    const { completeBy, ...filter } = calls[0].filter as { completeBy: { $gt: Date } };
+    const { deliverBy, ...filter } = calls[0].filter as { deliverBy: { $gt: Date } };
     assert.deepEqual(filter, { _id: ERRAND_ID, status: "PICKED_UP", courierId: COURIER_ID });
-    assertWithin(completeBy.$gt, before, after);
+    assertWithin(deliverBy.$gt, before, after);
     const { confirmBy, ...set } = calls[0].update.$set;
     assert.deepEqual(set, { status: "PENDING_COMPLETION" });
-    assertWithin(confirmBy, before + TWO_DAYS_MS, after + TWO_DAYS_MS);
+    assertWithin(confirmBy, before + CONFIRMATION_DEADLINE, after + CONFIRMATION_DEADLINE);
   });
 
   test("assigned courier delivering after the completion deadline is told the deadline passed", async (t) => {
-    mockUpdate(t, null, makeErrand({ status: "PICKED_UP", courierId: COURIER_ID, completeBy: new Date(Date.now() - 1000) }));
+    mockUpdate(t, null, makeErrand({ status: "PICKED_UP", courierId: COURIER_ID, deliverBy: new Date(Date.now() - 1000) }));
     await assert.rejects(deliverErrand(ERRAND_ID, COURIER_ID), isError(DeliveryDeadlinePassedError));
   });
 
   test("another courier is not told about the deadline", async (t) => {
-    mockUpdate(t, null, makeErrand({ status: "PICKED_UP", courierId: "courier-2", completeBy: new Date(Date.now() - 1000) }));
+    mockUpdate(t, null, makeErrand({ status: "PICKED_UP", courierId: "courier-2", deliverBy: new Date(Date.now() - 1000) }));
     await assert.rejects(deliverErrand(ERRAND_ID, COURIER_ID), isError(UpdateConflictError));
   });
 

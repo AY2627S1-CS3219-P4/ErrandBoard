@@ -104,7 +104,7 @@ db.suppliers.createIndex( { name: 1, building: 1}, { unique: true })
 db.createCollection("errands");
 db.errands.createIndex({ status: 1, expiresAt: 1});
 db.errands.createIndex({ status: 1, confirmBy: 1});
-db.errands.createIndex({ status: 1, completeBy: 1});
+db.errands.createIndex({ status: 1, deliverBy: 1});
 db.errands.createIndex({ requesterId: 1, status: 1});
 db.errands.createIndex({ courierId: 1, status: 1});
 db.errands.createIndex({ createdAt: -1});

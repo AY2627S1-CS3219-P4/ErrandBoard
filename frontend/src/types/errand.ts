@@ -37,7 +37,7 @@ export interface Errand {
   credit: number;
   status: ErrandStatus;
   expiresAt: string;
-  completeBy?: string;
+  deliverBy?: string;
   confirmBy?: string;
   createdAt: string;
   updatedAt: string;

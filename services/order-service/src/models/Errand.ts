@@ -18,7 +18,7 @@ export interface ErrandDocument {
     credit: number;
     status: ErrandStatus;
     expiresAt: Date;
-    completeBy?: Date;
+    deliverBy?: Date;
     confirmBy?: Date;
     createdAt: Date;
     updatedAt: Date;
@@ -45,14 +45,14 @@ const errandSchema = new Schema<ErrandDocument>(
     credit: { type: Number, required: true, min: 1 },
     status: { type: String, enum: ERRAND_STATUSES, required: true, default: "OPEN" },
     expiresAt: { type: Date, required: true },
-    completeBy: Date,
+    deliverBy: Date,
     confirmBy: Date
     },
     { collection: "errands", timestamps: true }
 );
 
 errandSchema.index({ status: 1, expiresAt: 1 });
-errandSchema.index({ status: 1, completeBy: 1});
+errandSchema.index({ status: 1, deliverBy: 1});
 errandSchema.index({ status: 1, confirmBy: 1 });
 errandSchema.index({ requesterId: 1, status: 1 });
 errandSchema.index({ courierId: 1, status: 1 });
