@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { Types } from "mongoose";
 import { authenticate } from "../middleware/auth.middleware.js";
+import { notifyCreditBalanceUpdated, subscribeToCreditBalance } from "../events/credit-balance-events.js";
 import { UserCredit } from "../models/UserCredit.js";
 import { ensureCreditAccount } from "../services/credit-account.service.js";
 import { CreditOperationError, reserveCredits } from "../services/credit-operations.service.js";
@@ -81,6 +82,7 @@ export async function reserveOrderCredits(req: Request, res: Response): Promise<
       requesterId: new Types.ObjectId(requesterId),
       amount,
     });
+    if (result.applied) notifyCreditBalanceUpdated([requesterId]);
     res.status(200).json(result);
   } catch (error) {
     if (error instanceof CreditOperationError) {
@@ -116,3 +118,11 @@ export async function getMyBalance(req: Request, res: Response): Promise<void> {
 }
 
 creditRouter.get("/me/balance", authenticate, getMyBalance);
+
+creditRouter.get("/me/events", authenticate, (req, res) => {
+  if (!req.user) {
+    res.status(401).json({ code: "AUTHENTICATION_REQUIRED", error: "Authentication required" });
+    return;
+  }
+  subscribeToCreditBalance(req.user.userId, res);
+});

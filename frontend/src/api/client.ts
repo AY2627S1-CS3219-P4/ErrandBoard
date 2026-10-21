@@ -3,12 +3,20 @@ export const SUPPLIER_API_BASE_URL = "/api/supplier";
 export const ORDER_API_BASE_URL = "/api/order";
 export const CREDIT_API_BASE_URL = "/api/credit";
 export const AUTH_SESSION_EXPIRED_EVENT = "errandboard:auth-session-expired";
+export const CREDIT_BALANCE_REFRESH_EVENT = "errandboard:credit-balance-refresh";
 
 export interface CreditBalance {
   available: number;
   reserve: number;
 }
 
+export function requestCreditBalanceRefresh(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(CREDIT_BALANCE_REFRESH_EVENT));
+  }
+}
+
+// Share concurrent reads, but don't keep a successful balance cached indefinitely.
 const creditBalanceRequests = new Map<string, Promise<CreditBalance>>();
 
 let refreshInFlight: Promise<boolean> | null = null;
@@ -29,12 +37,13 @@ export function creditApiUrl(path: string): string {
   return `${CREDIT_API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
-/** Fetch a user's balance once per page load; the endpoint derives identity from the cookie. */
+/** Fetch the signed-in user's balance; the endpoint derives identity from the cookie. */
 export function getCreditBalance(userId: string): Promise<CreditBalance> {
   const cachedRequest = creditBalanceRequests.get(userId);
   if (cachedRequest) return cachedRequest;
 
-  const request = apiFetch(creditApiUrl("/credit/me/balance"))
+  let request: Promise<CreditBalance>;
+  request = apiFetch(creditApiUrl("/credit/me/balance"), { cache: "no-store" })
     .then(async (response) => {
       if (!response.ok) throw new Error(`Credit balance request failed (HTTP ${response.status})`);
       const balance = await response.json() as Partial<CreditBalance>;
@@ -43,9 +52,10 @@ export function getCreditBalance(userId: string): Promise<CreditBalance> {
       }
       return balance as CreditBalance;
     })
-    .catch((error: unknown) => {
-      creditBalanceRequests.delete(userId);
-      throw error;
+    .finally(() => {
+      if (creditBalanceRequests.get(userId) === request) {
+        creditBalanceRequests.delete(userId);
+      }
     });
 
   creditBalanceRequests.set(userId, request);
