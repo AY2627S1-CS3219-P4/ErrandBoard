@@ -1,4 +1,4 @@
-import { orderApiUrl, apiFetch } from "./client";
+import { orderApiUrl, apiFetch, requestCreditBalanceRefresh } from "./client";
 import type { Errand, ErrandAction, CreateErrandInput, ErrandFilters } from "../types/errand";
 
 /*define errand exclusive errors here*/
@@ -83,6 +83,8 @@ export async function createErrand(input: CreateErrandInput): Promise<Errand> {
     method: "POST",
     body: JSON.stringify(input),
   });
+  // Order creates the errand only after Credit has reserved the requested amount.
+  requestCreditBalanceRefresh();
   return body.errand;
 }
 

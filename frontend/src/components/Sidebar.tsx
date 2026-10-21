@@ -2,8 +2,15 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useLeaveGuard } from "./leave-guard";
-import { getCreditBalance } from "../api/client";
+import {
+    CREDIT_BALANCE_REFRESH_EVENT,
+    creditApiUrl,
+    getCreditBalance,
+} from "../api/client";
 import "./Sidebar.css";
+
+const CREDIT_BALANCE_EVENT = "credit-balance-updated";
+const EVENT_RECONNECT_DELAY_MS = 5_000;
 
 const linkClass = (isActive: boolean) =>
     isActive ? "sidebar-link sidebar-link-active" : "sidebar-link";
@@ -20,20 +27,70 @@ export default function Sidebar() {
     const isAdmin = user?.accountType === "ADMIN" || user?.accountType === "SUPERADMIN";
 
     useEffect(() => {
-        if (!user?.id) return;
-
         setAvailableCredits(null);
         setCreditsUnavailable(false);
-        let active = true;
-        getCreditBalance(user.id)
-            .then((balance) => {
-                if (active) setAvailableCredits(balance.available);
-            })
-            .catch(() => {
-                if (active) setCreditsUnavailable(true);
-            });
+        if (!user?.id) return;
 
-        return () => { active = false; };
+        let active = true;
+        let receivedBalance = false;
+        let eventSource: EventSource | undefined;
+        let reconnectTimer: number | undefined;
+        let reconnecting = false;
+
+        const refreshBalance = async () => {
+            try {
+                const balance = await getCreditBalance(user.id);
+                receivedBalance = true;
+                if (active) {
+                    setAvailableCredits(balance.available);
+                    setCreditsUnavailable(false);
+                }
+            } catch {
+                if (active && !receivedBalance) setCreditsUnavailable(true);
+            }
+        };
+
+        const connectToBalanceEvents = () => {
+            if (!active) return;
+            eventSource = new EventSource(creditApiUrl("/credit/me/events"), { withCredentials: true });
+            eventSource.addEventListener(CREDIT_BALANCE_EVENT, () => {
+                void refreshBalance();
+            });
+            eventSource.onerror = () => {
+                eventSource?.close();
+                eventSource = undefined;
+                if (reconnecting) return;
+                reconnecting = true;
+
+                // A balance request also refreshes an expired access cookie
+                // through apiFetch before the event stream is reopened.
+                void refreshBalance().finally(() => {
+                    if (active) {
+                        reconnectTimer = window.setTimeout(() => {
+                            reconnectTimer = undefined;
+                            reconnecting = false;
+                            connectToBalanceEvents();
+                        }, EVENT_RECONNECT_DELAY_MS);
+                    }
+                });
+            };
+        };
+
+        const handleLocalBalanceRefresh = () => {
+            void refreshBalance();
+        };
+
+        void refreshBalance();
+        connectToBalanceEvents();
+        window.addEventListener(CREDIT_BALANCE_REFRESH_EVENT, handleLocalBalanceRefresh);
+
+        return () => {
+            active = false;
+            window.removeEventListener(CREDIT_BALANCE_REFRESH_EVENT, handleLocalBalanceRefresh);
+            eventSource?.close();
+            reconnecting = false;
+            if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
+        };
     }, [user?.id]);
 
     function handleNavigate(event: MouseEvent<HTMLAnchorElement>) {
