@@ -8,7 +8,7 @@ import { ACTIVE_STATUSES } from "../status/errandState.js";
 import { type ErrandStatus, validTransition } from "../status/errandState.js";
 
 // all deadlines are two days for now
-const EXPIRY_DEADLINE = 60 * 1000;
+const EXPIRY_DEADLINE = 2 * 24 * 60 * 60 * 1000;
 const DELIVERY_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for courier to indicate delivery has been completed
 const CONFIRMATION_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for requester to confirm receipt of delivery
 export interface CreateErrandInput {
