@@ -1,15 +1,14 @@
 // src/event/errand.events.ts
-import type { ErrandRecord } from "../models/Errand.js";
+import { Errand, type ErrandRecord } from "../models/Errand.js";
 import { getEventPublisher } from "./publisher.js";
 import { publicEventType, type ErrandEvent } from "./types.js";
 
-export async function publishTerminalEvent(errand: ErrandRecord): Promise<void> {
+function buildEvent(errand: ErrandRecord): ErrandEvent | undefined {
   const type = publicEventType(errand.status);
-  if (!type) return; // not a terminal state
-
+  if (!type) return undefined; //not terminal event
   const errandId = errand._id.toString();
-  const event: ErrandEvent = {
-    // deterministic: an errand reaches a terminal state once, so this doubles as the consumer's dedupe key
+
+  return {
     key: errandId,
     value: {
       eventId: `${errandId}:${type}`,
@@ -20,5 +19,37 @@ export async function publishTerminalEvent(errand: ErrandRecord): Promise<void> 
       occurredAt: errand.updatedAt.toISOString(),
     }
   };
-  await getEventPublisher().publish(event);
+}
+
+
+export async function publishTerminalEvent(errand: ErrandRecord): Promise<boolean> {
+  const event = buildEvent(errand);
+  if (!event) return true;
+  try {
+    await getEventPublisher().publish(event);
+    await Errand.updateOne(
+      { _id: errand._id },
+      { $unset: { eventPending: "" } },
+      { timestamps: false },          // don't bump updatedAt (it feeds occurredAt)
+    );
+    return true;
+  } catch (err) {
+    console.error(`publish ${event.value.eventId} failed, left for relay:`, (err as Error).message);
+    return false;
+  }
+}
+
+
+// Relay: called from the sweep tick.
+export async function flushPendingEvents(limit = 200): Promise<number> {
+  const pending = (await Errand.find({ eventPending: true })
+    .sort({ updatedAt: 1 })
+    .limit(limit)) as unknown as ErrandRecord[];
+
+  let sent = 0;
+  for (const errand of pending) {
+    if (!(await publishTerminalEvent(errand))) break; // broker likely down, retry next tick
+    sent++;
+  }
+  return sent;
 }

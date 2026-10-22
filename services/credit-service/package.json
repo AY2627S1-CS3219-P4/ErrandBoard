@@ -9,6 +9,8 @@
     "test": "npm run build && node --test tests/*.test.mjs"
   },
   "dependencies": {
+    "amqp-connection-manager": "^5.0.0",
+    "amqplib": "^2.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^5.2.1",

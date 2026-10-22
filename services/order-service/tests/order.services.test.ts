@@ -15,10 +15,10 @@ import {
   acceptErrand,
   cancelErrandByCourier,
   cancelErrandByRequester,
-  COMPLETION_DEADLINE,
   completeErrand,
   CONFIRMATION_DEADLINE,
   createErrand,
+  DELIVERY_DEADLINE,
   deliverErrand,
   escapeRegex,
   EXPIRY_DEADLINE,
@@ -77,6 +77,8 @@ function mockUpdate(t: TestContext, result: ErrandRecord | null, existing: Erran
     return result;
   }) as never);
   t.mock.method(Errand, "findById", (async () => existing) as never);
+  // terminal transitions clear the outbox flag after publishing; keep that off the real (unconnected) DB
+  t.mock.method(Errand, "updateOne", (async () => ({ acknowledged: true })) as never);
   return calls;
 }
 
@@ -447,7 +449,7 @@ describe("pickUpErrand", () => {
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "ACCEPTED", courierId: COURIER_ID });
     const { deliverBy, ...set } = calls[0].update.$set;
     assert.deepEqual(set, { status: "PICKED_UP" });
-    assertWithin(deliverBy, before + COMPLETION_DEADLINE, after + COMPLETION_DEADLINE);
+    assertWithin(deliverBy, before + DELIVERY_DEADLINE, after + DELIVERY_DEADLINE);
   });
 
   test("does not filter on listing expiry", async (t) => {
@@ -507,7 +509,18 @@ describe("completeErrand", () => {
 
     assert.equal(await completeErrand(ERRAND_ID, REQUESTER_ID), completed);
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "PENDING_COMPLETION", requesterId: REQUESTER_ID });
-    assert.deepEqual(calls[0].update, { $set: { status: "COMPLETED" } });
+    assert.deepEqual(calls[0].update, { $set: { status: "COMPLETED", eventPending: true } });
+  });
+
+  test("a publish failure after commit does not fail the request or clear the pending flag", async (t) => {
+    t.mock.method(console, "error", () => {});
+    setEventPublisher({ isReady: () => true, publish: async () => { throw new Error("broker down"); }, close: async () => {} });
+    const completed = makeErrand({ status: "COMPLETED", courierId: COURIER_ID });
+    mockUpdate(t, completed);
+    const clearFlag = t.mock.method(Errand, "updateOne", (async () => ({ acknowledged: true })) as never);
+
+    assert.equal(await completeErrand(ERRAND_ID, REQUESTER_ID), completed);
+    assert.equal(clearFlag.mock.callCount(), 0);
   });
 
   test("courier cannot complete on the requester's behalf", async (t) => {
@@ -521,7 +534,7 @@ describe("cancellation", () => {
     const calls = mockUpdate(t, makeErrand({ status: "CANCELLED" }));
     await cancelErrandByRequester(ERRAND_ID, REQUESTER_ID);
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "OPEN", requesterId: REQUESTER_ID });
-    assert.deepEqual(calls[0].update, { $set: { status: "CANCELLED" } });
+    assert.deepEqual(calls[0].update, { $set: { status: "CANCELLED", eventPending: true } });
   });
 
   test("requester cannot cancel once a courier has accepted", async (t) => {

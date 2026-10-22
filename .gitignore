@@ -23,6 +23,16 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Playwright output and local authentication state
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright-artifacts/
+frontend/playwright/
+frontend/.playwright/
+frontend/playwright.config.*
+frontend/tests/
+frontend/scripts/save-playwright-auth.mjs
+
 # OS
 .DS_Store
 Thumbs.db

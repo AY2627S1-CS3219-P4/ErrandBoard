@@ -1,4 +1,33 @@
 .account-administration-page .account-admin-panel { margin-top: 2.5rem; }
+@media (min-width: 761px) {
+  .account-administration-page {
+    width: min(100% - 2rem, 80rem);
+    max-width: 100%;
+  }
+
+  .account-administration-page .admin-page-heading > div {
+    min-width: 0;
+  }
+
+  .account-administration-page .admin-page-heading h1 {
+    max-width: 100%;
+    font-size: clamp(2rem, 5.5vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.04em;
+    text-wrap: balance;
+  }
+
+  .account-administration-page .admin-page-heading p:not(.eyebrow) {
+    max-width: 52rem;
+  }
+
+}
+
+@media (min-width: 761px) and (max-width: 920px) {
+  .account-administration-page .admin-page-heading {
+    flex-direction: column;
+  }
+}
 .account-summary { display: flex; flex-direction: column; align-items: flex-end; color: var(--text); font-size: 0.8rem; }
 .account-summary strong { color: var(--text-h); font-size: 1.8rem; line-height: 1; }
 .account-filters { width: fit-content; max-width: 100%; flex-wrap: wrap; gap: 0.25rem; margin-top: 1.5rem; padding: 0.25rem; border: 1px solid var(--border); border-bottom: 1px solid var(--border); border-radius: 999px; background: var(--accent-bg); }
@@ -33,7 +62,18 @@
 .account-role-button:disabled { cursor: not-allowed; opacity: 0.55; }
 .account-status-button { border-color: rgba(180, 35, 24, 0.35); color: #b42318; }
 .account-status-button.promote { border-color: rgba(40, 115, 60, 0.35); color: #28733c; }
-@media (max-width: 760px) {
+@media (min-width: 921px) {
+  .account-table { min-width: 0; max-width: 100%; }
+  .account-row-actions .account-role-button {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    white-space: normal;
+  }
+  .account-row-actions .account-role-button + .account-role-button { margin: 0.4rem 0 0; }
+}
+@media (max-width: 920px) {
   .account-summary { align-items: flex-start; }
   .account-filters { width: 100%; box-sizing: border-box; border-radius: 0.75rem; }
   .account-filter { flex: 1 1 auto; padding-inline: 0.6rem; }

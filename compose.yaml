@@ -209,6 +209,7 @@ services:
       ORDER_CREDIT_API_KEY: ${ORDER_CREDIT_API_KEY:?Set an Order-to-Credit API key}
       JWT_SECRET: ${JWT_SECRET}
       REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
     ports:
       - "127.0.0.1:3004:3004"
     depends_on:
@@ -218,11 +219,29 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3004/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - errandboard-network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      user-service:
+        condition: service_started
+      supplier-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      credit-service:
+        condition: service_started
     networks:
       - errandboard-network
 

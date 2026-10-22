@@ -17,6 +17,8 @@ test("accepts valid input and defaults accountType to USER", async() => {
     await user.validate();
 
     assert.equal(user.accountType, "USER");
+    assert.equal(user.creditSetupPending, false);
+    assert.equal(user.creditSetupAttempts, 0);
 })
 
 test("normalizes email and trims username", async () => {

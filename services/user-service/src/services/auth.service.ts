@@ -7,7 +7,8 @@ import {
 } from "../security/session-token.js";
 import { authorizationStore, requireCurrentAuthorization } from "../security/authorization-state.js";
 import { changeAuthorization } from "./authorization.service.js";
-import { syncCreditAccount } from "./credit-account.client.js";
+import { CreditAccountUnavailableError, syncCreditAccount } from "./credit-account.client.js";
+import { initialCreditRetryAt, markCreditSetupReady, recordCreditSetupFailure } from "./credit-provisioning.service.js";
 
 export async function registerUser(input: {
   email: string;
@@ -20,15 +21,41 @@ export async function registerUser(input: {
     email: input.email,
     username: input.username,
     passwordHash,
+    creditSetupPending: true,
+    creditSetupNextRetryAt: initialCreditRetryAt(),
   });
   await authorizationStore.initialize(user._id.toString(), user);
-  await syncCreditAccount(user._id.toString(), user.isActive);
+  let creditSetupPending = false;
+  try {
+    await syncCreditAccount(user._id.toString(), user.isActive);
+  } catch (error) {
+    if (!(error instanceof CreditAccountUnavailableError)) throw error;
+    creditSetupPending = true;
+    try {
+      await recordCreditSetupFailure(user._id.toString(), 1);
+    } catch (writeError) {
+      // The initial pending state and retry time were saved with User.create.
+      // A later worker pass can still repair an ambiguous provisioning result.
+      console.error("Could not update credit provisioning retry metadata:", writeError);
+    }
+  }
+  if (!creditSetupPending) {
+    try {
+      await markCreditSetupReady(user._id.toString());
+    } catch (error) {
+      // Credit may already have committed. Keep the durable pending flag so an
+      // idempotent retry can confirm it rather than reporting a failed signup.
+      creditSetupPending = true;
+      console.error("Could not confirm credit provisioning completion:", error);
+    }
+  }
 
   return {
     id: user._id.toString(),
     email: user.email,
     username: user.username,
     accountType: user.accountType,
+    creditSetupPending,
   };
 }
 
