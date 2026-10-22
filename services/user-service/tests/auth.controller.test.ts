@@ -165,6 +165,7 @@ test("registration returns 201 with a safe user response", async (t) => {
     delete process.env.CREDIT_INTERNAL_API_KEY;
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
+  t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   const creditCall = t.mock.method(globalThis, "fetch", async (url: URL | string | Request, options?: RequestInit) => {
     assert.match(url.toString(), /^http:\/\/credit-service:3004\/credit\/accounts\/[a-f0-9]{24}$/);
     assert.deepEqual(JSON.parse(options?.body as string), { isActive: true });
@@ -197,19 +198,20 @@ test("registration returns 201 with a safe user response", async (t) => {
 
   assert.equal(state.status, 201);
   assert.ok(persisted);
-  assert.deepEqual(Object.keys(persisted).sort(), ["email", "passwordHash", "username"]);
+  assert.deepEqual(Object.keys(persisted).sort(), ["creditSetupNextRetryAt", "creditSetupPending", "email", "passwordHash", "username"]);
   assert.equal(persisted.email, "e0000000@u.nus.edu");
   assert.notEqual(persisted.passwordHash, strongRegistrationPassword);
   assert.equal(create.mock.callCount(), 1);
   assert.equal(creditCall.mock.callCount(), 1);
 
   const body = state.body as { user: Record<string, unknown> };
-  assert.deepEqual(Object.keys(body.user).sort(), ["accountType", "email", "id", "username"]);
+  assert.deepEqual(Object.keys(body.user).sort(), ["accountType", "creditSetupPending", "email", "id", "username"]);
+  assert.equal(body.user.creditSetupPending, false);
   assert.equal(body.user.accountType, "USER");
   assert.equal(body.user.email, "e0000000@u.nus.edu");
 });
 
-test("registration does not report full success when credit setup fails", async (t) => {
+test("registration returns a pending response and schedules repair when credit setup fails", async (t) => {
   process.env.CREDIT_SERVICE_URL = "http://credit-service:3004";
   process.env.CREDIT_INTERNAL_API_KEY = "test-credit-key";
   t.after(() => {
@@ -218,6 +220,7 @@ test("registration does not report full success when credit setup fails", async 
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
   t.mock.method(User, "create", async (document: Record<string, unknown>) => new User(document));
+  const update = t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 503 }));
   const { state, response } = responseDouble();
 
@@ -227,8 +230,10 @@ test("registration does not report full success when credit setup fails", async 
     password: strongRegistrationPassword,
   } } as Request, response);
 
-  assert.equal(state.status, 503);
+  assert.equal(state.status, 202);
   assert.equal((state.body as { code: string }).code, "CREDIT_SETUP_PENDING");
+  assert.equal((state.body as { user: { creditSetupPending: boolean } }).user.creditSetupPending, true);
+  assert.equal(update.mock.callCount(), 1);
 });
 
 test("registration rejects invalid fields before hashing or persistence", async (t) => {
