@@ -36,6 +36,7 @@ test("registration sends only a hash to persistence and returns safe account fie
     delete process.env.CREDIT_INTERNAL_API_KEY;
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
+  t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   let createdId: string | undefined;
   const creditCall = t.mock.method(globalThis, "fetch", async (url: URL | string | Request, options?: RequestInit) => {
     assert.equal(url.toString(), `http://credit-service:3004/credit/accounts/${createdId}`);
@@ -57,11 +58,13 @@ test("registration sends only a hash to persistence and returns safe account fie
   // Simulate a caller attempting to inject a privileged account type.
   const result = await registerUser({ ...input, accountType: "ADMIN" } as typeof input);
   assert.ok(persisted);
-  assert.deepEqual(Object.keys(persisted).sort(), ["email", "passwordHash", "username"]);
+  assert.deepEqual(Object.keys(persisted).sort(), ["creditSetupNextRetryAt", "creditSetupPending", "email", "passwordHash", "username"]);
+  assert.equal(persisted.creditSetupPending, true);
   assert.equal(typeof persisted.passwordHash, "string");
   assert.notEqual(persisted.passwordHash, input.password);
   assert.equal(await verifyPassword(input.password, persisted.passwordHash as string), true);
-  assert.deepEqual(Object.keys(result).sort(), ["accountType", "email", "id", "username"]);
+  assert.deepEqual(Object.keys(result).sort(), ["accountType", "creditSetupPending", "email", "id", "username"]);
+  assert.equal(result.creditSetupPending, false);
   assert.equal(result.accountType, "USER");
   assert.equal(result.email, input.email);
   assert.equal(result.username, input.username);
@@ -82,6 +85,32 @@ test("login retrieves the password hash and accepts valid credentials", async (t
     };
   });
   assert.equal(await authenticateUser(input.username, input.password), storedUser);
+});
+
+test("credit setup pending does not prevent login", async (t) => {
+  t.mock.method(authorizationStore, "read", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
+  const pendingUser = new User({ ...storedUser.toObject(), creditSetupPending: true });
+  t.mock.method(User, "findOne", () => ({ select: async () => pendingUser }));
+  assert.equal(await authenticateUser(input.username, input.password), pendingUser);
+});
+
+test("a lost database confirmation keeps registration pending for worker reconciliation", async (t) => {
+  const oldUrl = process.env.CREDIT_SERVICE_URL;
+  const oldKey = process.env.CREDIT_INTERNAL_API_KEY;
+  process.env.CREDIT_SERVICE_URL = "http://credit-service:3004";
+  process.env.CREDIT_INTERNAL_API_KEY = "test-credit-key";
+  t.after(() => {
+    if (oldUrl === undefined) delete process.env.CREDIT_SERVICE_URL;
+    else process.env.CREDIT_SERVICE_URL = oldUrl;
+    if (oldKey === undefined) delete process.env.CREDIT_INTERNAL_API_KEY;
+    else process.env.CREDIT_INTERNAL_API_KEY = oldKey;
+  });
+  t.mock.method(authorizationStore, "initialize", async () => {});
+  t.mock.method(User, "create", async (document: Record<string, unknown>) => new User(document));
+  t.mock.method(User, "updateOne", async () => { throw new Error("database write lost"); });
+  t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 204 }));
+  const result = await registerUser(input);
+  assert.equal(result.creditSetupPending, true);
 });
 
 test("unknown account and wrong password both produce authentication failure", async (t) => {

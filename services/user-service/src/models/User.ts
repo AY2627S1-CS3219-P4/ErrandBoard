@@ -10,6 +10,11 @@ export interface UserDocument {
   accountType: AccountType;
   isActive: boolean;
   authzVersion: number;
+  creditSetupPending: boolean;
+  creditSetupAttempts: number;
+  creditSetupNextRetryAt?: Date;
+  creditSetupLeaseId?: string;
+  creditSetupLeaseUntil?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -55,11 +60,21 @@ const userSchema = new Schema<UserDocument>(
       required: true,
       min: 0,
     },
+    creditSetupPending: { type: Boolean, default: false, required: true },
+    creditSetupAttempts: { type: Number, default: 0, min: 0, required: true },
+    creditSetupNextRetryAt: Date,
+    creditSetupLeaseId: String,
+    creditSetupLeaseUntil: Date,
   },
   {
     collection: "users",
     timestamps: true,
   },
+);
+
+userSchema.index(
+  { creditSetupNextRetryAt: 1 },
+  { partialFilterExpression: { creditSetupPending: true } },
 );
 
 export const User = model<UserDocument>("User", userSchema);

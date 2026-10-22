@@ -74,6 +74,7 @@ test("one-time backfill covers non-CSV Users without changing their existing cre
     delete process.env.CREDIT_INTERNAL_API_KEY;
   });
   const existingId = new Types.ObjectId();
+  const update = t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   t.mock.method(User, "find", () => ({
     select: () => ({ lean: () => ({
       cursor: async function* () { yield { _id: existingId, isActive: false }; },
@@ -90,4 +91,22 @@ test("one-time backfill covers non-CSV Users without changing their existing cre
     url: `http://credit-service:3004/credit/accounts/${existingId}`,
     isActive: false,
   }]);
+  assert.equal(update.mock.callCount(), 1);
+});
+
+test("failed backfill marks an old User for automatic credit repair", async (t) => {
+  const userId = new Types.ObjectId();
+  t.mock.method(User, "find", () => ({
+    select: () => ({ lean: () => ({
+      cursor: async function* () { yield { _id: userId, isActive: true }; },
+    }) }),
+  }));
+  let pendingUpdate: Record<string, unknown> | undefined;
+  t.mock.method(User, "updateOne", async (_query: unknown, update: Record<string, unknown>) => {
+    pendingUpdate = update;
+    return { matchedCount: 1 };
+  });
+  await assert.rejects(backfillUserCredits(), /Credit account service is unavailable/);
+  assert.equal((pendingUpdate?.$set as { creditSetupPending: boolean }).creditSetupPending, true);
+  assert.ok((pendingUpdate?.$set as { creditSetupNextRetryAt: Date }).creditSetupNextRetryAt instanceof Date);
 });
