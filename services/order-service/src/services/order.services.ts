@@ -1,9 +1,10 @@
 import { Types } from "mongoose";
 import { fetchActiveSupplier } from "../clients/supplier.client.js";
 import { reserveCredits } from "../clients/credit.client.js";
-import { DeliveryDeadlinePassedError, ErrandNotFoundError, InvalidStatusTransitionError, SelfAssignErrandError, UpdateConflictError, ValidationError } from "../errors/order.errors.js";
+import { CreditRecoveryRequiredError, DeliveryDeadlinePassedError, ErrandNotFoundError, InsufficientCreditsError, InvalidStatusTransitionError, OrderCreationPendingError, SelfAssignErrandError, UpdateConflictError, ValidationError } from "../errors/order.errors.js";
 import { publishTerminalEvent } from "../event/errand.events.js";
 import { Errand, type ErrandRecord } from "../models/Errand.js";
+import { closeUnreservedCreation, queueCreationRecovery, recordOrderCreation, saveErrandAndCompleteCreation } from "./order-creation.service.js";
 import { ACTIVE_STATUSES, isTerminal } from "../status/errandState.js";
 import { type ErrandStatus, validTransition } from "../status/errandState.js";
 
@@ -88,13 +89,12 @@ export async function createErrand(input: CreateErrandInput): Promise<ErrandReco
 
   //manually assign id for credit reservation
   const _id = new Types.ObjectId();
-  await reserveCredits({
+  const creditInput = {
     orderId: _id.toString(),
     requesterId: input.requesterId,
     amount: input.credit,
-  });
-
-  const errand = await Errand.create({
+  };
+  const errandData = {
     _id,
     requesterId: input.requesterId,
     supplier,
@@ -103,7 +103,49 @@ export async function createErrand(input: CreateErrandInput): Promise<ErrandReco
     credit: input.credit,
     status: "OPEN",
     expiresAt: new Date(Date.now() + EXPIRY_DEADLINE),
-  });
+  } as const;
+  // Reject schema-invalid input before any Credit operation can move funds.
+  await new Errand(errandData).validate();
+  // This intent survives a crash between Credit's commit and Errand.create.
+  await recordOrderCreation(creditInput);
+
+  try {
+    await reserveCredits(creditInput);
+  } catch (error) {
+    if (error instanceof InsufficientCreditsError) {
+      try { await closeUnreservedCreation(creditInput.orderId); } catch (writeError) {
+        console.error("Could not close rejected order creation:", writeError);
+      }
+      throw error;
+    }
+    if (error instanceof CreditRecoveryRequiredError) {
+      // A conflicting Credit log needs an operator rather than endless retries.
+      console.error(`Order ${_id} needs manual Credit reconciliation`);
+    }
+    try { await queueCreationRecovery(creditInput.orderId, error); } catch (writeError) {
+      console.error("Could not expedite order creation recovery:", writeError);
+    }
+    throw new OrderCreationPendingError();
+  }
+
+  let errand: ErrandRecord;
+  try {
+    errand = await saveErrandAndCompleteCreation(errandData);
+  } catch (error) {
+    // A lost write reply may hide a committed transaction. This request may
+    // confirm an existing Errand, but only the leased worker may compensate:
+    // its intent claim fences a still-in-flight transaction before refunding.
+    try {
+      const confirmed = await Errand.findById(_id) as ErrandRecord | null;
+      if (confirmed) return confirmed;
+    } catch (recoveryError) {
+      console.error(`Order ${_id} write outcome could not be checked:`, recoveryError);
+    }
+    try { await queueCreationRecovery(creditInput.orderId, error); } catch (writeError) {
+      console.error("Could not expedite order creation recovery:", writeError);
+    }
+    throw new OrderCreationPendingError();
+  }
 
   return errand;
 }
