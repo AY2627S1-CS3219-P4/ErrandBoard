@@ -8,9 +8,9 @@ import { ACTIVE_STATUSES, isTerminal } from "../status/errandState.js";
 import { type ErrandStatus, validTransition } from "../status/errandState.js";
 
 // all deadlines are two days for now
-const EXPIRY_DEADLINE = 2 * 24 * 60 * 60 * 1000;
-const DELIVERY_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for courier to indicate delivery has been completed
-const CONFIRMATION_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for requester to confirm receipt of delivery
+export const EXPIRY_DEADLINE = 2 * 24 * 60 * 60 * 1000;
+export const DELIVERY_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for courier to indicate delivery has been completed
+export const CONFIRMATION_DEADLINE = 2 * 24 * 60 * 60 * 1000;  // for requester to confirm receipt of delivery
 export interface CreateErrandInput {
     requesterId: string;
     supplierId: string;
@@ -117,7 +117,7 @@ async function updateErrand(id: string, from: ErrandStatus, to: ErrandStatus, fi
   const updated = await Errand.findOneAndUpdate(
     // checking and updating of errand are in the same operation
     { _id: id, status: from, ...filter },
-    { $set: { status: to, ...update } },
+    { $set: { status: to, ...update , ...(isTerminal(to) ? { eventPending: true } : {})} },
     { new: true, runValidators: true }
   ) as ErrandRecord | null;
 

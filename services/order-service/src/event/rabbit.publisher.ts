@@ -18,7 +18,7 @@ export class RabbitPublisher implements EventPublisher {
     isReady(): boolean {
         return this.connected();
     }
-
+    
     async publish(event: ErrandEvent): Promise<void> {
         const { eventId, type } = event.value;
         this.returnMessages.delete(eventId); //clear stale state from previous attempts jic
@@ -36,7 +36,7 @@ export class RabbitPublisher implements EventPublisher {
         }
 
         if (this.returnMessages.delete(eventId)) {
-            throw new Error(`${type} (${eventId}) was unroutable: no queue bound`);
+            throw new UnroutableError(`${type} (${eventId}) was unroutable: no queue bound`);
         }
     }
 

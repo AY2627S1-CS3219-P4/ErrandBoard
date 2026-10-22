@@ -36,10 +36,31 @@ function makeErrand(overrides: Record<string, unknown> = {}): ErrandRecord {
 
 type FindCall = { query: Record<string, unknown>; select?: unknown; limit?: unknown };
 
-// mocks Errand.find(...).select("_id").limit(n).lean(), returning the due docs registered per status
-function mockDueFind(t: TestContext, byStatus: Partial<Record<ErrandStatus, { _id: string }[]>>) {
+// _ids whose eventPending flag the sweep cleared after a successful publish
+let cleared: { filter: Record<string, unknown>; update: Record<string, unknown> }[];
+
+// mocks Errand.find(...).select("_id").limit(n).lean(), returning the due docs registered per status.
+// The outbox relay's Errand.find({ eventPending: true }).sort().limit() is answered from `pending` and
+// is not recorded in the returned calls. Also mocks the updateOne that clears the flag.
+function mockDueFind(
+  t: TestContext,
+  byStatus: Partial<Record<ErrandStatus, { _id: string }[]>>,
+  pending: ErrandRecord[] = [],
+) {
   const calls: FindCall[] = [];
+  cleared = [];
+  t.mock.method(Errand, "updateOne", (async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
+    cleared.push({ filter, update });
+    return { acknowledged: true };
+  }) as never);
   t.mock.method(Errand, "find", ((query: Record<string, unknown>) => {
+    if ("eventPending" in query) {
+      const relay = {
+        sort() { return relay; },
+        limit() { return Promise.resolve(pending); },
+      };
+      return relay;
+    }
     const call: FindCall = { query };
     calls.push(call);
     const results = byStatus[query.status as ErrandStatus] ?? [];
@@ -126,11 +147,56 @@ describe("runLifecycleSweep", () => {
     assert.deepEqual(byId[PICKED_ID].update.$set.status, "CANCELLED");
     assert.deepEqual(byId[PENDING_ID].filter.status, "PENDING_COMPLETION");
     assert.deepEqual(byId[PENDING_ID].update.$set.status, "COMPLETED");
+    // the outbox flag is written in the same atomic update as the terminal status
+    for (const c of updates) assert.equal(c.update.$set.eventPending, true);
 
     assert.deepEqual(
       published.map((e) => e.value.type).sort(),
       ["errand.cancelled", "errand.completed", "errand.expired"],
     );
+    // every event that reached the broker had its flag cleared
+    assert.equal(cleared.length, 3);
+    for (const c of cleared) assert.deepEqual(c.update, { $unset: { eventPending: "" } });
+  });
+
+  test("a publish failure after commit does not fail the sweep and leaves the event pending", async (t) => {
+    t.mock.method(console, "error", () => {});
+    setEventPublisher({ isReady: () => true, publish: async () => { throw new Error("broker down"); }, close: async () => {} });
+    mockDueFind(t, { OPEN: [{ _id: OPEN_ID }] });
+    mockTransition(t, (filter, update) =>
+      makeErrand({ _id: filter._id as string, status: update.$set.status as ErrandStatus }));
+
+    await assert.doesNotReject(runLifecycleSweep());
+
+    assert.equal(cleared.length, 0, "flag must stay set so the relay retries");
+  });
+
+  test("the next tick relays pending events and clears their flag", async (t) => {
+    const owed = makeErrand({ _id: OPEN_ID, status: "EXPIRED" });
+    mockDueFind(t, {}, [owed]);
+    mockTransition(t, () => null);
+
+    await runLifecycleSweep();
+
+    assert.deepEqual(published.map((e) => e.value.eventId), [`${OPEN_ID}:errand.expired`]);
+    assert.equal(cleared.length, 1);
+    assert.deepEqual(cleared[0].filter, { _id: OPEN_ID });
+  });
+
+  test("the relay stops at the first failed publish so a down broker is not hit repeatedly", async (t) => {
+    t.mock.method(console, "error", () => {});
+    let attempts = 0;
+    setEventPublisher({ isReady: () => true, publish: async () => { attempts++; throw new Error("broker down"); }, close: async () => {} });
+    mockDueFind(t, {}, [
+      makeErrand({ _id: OPEN_ID, status: "EXPIRED" }),
+      makeErrand({ _id: PICKED_ID, status: "CANCELLED" }),
+    ]);
+    mockTransition(t, () => null);
+
+    await runLifecycleSweep();
+
+    assert.equal(attempts, 1);
+    assert.equal(cleared.length, 0);
   });
 
   test("a failing transition is skipped and does not stop the sweep", async (t) => {
