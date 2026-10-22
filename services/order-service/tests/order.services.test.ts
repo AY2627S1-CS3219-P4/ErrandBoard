@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, test, type TestContext } from "node:test";
+import mongoose from "mongoose";
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
+import { OrderCreation } from "../src/models/OrderCreation.js";
 import { setEventPublisher } from "../src/event/publisher.js";
 import {
   DeliveryDeadlinePassedError,
@@ -8,6 +10,7 @@ import {
   SelfAssignErrandError,
   SupplierNotFoundError,
   SupplierUnavailableError,
+  OrderCreationPendingError,
   UpdateConflictError,
   ValidationError,
 } from "../src/errors/order.errors.js";
@@ -272,6 +275,12 @@ describe("createErrand", () => {
     respond: (url: string, init?: RequestInit) => Response | Promise<Response>,
     creditRespond: (url: string, init?: RequestInit) => Response | Promise<Response> = () => new Response(null, { status: 201 }),
   ) {
+    t.mock.method(mongoose, "startSession", (async () => ({
+      withTransaction: async (work: () => Promise<void>) => work(),
+      endSession: async () => {},
+    })) as never);
+    t.mock.method(OrderCreation, "create", (async () => ({})) as never);
+    t.mock.method(OrderCreation, "updateOne", (async () => ({ matchedCount: 1 })) as never);
     process.env.SUPPLIER_SERVICE_URL = SUPPLIER_SERVICE_URL;
     process.env.CREDIT_SERVICE_URL = CREDIT_SERVICE_URL;
     process.env.ORDER_CREDIT_API_KEY = CREDIT_API_KEY;
@@ -289,9 +298,9 @@ describe("createErrand", () => {
 
   function capturePersisted(t: TestContext) {
     const persisted: Record<string, unknown>[] = [];
-    const create = t.mock.method(Errand, "create", (async (document: Record<string, unknown>) => {
-      persisted.push(document);
-      return makeErrand(document);
+    const create = t.mock.method(Errand, "create", (async (documents: Record<string, unknown>[]) => {
+      persisted.push(documents[0]);
+      return [makeErrand(documents[0])];
     }) as never);
     return { persisted, create };
   }
@@ -380,11 +389,70 @@ describe("createErrand", () => {
     assert.equal(create.mock.callCount(), 0);
   });
 
-  test("propagates database errors", async (t) => {
+  test("a failed Errand write leaves a recoverable intent instead of silently keeping credits", async (t) => {
     useSupplierService(t, () => Response.json(supplierBody));
     const failure = new Error("database unavailable");
     t.mock.method(Errand, "create", (async () => { throw failure; }) as never);
-    await assert.rejects(createErrand(input), (error) => error === failure);
+    t.mock.method(Errand, "findById", (async () => null) as never);
+    await assert.rejects(createErrand(input), isError(OrderCreationPendingError));
+  });
+
+  test("an uncertain reserve reply is confirmed by Credit before the Errand is written", async (t) => {
+    let reservedId = "";
+    useSupplierService(t, () => Response.json(supplierBody), (url, init) => {
+      if (url.endsWith("/credit/reservations")) {
+        reservedId = (JSON.parse(init?.body as string) as { orderId: string }).orderId;
+        throw new TypeError("response lost");
+      }
+      assert.ok(url.endsWith(`/credit/reservations/${reservedId}`));
+      return Response.json({ state: "RESERVED", requesterId: input.requesterId, amount: input.credit });
+    });
+    const { create } = capturePersisted(t);
+    await createErrand(input);
+    assert.equal(create.mock.callCount(), 1);
+  });
+
+  test("a failed Errand write defers release to the fenced recovery worker", async (t) => {
+    let released = 0;
+    useSupplierService(t, () => Response.json(supplierBody), (url) => {
+      if (url.endsWith("/release")) {
+        released++;
+        return Response.json({ applied: true, state: "REFUNDED" });
+      }
+      if (url.includes("/credit/reservations/")) {
+        return Response.json({ state: "RESERVED", requesterId: input.requesterId, amount: input.credit });
+      }
+      return Response.json({ applied: true });
+    });
+    t.mock.method(Errand, "create", (async () => { throw new Error("write failed"); }) as never);
+    t.mock.method(Errand, "findById", (async () => null) as never);
+    await assert.rejects(createErrand(input), isError(OrderCreationPendingError));
+    assert.equal(released, 0);
+  });
+
+  test("a lost Errand write response returns the persisted Errand without refunding", async (t) => {
+    let released = 0;
+    useSupplierService(t, () => Response.json(supplierBody), (url) => {
+      if (url.endsWith("/release")) {
+        released++;
+        return Response.json({ applied: true });
+      }
+      if (url.includes("/credit/reservations/")) {
+        return Response.json({ state: "RESERVED", requesterId: input.requesterId, amount: input.credit });
+      }
+      return Response.json({ applied: true });
+    });
+    t.mock.method(Errand, "create", (async () => { throw new Error("reply lost"); }) as never);
+    t.mock.method(Errand, "findById", (async (id: unknown) => makeErrand({ _id: id as ErrandRecord["_id"] })) as never);
+    const result = await createErrand(input);
+    assert.equal(result.status, "OPEN");
+    assert.equal(released, 0);
+  });
+
+  test("malformed Errand data is rejected before reservation", async (t) => {
+    const calls = useSupplierService(t, () => Response.json(supplierBody));
+    await assert.rejects(createErrand({ ...input, description: "" }));
+    assert.equal(calls.mock.callCount(), 1);
   });
 });
 

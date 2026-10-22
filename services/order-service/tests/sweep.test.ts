@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, test, type TestContext } from "node:test";
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
+import { OrderCreation } from "../src/models/OrderCreation.js";
 import { setEventPublisher } from "../src/event/publisher.js";
 import type { ErrandEvent } from "../src/event/types.js";
 import type { ErrandStatus } from "../src/status/errandState.js";
@@ -47,6 +48,7 @@ function mockDueFind(
   byStatus: Partial<Record<ErrandStatus, { _id: string }[]>>,
   pending: ErrandRecord[] = [],
 ) {
+  t.mock.method(OrderCreation, "findOneAndUpdate", (async () => null) as never);
   const calls: FindCall[] = [];
   cleared = [];
   t.mock.method(Errand, "updateOne", (async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
@@ -197,6 +199,19 @@ describe("runLifecycleSweep", () => {
 
     assert.equal(attempts, 1);
     assert.equal(cleared.length, 0);
+  });
+
+  test("the relay warns when a terminal event has been pending for over two minutes", async (t) => {
+    const warn = t.mock.method(console, "warn", () => {});
+    mockDueFind(t, {}, [makeErrand({
+      _id: OPEN_ID,
+      status: "EXPIRED",
+      updatedAt: new Date(Date.now() - 3 * 60_000),
+    })]);
+    mockTransition(t, () => null);
+    await runLifecycleSweep();
+    assert.equal(warn.mock.callCount(), 1);
+    assert.match(String(warn.mock.calls[0].arguments[0]), /terminal event backlog/);
   });
 
   test("a failing transition is skipped and does not stop the sweep", async (t) => {

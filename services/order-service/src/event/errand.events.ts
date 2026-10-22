@@ -46,6 +46,11 @@ export async function flushPendingEvents(limit = 200): Promise<number> {
     .sort({ updatedAt: 1 })
     .limit(limit)) as unknown as ErrandRecord[];
 
+  const oldest = pending[0];
+  if (oldest && Date.now() - oldest.updatedAt.getTime() > 2 * 60_000) {
+    console.warn(`Order terminal event backlog: oldest pending errand ${oldest._id} is over two minutes old`);
+  }
+
   let sent = 0;
   for (const errand of pending) {
     if (!(await publishTerminalEvent(errand))) break; // broker likely down, retry next tick

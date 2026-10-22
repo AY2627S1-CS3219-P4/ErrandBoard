@@ -64,9 +64,17 @@ Requests carry the short-lived `access_token` (HttpOnly cookie used by the front
 Errand creation is synchronous and ordered:
 
 1. **Supplier Service** (`SUPPLIER_SERVICE_URL`) — the supplier is looked up and must be active. Only the `supplierId` comes from the client; the stored supplier name/building/address are copied from the response ([src/clients/supplier.client.ts](src/clients/supplier.client.ts)).
-2. **Credit Service** (`CREDIT_SERVICE_URL`) — credit is reserved against the pre-allocated order id before the errand row is written, authenticated with `ORDER_CREDIT_API_KEY` ([src/clients/credit.client.ts](src/clients/credit.client.ts)). The `orderId` is stable so the reservation is idempotent on retry. If reservation fails, no errand is created.
+2. **Credit Service** (`CREDIT_SERVICE_URL`) — credit is reserved against the pre-allocated order id before the errand document is written, authenticated with `ORDER_CREDIT_API_KEY` ([src/clients/credit.client.ts](src/clients/credit.client.ts)). The `orderId` is stable so the reservation is idempotent on retry. Order queries Credit's internal reservation-status API after an uncertain reply; only a matching confirmed reservation permits Errand creation.
 
-Both calls time out after 3s and surface as `503` to the caller.
+Both upstream calls time out after 3s. An unavailable supplier or an unresolved Credit outcome surfaces as `503`; a confirmed domain rejection retains its specific error code.
+
+### Creation recovery and compensation
+
+After validating the supplier and Errand fields, Order writes an `orderCreation` intent **before** requesting the reservation. The intent and Errand share an ObjectId. Inserting the `OPEN` Errand and marking the intent `COMPLETED` happen in one MongoDB transaction ([src/services/order-creation.service.ts](src/services/order-creation.service.ts)). Order does not read or write Credit's MongoDB collections directly.
+
+If the reservation outcome remains unknown, Order returns `503 ORDER_CREATION_PENDING` and keeps the intent. A failed Errand write is also treated as uncertain: the request checks whether the Errand committed, but does not refund credits itself. The background worker first claims the intent, fencing off a late Errand transaction, then checks both the Errand and Credit reservation before releasing an orphaned reservation through Credit's internal API. A matching reservation can be released idempotently; conflicting Credit outcomes are left for manual reconciliation.
+
+An intent normally gets a 60-second in-flight grace period; a failed request can make it due immediately. Transient recovery failures retry with exponential delays capped at five minutes. `COMPENSATED` means no Errand exists and no reservation remains; `RECONCILE` marks an incompatible state requiring human review. Never silently create another order or refund a `RECONCILE` intent. A browser receiving `ORDER_CREATION_PENDING` should check My Errands before trying to submit the same details again, because the original creation may have succeeded.
 
 ## Events
 
@@ -80,9 +88,17 @@ If publishing fails, the flag is left set and the event is retried on the next l
 
 The publisher uses publisher confirms over an `amqp-connection-manager` channel and publishes each message `persistent` and `mandatory` ([src/event/rabbit.publisher.ts](src/event/rabbit.publisher.ts)). A broker `return` (no queue bound) surfaces as `UnroutableError` and a confirm failure as `PublishError`; both leave the event pending for the next retry rather than being treated as delivered.
 
+A terminal Errand with `eventPending: true` for over two minutes emits a backlog warning. Credit consumes terminal events with its own retry queue and moves permanently rejected events to `credit.errand.events.dead`. For an incident, inspect Order's pending intents and terminal events as well as RabbitMQ's queue counts:
+
+```sh
+docker compose exec rabbitmq rabbitmqctl list_queues name messages_ready messages_unacknowledged
+```
+
+Inspect a dead-lettered event and the Credit operation log before any manual replay. Preserve the original `eventId` to retain Credit's idempotency protection; do not purge a queue merely to clear an alert.
+
 ## Background lifecycle sweep
 
-A BullMQ repeatable job (`errand-lifecycle`, backed by Redis) runs every 20s ([src/queue/queue.ts](src/queue/queue.ts)). Each tick ([src/queue/sweep.ts](src/queue/sweep.ts)) first relays any events still pending from earlier failures (see [Reliable delivery](#reliable-delivery-transactional-outbox)), then finds errands whose deadline has passed and drives them to the correct terminal state — up to 200 per status per tick, the rest wait for the next tick:
+A BullMQ repeatable job (`errand-lifecycle`, backed by Redis) runs every 20s ([src/queue/queue.ts](src/queue/queue.ts)). Each tick ([src/queue/sweep.ts](src/queue/sweep.ts)) first relays any events still pending from earlier failures (see [Reliable delivery](#reliable-delivery-transactional-outbox)), then processes up to 200 due creation intents, and finally finds errands whose deadline has passed and drives them to the correct terminal state — up to 200 per status per tick, the rest wait for the next tick:
 
 - `OPEN` past `expiresAt` → `EXPIRED`
 - `PICKED_UP` past `deliverBy` → `CANCELLED`
@@ -101,4 +117,20 @@ npm run typecheck  # type-check without emitting
 npm test           # unit tests (tests/*.test.ts)
 ```
 
-Unit tests cover the service transition logic, the lifecycle sweep, and the RabbitMQ publisher's confirm/return handling ([tests/](tests/)). They do not require a running MongoDB, RabbitMQ, or Redis; the event publisher can be replaced via `setEventPublisher` in [src/event/publisher.ts](src/event/publisher.ts). For a full run with the backing stores, start the stack with Compose from the repository root.
+Unit tests cover creation and compensation recovery, service transition logic, the lifecycle sweep, and the RabbitMQ publisher's confirm/return handling ([tests/](tests/)). They do not require a running MongoDB, RabbitMQ, or Redis; the event publisher can be replaced via `setEventPublisher` in [src/event/publisher.ts](src/event/publisher.ts). For a full run with the backing stores, start the stack with Compose from the repository root.
+
+### Existing MongoDB volumes
+
+Fresh volumes run `config/db.js`, which creates the `orderCreation` collection, its due-work index, and Order's role permission. MongoDB does not rerun that initializer for existing volumes. Before starting the upgraded Order Service against an existing volume, connect as the MongoDB administrator and run the idempotent migration:
+
+```sh
+docker compose exec mongodb mongosh --username admin --authenticationDatabase admin --password
+```
+
+Enter the administrator password at the `mongosh` prompt, then run:
+
+```javascript
+.load("/migrations/order-saga.js")
+```
+
+The migration grants Order access to `errands` and `orderCreation` and adds the due-work index. It does not edit existing Errands or Credit balances. Do not use `docker compose down -v` as a substitute: it deletes the project database volume.

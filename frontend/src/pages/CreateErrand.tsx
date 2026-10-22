@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, supplierApiUrl } from "../api/client";
 import { createErrand, describeError, ErrandApiError } from "../api/errands";
