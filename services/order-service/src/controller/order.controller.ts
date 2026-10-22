@@ -23,6 +23,8 @@ import {
   DeliveryDeadlinePassedError,
   InsufficientCreditsError,
   UpstreamError,
+  CreditRecoveryRequiredError,
+  OrderCreationPendingError,
 } from "../errors/order.errors.js";
 
 function toArray(value: unknown): string[] | undefined {
@@ -79,6 +81,10 @@ function sendKnownError(res: Response, error: unknown): boolean {
     res.status(400).json({ code: "INSUFFICIENT_CREDITS", error: "Insufficient credits" });
   } else if (error instanceof UpstreamError) {
     res.status(503).json({ code: "SERVICE_UPSTREAM_ERROR", error: error.message });
+  } else if (error instanceof CreditRecoveryRequiredError) {
+    res.status(503).json({ code: "CREDIT_RECONCILIATION_REQUIRED", error: error.message });
+  } else if (error instanceof OrderCreationPendingError) {
+    res.status(503).json({ code: "ORDER_CREATION_PENDING", error: error.message });
   }
   else {
     return false;
