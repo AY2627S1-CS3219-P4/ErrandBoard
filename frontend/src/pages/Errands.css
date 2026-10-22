@@ -10,7 +10,8 @@
   text-align: left;
 }
 
-.errands-page > * { width: min(100%, var(--errands-max-width)); }
+/* Constrain page content to the readable column, but not the fixed modal overlay (it spans the viewport). */
+.errands-page > *:not(.errand-modal-backdrop) { width: min(100%, var(--errands-max-width)); }
 .errands-page .app-page-header { margin-bottom: 1.5rem; }
 
 .errands-tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }

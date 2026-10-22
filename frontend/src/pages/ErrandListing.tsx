@@ -19,6 +19,10 @@ const SINCE_OPTIONS = [
 
 const REFRESH_MS = 30_000;
 
+// Accept failures where this errand can never be taken by the user: drop it from the board and stop retries.
+const UNAVAILABLE_CODES = ["UPDATE_CONFLICT", "ERRAND_NOT_FOUND", "DEADLINE_PASSED"];
+const BLOCKING_CODES = [...UNAVAILABLE_CODES, "SELF_ASSIGN"];
+
 /** Open errand board (F9): search, filter, preview and accept. */
 export default function ErrandListing() {
   const { user } = useAuth();
@@ -41,6 +45,7 @@ export default function ErrandListing() {
   const [selected, setSelected] = useState<Errand | null>(null);
   const [isAccepting, setIsAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState("");
+  const [acceptBlocked, setAcceptBlocked] = useState(false); // errand is gone/taken/yours: no point retrying
 
   // Pickup-location options come from the supplier service.
   useEffect(() => {
@@ -97,13 +102,20 @@ export default function ErrandListing() {
     return () => controller.abort();
   }, [q, dropoff, building, sinceKey, refreshTick]);
 
+  const openPreview = useCallback((errand: Errand) => {
+    setSelected(errand);
+    setAcceptError("");
+    setAcceptBlocked(false);
+  }, []);
+
   const closePreview = useCallback(() => {
     setSelected(null);
     setAcceptError("");
+    setAcceptBlocked(false);
   }, []);
 
   async function handleAccept() {
-    if (!selected || isAccepting) return;
+    if (!selected || isAccepting || acceptBlocked) return;
     setIsAccepting(true);
     setAcceptError("");
     try {
@@ -111,8 +123,9 @@ export default function ErrandListing() {
       navigate("/errands/active");
     } catch (cause) {
       setAcceptError(describeError(cause));
-      if (cause instanceof ErrandApiError && (cause.code === "UPDATE_CONFLICT" || cause.code === "ERRAND_NOT_FOUND")) {
-        setRefreshTick((tick) => tick + 1); // someone else got there first, so show the current board
+      if (cause instanceof ErrandApiError && BLOCKING_CODES.includes(cause.code)) {
+        setAcceptBlocked(true); // the errand can't be taken by this user, so stop further Accept attempts
+        if (UNAVAILABLE_CODES.includes(cause.code)) setRefreshTick((tick) => tick + 1); // and drop it from the board
       }
     } finally {
       setIsAccepting(false);
@@ -175,7 +188,7 @@ export default function ErrandListing() {
             errand={errand}
             now={now}
             isOwn={errand.requesterId === user?.id}
-            onSelect={setSelected}
+            onSelect={openPreview}
           />
         ))}
       </ul>
@@ -186,6 +199,7 @@ export default function ErrandListing() {
           now={now}
           isOwn={selected.requesterId === user?.id}
           isBusy={isAccepting}
+          acceptBlocked={acceptBlocked}
           error={acceptError}
           onAccept={handleAccept}
           onClose={closePreview}

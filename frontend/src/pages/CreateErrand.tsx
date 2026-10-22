@@ -69,6 +69,7 @@ export default function CreateErrand() {
       });
       navigate("/errands/active");
     } catch (cause) {
+      // Prefer showing the problem next to the relevant input; fall back to the banner otherwise.
       if (cause instanceof ErrandApiError && Object.keys(cause.fields).length > 0) {
         // Field-level detail from the server (same shape as the supplier service, F6.3.1)
         setFieldErrors({
@@ -76,8 +77,11 @@ export default function CreateErrand() {
           dropoff: cause.fields.dropoff,
           description: cause.fields.description,
         });
+      } else if (cause instanceof ErrandApiError && cause.code === "INSUFFICIENT_CREDITS") {
+        setFieldErrors((prev) => ({ ...prev, credit: describeError(cause) }));
+      } else {
+        setSubmitError(describeError(cause));
       }
-      setSubmitError(describeError(cause));
       setIsSubmitting(false);
     }
   }
@@ -134,7 +138,7 @@ export default function CreateErrand() {
               id="errand-notes"
               rows={4}
               maxLength={NOTES_MAX}
-              placeholder="What should the courier get? Any special instructions?"
+              placeholder="Special instructions for courier e.g. what to get, pickup and contact details, where & when to meet"
               value={notes}
               aria-invalid={Boolean(fieldErrors.description)}
               onChange={(event) => setNotes(event.target.value)}
