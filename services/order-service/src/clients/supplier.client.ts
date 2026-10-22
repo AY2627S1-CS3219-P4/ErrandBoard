@@ -1,5 +1,5 @@
 import { settings } from "../config/settings.js";
-import { SupplierNotFoundError, SupplierUnavailableError } from "../errors/order.errors.js";
+import { SupplierNotFoundError, UpstreamError } from "../errors/order.errors.js";
 import type { SupplierCopy } from "../models/Errand.js";
 
 const SUPPLIER_TIMEOUT_MS = 3000;
@@ -20,21 +20,21 @@ export async function fetchActiveSupplier(supplierId: string): Promise<SupplierC
     const url = new URL(`/suppliers/${encodeURIComponent(supplierId)}`, settings.supplierServiceUrl);
     response = await fetch(url, { signal: AbortSignal.timeout(SUPPLIER_TIMEOUT_MS) });
   } catch {
-    throw new SupplierUnavailableError();
+    throw new UpstreamError("supplier-service");
   }
 
   if (response.status === 404) throw new SupplierNotFoundError();
-  if (!response.ok) throw new SupplierUnavailableError();
+  if (!response.ok) throw new UpstreamError("supplier-service", response.status);
 
   let body: SupplierResponse;
   try {
     body = (await response.json()) as SupplierResponse;
   } catch {
-    throw new SupplierUnavailableError();
+    throw new UpstreamError("supplier-service");
   }
 
   const { name, building, address, imageUrl } = body.supplier ?? {};
-  if (!name || !building) throw new SupplierUnavailableError();
+  if (!name || !building) throw new UpstreamError("supplier-service");
 
   return { supplierId, name, building, address, imageUrl };
 }

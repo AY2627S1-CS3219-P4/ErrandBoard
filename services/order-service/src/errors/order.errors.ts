@@ -16,15 +16,6 @@ export class SupplierNotFoundError extends Error {
   }
 }
 
-// supplier service could not be reached or gave an unexpected response
-export class SupplierUnavailableError extends Error {
-  constructor() {
-    super("Supplier service is unavailable. Please retry later.");
-    this.name = "SupplierUnavailableError";
-    Object.setPrototypeOf(this, SupplierUnavailableError.prototype);
-  }
-}
-
 export class UpdateConflictError extends Error {
   constructor() {
     super("Errand update failed");
