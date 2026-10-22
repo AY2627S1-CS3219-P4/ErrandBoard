@@ -2,6 +2,8 @@ import amqp, { ChannelWrapper } from "amqp-connection-manager";
 import type { ConfirmChannel } from "amqplib";
 import { EXCHANGE_NAME, type ErrandEvent, type EventPublisher } from "./types.js";
 
+export class PublishError extends Error {}
+export class UnroutableError extends PublishError {}
 
 export class RabbitPublisher implements EventPublisher {
     constructor(
@@ -18,16 +20,23 @@ export class RabbitPublisher implements EventPublisher {
     }
 
     async publish(event: ErrandEvent): Promise<void> {
-        const eventInfo = event.value;
-        await this.channel.publish(EXCHANGE_NAME, eventInfo.type, Buffer.from(JSON.stringify(event)), {
-            persistent: true,
-            mandatory: true,
-            messageId: eventInfo.eventId,
-            contentType: "application/json",
-        });
+        const { eventId, type } = event.value;
+        this.returnMessages.delete(eventId); //clear stale state from previous attempts jic
+        try {
+            await this.channel.publish(EXCHANGE_NAME, type, Buffer.from(JSON.stringify(event)), {
+                persistent: true,
+                mandatory: true,
+                messageId: eventId,
+                contentType: "application/json",
+                timeout: 5_000,
+            });
+        } catch(err) {
+            this.returnMessages.delete(eventId);
+            throw new PublishError(`publish of ${type} (${eventId}) failed`, { cause: err });
+        }
 
-        if (this.returnMessages.delete(eventInfo.eventId)) {
-            throw new Error(`message for ${eventInfo.type} failed to deliver`);
+        if (this.returnMessages.delete(eventId)) {
+            throw new Error(`${type} (${eventId}) was unroutable: no queue bound`);
         }
     }
 

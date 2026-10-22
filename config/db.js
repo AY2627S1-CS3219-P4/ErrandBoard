@@ -108,6 +108,7 @@ db.errands.createIndex({ status: 1, deliverBy: 1});
 db.errands.createIndex({ requesterId: 1, status: 1});
 db.errands.createIndex({ courierId: 1, status: 1});
 db.errands.createIndex({ createdAt: -1});
+db.errands.createIndex({ eventPending: 1 }, { partialFilterExpression: { eventPending: true } });
 
 
 // Credit Service
