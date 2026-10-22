@@ -1,0 +1,72 @@
+# Used only by scripts/demo/saga-demo.sh. `!override` removes the normal fixed
+# host ports so the demo can coexist with a developer's running Compose stack.
+services:
+  mongodb:
+    ports: !override []
+  redis:
+    ports: !override []
+  rabbitmq:
+    ports: !override
+      - target: 15672
+        published: "0"
+        host_ip: 127.0.0.1
+  user-service:
+    ports: !override
+      - target: 3001
+        published: "0"
+        host_ip: 127.0.0.1
+    environment:
+      CREDIT_SERVICE_URL: http://demo-credit-proxy:3900
+    depends_on:
+      demo-credit-proxy:
+        condition: service_healthy
+  user-seed:
+    environment:
+      CREDIT_SERVICE_URL: http://demo-credit-proxy:3900
+    depends_on:
+      demo-credit-proxy:
+        condition: service_healthy
+  supplier-service:
+    ports: !override
+      - target: 3002
+        published: "0"
+        host_ip: 127.0.0.1
+  order-service:
+    ports: !override
+      - target: 3003
+        published: "0"
+        host_ip: 127.0.0.1
+    environment:
+      CREDIT_SERVICE_URL: http://demo-credit-proxy:3900
+    depends_on:
+      demo-credit-proxy:
+        condition: service_healthy
+  credit-service:
+    ports: !override
+      - target: 3004
+        published: "0"
+        host_ip: 127.0.0.1
+  frontend:
+    ports: !override
+      - target: 80
+        published: "0"
+        host_ip: 127.0.0.1
+  demo-credit-proxy:
+    image: node:22-alpine
+    command: ["node", "/demo/credit-proxy.mjs"]
+    environment:
+      DEMO_CONTROL_TOKEN: ${DEMO_CONTROL_TOKEN:?Demo control token required}
+      DEMO_CREDIT_TARGET: http://credit-service:3004
+    volumes:
+      - ./scripts/demo/credit-proxy.mjs:/demo/credit-proxy.mjs:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3900/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+    ports:
+      - target: 3900
+        published: "0"
+        host_ip: 127.0.0.1
+    networks:
+      - errandboard-network
