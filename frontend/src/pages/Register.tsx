@@ -4,6 +4,7 @@ import { ZxcvbnFactory } from "@zxcvbn-ts/core";
 import * as common from "@zxcvbn-ts/language-common";
 import * as english from "@zxcvbn-ts/language-en";
 import { apiFetch, userApiUrl } from "../api/client";
+import { serviceUnavailable } from "../api/service-errors";
 import "./AuthForm.css";
 
 const EMAIL_REGEX: RegExp = /^e\d{7}@u\.nus\.edu$/;
@@ -92,6 +93,10 @@ export default function Register() {
       });
 
       if (!response.ok) {
+        if (response.status >= 500) {
+          setError(serviceUnavailable("Registration"));
+          return;
+        }
         const body = await response.json().catch(() => null) as {
           error?: string;
           fields?: Record<string, unknown>;
@@ -104,9 +109,15 @@ export default function Register() {
         return;
       }
 
-      navigate("/login");
+      if (response.status === 202) {
+        navigate("/login", { state: {
+          notice: "Your account was created. Credit setup is still in progress; you can log in while we retry automatically.",
+        } });
+      } else {
+        navigate("/login");
+      }
     } catch {
-      setError("Unable to reach the User Service.");
+      setError(serviceUnavailable("Registration"));
     } finally {
       setIsSubmitting(false);
     }

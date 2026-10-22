@@ -23,16 +23,14 @@ export default function Sidebar() {
     const [logoutError, setLogoutError] = useState("");
     const [availableCredits, setAvailableCredits] = useState<number | null>(null);
     const [creditsUnavailable, setCreditsUnavailable] = useState(false);
+    const [balanceUserId, setBalanceUserId] = useState<string | null>(null);
     const { shouldBlockLeave } = useLeaveGuard();
     const isAdmin = user?.accountType === "ADMIN" || user?.accountType === "SUPERADMIN";
 
     useEffect(() => {
-        setAvailableCredits(null);
-        setCreditsUnavailable(false);
         if (!user?.id) return;
 
         let active = true;
-        let receivedBalance = false;
         let eventSource: EventSource | undefined;
         let reconnectTimer: number | undefined;
         let reconnecting = false;
@@ -40,13 +38,16 @@ export default function Sidebar() {
         const refreshBalance = async () => {
             try {
                 const balance = await getCreditBalance(user.id);
-                receivedBalance = true;
                 if (active) {
+                    setBalanceUserId(user.id);
                     setAvailableCredits(balance.available);
                     setCreditsUnavailable(false);
                 }
             } catch {
-                if (active && !receivedBalance) setCreditsUnavailable(true);
+                if (active) {
+                    setBalanceUserId(user.id);
+                    setCreditsUnavailable(true);
+                }
             }
         };
 
@@ -157,13 +158,13 @@ export default function Sidebar() {
                 <div className="sidebar-user">
                     <div className="sidebar-user-line">
                         <span className="sidebar-username">{user?.username}</span>
-                        {availableCredits !== null ? (
+                        {balanceUserId === user?.id && creditsUnavailable ? (
+                            <span className="sidebar-credits sidebar-credits-unavailable" role="status">
+                                Credits temporarily unavailable
+                            </span>
+                        ) : balanceUserId === user?.id && availableCredits !== null ? (
                             <span className="sidebar-credits" aria-label={`Available balance: ${availableCredits} credits`}>
                                 {availableCredits} credits
-                            </span>
-                        ) : creditsUnavailable ? (
-                            <span className="sidebar-credits sidebar-credits-unavailable" role="status">
-                                Credits unavailable
                             </span>
                         ) : (
                             <span className="sidebar-credits" role="status">Loading credits…</span>

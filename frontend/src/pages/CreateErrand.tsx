@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, supplierApiUrl } from "../api/client";
+import { serviceUnavailable } from "../api/service-errors";
 import { createErrand, describeError, ErrandApiError } from "../api/errands";
 import "../components/errand-buttons.css";
 import "../components/SupplierCard.css";
@@ -42,12 +43,12 @@ export default function CreateErrand() {
     apiFetch(supplierApiUrl(`/suppliers/${encodeURIComponent(id)}`), { signal: controller.signal })
       .then(async (response) => {
         if (response.status === 404) throw new Error("This supplier no longer exists.");
-        if (!response.ok) throw new Error("Unable to load the supplier.");
+        if (!response.ok) throw new Error(serviceUnavailable("Supplier Service"));
         const data: { supplier: Supplier } = await response.json();
         setSupplier(data.supplier);
       })
       .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setLoadError(cause instanceof Error ? cause.message : "Unable to reach the server.");
+        if (!controller.signal.aborted) setLoadError(cause instanceof Error && cause.message !== "Failed to fetch" ? cause.message : serviceUnavailable("Supplier Service"));
       });
     return () => controller.abort();
   }, [id]);

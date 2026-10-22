@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import type { AccountType } from "../auth/auth-context";
 import { apiFetch, userApiUrl } from "../api/client";
+import { serviceResponseError, serviceUnavailable } from "../api/service-errors";
 import "./AdminDashboard.css";
 import "./AccountAdministration.css";
 
@@ -10,8 +11,7 @@ type ManagedAccount = { _id: string; email: string; username: string; accountTyp
 type Filter = "ALL" | "ADMIN" | "USER";
 
 async function apiError(response: Response): Promise<string> {
-  try { const body = await response.json() as { error?: string }; if (body.error) return body.error; } catch { /* use status */ }
-  return `User Service responded with HTTP ${response.status}.`;
+  return serviceResponseError(response, "Account management", "Unable to complete the account request.");
 }
 
 export default function AccountAdministration() {
@@ -30,11 +30,15 @@ export default function AccountAdministration() {
       if (!response.ok) throw new Error(await apiError(response));
       const body = await response.json() as { accounts: ManagedAccount[] };
       setAccounts(body.accounts);
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Unable to load accounts."); }
+    } catch (requestError) { setError(requestError instanceof TypeError ? serviceUnavailable("Account management") : requestError instanceof Error ? requestError.message : "Unable to load accounts."); }
     finally { setIsLoading(false); }
   }, []);
 
-  useEffect(() => { void loadAccounts(); }, [loadAccounts]);
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => { if (active) void loadAccounts(); });
+    return () => { active = false; };
+  }, [loadAccounts]);
   const visibleAccounts = useMemo(() => filter === "ALL" ? accounts : accounts.filter((account) => account.accountType === filter), [accounts, filter]);
 
   async function changeRole(account: ManagedAccount) {
@@ -45,7 +49,7 @@ export default function AccountAdministration() {
       if (!response.ok) throw new Error(await apiError(response));
       setNotice(`${account.username} is now an ${nextRole === "ADMIN" ? "Admin" : "User"}.`);
       await loadAccounts();
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Unable to update account role."); }
+    } catch (requestError) { setError(requestError instanceof TypeError ? serviceUnavailable("Account management") : requestError instanceof Error ? requestError.message : "Unable to update account role."); }
     finally { setUpdatingId(null); }
   }
 
@@ -57,7 +61,7 @@ export default function AccountAdministration() {
       if (!response.ok) throw new Error(await apiError(response));
       setNotice(`${account.username} is now ${isActive ? "active" : "inactive"}.`);
       await loadAccounts();
-    } catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Unable to update account status."); }
+    } catch (requestError) { setError(requestError instanceof TypeError ? serviceUnavailable("Account management") : requestError instanceof Error ? requestError.message : "Unable to update account status."); }
     finally { setUpdatingId(null); }
   }
 

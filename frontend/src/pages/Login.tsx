@@ -2,6 +2,7 @@ import { useState, type SubmitEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { apiFetch, userApiUrl } from "../api/client";
+import { serviceResponseError, serviceUnavailable } from "../api/service-errors";
 import "./AuthForm.css";
 
 export default function Login() {
@@ -14,6 +15,7 @@ export default function Login() {
   const [error, setError] = useState(
     typeof location.state?.message === "string" ? location.state.message : "",
   );
+  const notice = typeof location.state?.notice === "string" ? location.state.notice : "";
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
@@ -30,36 +32,17 @@ export default function Login() {
         body: JSON.stringify({ username, password }),
       });
 
-      const responseText = await response.text();
-      let responseBody: unknown = responseText;
-
-      try {
-        responseBody = responseText ? JSON.parse(responseText) : undefined;
-      } catch {
-        // Keep the raw response text for debugging non-JSON errors.
-      }
-
       if (import.meta.env.DEV) {
         console.debug("User Service login response", {
           url: userApiUrl("/auth/login"),
           status: response.status,
-          statusText: response.statusText,
-          body: responseBody,
         });
       }
 
       if (!response.ok) {
-        const serverMessage =
-          typeof responseBody === "object" && responseBody !== null &&
-          "error" in responseBody && typeof responseBody.error === "string"
-            ? responseBody.error
-            : undefined;
-
-        setError(
-          import.meta.env.DEV && serverMessage
-            ? `${serverMessage} (HTTP ${response.status})`
-            : "Invalid username or password.",
-        );
+        setError(response.status === 401
+          ? "Invalid username or password."
+          : await serviceResponseError(response, "Login", "Unable to log in right now. Please try again."));
         return;
       }
 
@@ -77,11 +60,7 @@ export default function Login() {
         });
       }
 
-      setError(
-        import.meta.env.DEV && error instanceof Error
-          ? `Unable to reach the User Service: ${error.message}`
-          : "Unable to reach the User Service.",
-      );
+      setError(serviceUnavailable("Login"));
     } finally {
       setIsSubmitting(false);
     }
@@ -90,6 +69,7 @@ export default function Login() {
   return (
     <main className="auth-page">
       <h1>Login</h1>
+      {notice && <p className="auth-form-notice" role="status">{notice}</p>}
 
       <form className="auth-card" onSubmit={handleSubmit}>
         <div className="auth-field">
