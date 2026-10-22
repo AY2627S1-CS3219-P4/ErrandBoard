@@ -22,6 +22,7 @@ export interface ErrandDocument {
     confirmBy?: Date;
     createdAt: Date;
     updatedAt: Date;
+    eventPending?: boolean; //if true this errand owes an event operation
 }
 
 //ErrandId
@@ -46,7 +47,8 @@ const errandSchema = new Schema<ErrandDocument>(
     status: { type: String, enum: ERRAND_STATUSES, required: true, default: "OPEN" },
     expiresAt: { type: Date, required: true },
     deliverBy: Date,
-    confirmBy: Date
+    confirmBy: Date,
+    eventPending: Boolean,
     },
     { collection: "errands", timestamps: true }
 );
@@ -57,5 +59,6 @@ errandSchema.index({ status: 1, confirmBy: 1 });
 errandSchema.index({ requesterId: 1, status: 1 });
 errandSchema.index({ courierId: 1, status: 1 });
 errandSchema.index({ createdAt: -1 });
+errandSchema.index({ eventPending: 1 }, { partialFilterExpression: { eventPending: true } });
 
 export const Errand = model<ErrandDocument>("Errand", errandSchema);

@@ -5,6 +5,7 @@ import {
   completeErrandAfterDeadline,
 } from "../services/order.services.js";
 import { ErrandStatus } from "../status/errandState.js";
+import { flushPendingEvents } from "../event/errand.events.js";
 
 // most due errands a single sweep tick handles per status; the rest wait for the next tick
 const LIFECYCLE_SWEEP_BATCH = 200;
@@ -34,6 +35,7 @@ async function sweep(
 
 export async function runLifecycleSweep() {
   const now = new Date();
+  await flushPendingEvents();
   await sweep("OPEN", "expiresAt", expireOpenErrand, now);
   await sweep("PICKED_UP", "deliverBy", cancelErrandAfterDeadline, now);
   await sweep("PENDING_COMPLETION", "confirmBy", completeErrandAfterDeadline, now);

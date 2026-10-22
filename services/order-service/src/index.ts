@@ -20,11 +20,11 @@ async function main(): Promise<void> {
   });
 
   const shutdown = async () => {
+    await stopLifecycle();
     server.close(async () => {
+      await closeEventPublisher();
       await disconnectDb();
       await authorizationStore.close();
-      await stopLifecycle();
-      await closeEventPublisher();
       process.exitCode = 0;
     });
   };

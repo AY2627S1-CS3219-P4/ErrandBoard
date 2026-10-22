@@ -4,7 +4,7 @@ import { reserveCredits } from "../clients/credit.client.js";
 import { DeliveryDeadlinePassedError, ErrandNotFoundError, InvalidStatusTransitionError, SelfAssignErrandError, UpdateConflictError, ValidationError } from "../errors/order.errors.js";
 import { publishTerminalEvent } from "../event/errand.events.js";
 import { Errand, type ErrandRecord } from "../models/Errand.js";
-import { ACTIVE_STATUSES } from "../status/errandState.js";
+import { ACTIVE_STATUSES, isTerminal } from "../status/errandState.js";
 import { type ErrandStatus, validTransition } from "../status/errandState.js";
 
 // all deadlines are two days for now
