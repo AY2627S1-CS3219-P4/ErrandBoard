@@ -19,7 +19,6 @@ import {
   ValidationError,
   UpdateConflictError,
   SupplierNotFoundError,
-  SupplierUnavailableError,
   DeliveryDeadlinePassedError,
   InsufficientCreditsError,
   UpstreamError,
@@ -73,8 +72,6 @@ function sendKnownError(res: Response, error: unknown): boolean {
     res.status(409).json({ code: "UPDATE_CONFLICT", error: "Errand could not be updated" });
   } else if (error instanceof SupplierNotFoundError) {
     res.status(404).json({ code: "SUPPLIER_NOT_FOUND", error: "Supplier not found or no longer active" });
-  } else if (error instanceof SupplierUnavailableError) {
-    res.status(503).json({ code: "SUPPLIER_UNAVAILABLE", error: error.message });
   } else if (error instanceof InsufficientCreditsError) {
     res.status(400).json({ code: "INSUFFICIENT_CREDITS", error: "Insufficient credits" });
   } else if (error instanceof UpstreamError) {

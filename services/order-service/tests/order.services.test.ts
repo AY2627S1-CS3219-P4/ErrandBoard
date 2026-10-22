@@ -7,8 +7,8 @@ import {
   ErrandNotFoundError,
   SelfAssignErrandError,
   SupplierNotFoundError,
-  SupplierUnavailableError,
   UpdateConflictError,
+  UpstreamError,
   ValidationError,
 } from "../src/errors/order.errors.js";
 import {
@@ -375,7 +375,7 @@ describe("createErrand", () => {
     const { create } = capturePersisted(t);
 
     for (let i = 0; i < responses.length; i++) {
-      await assert.rejects(createErrand(input), isError(SupplierUnavailableError), `response #${i}`);
+      await assert.rejects(createErrand(input), isError(UpstreamError), `response #${i}`);
     }
     assert.equal(create.mock.callCount(), 0);
   });

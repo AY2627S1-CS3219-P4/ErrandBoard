@@ -64,5 +64,7 @@ export class UpstreamError extends Error {
     public readonly upstreamStatus?: number,
   ) {
     super(`${service} request failed${upstreamStatus ? ` (${upstreamStatus})` : ""}`);
+    this.name = "UpstreamError";
+    Object.setPrototypeOf(this, UpstreamError.prototype);
   }
 }
