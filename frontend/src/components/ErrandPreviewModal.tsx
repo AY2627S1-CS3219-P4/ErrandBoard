@@ -12,6 +12,7 @@ export default function ErrandPreviewModal({
   now,
   isOwn,
   isBusy = false,
+  acceptBlocked = false,
   error = "",
   onAccept,
   onClose,
@@ -20,12 +21,14 @@ export default function ErrandPreviewModal({
   now: number;
   isOwn: boolean;
   isBusy?: boolean;
+  acceptBlocked?: boolean;
   error?: string;
   onAccept?: () => void;
   onClose: () => void;
 }) {
   const primaryRef = useRef<HTMLButtonElement>(null);
-  const canAccept = errand.status === "OPEN" && !isOwn && new Date(errand.expiresAt).getTime() > now;
+  // acceptBlocked covers failures the stale errand copy can't reflect (already taken, deadline passed, …).
+  const canAccept = errand.status === "OPEN" && !isOwn && new Date(errand.expiresAt).getTime() > now && !acceptBlocked;
 
   useEffect(() => {
     primaryRef.current?.focus();
