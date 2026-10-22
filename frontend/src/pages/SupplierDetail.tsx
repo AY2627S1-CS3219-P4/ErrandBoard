@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CATEGORY_LABELS, type OpeningHours, type Supplier } from "../types/supplier";
 import { apiFetch, supplierApiUrl } from "../api/client";
+import { serviceUnavailable } from "../api/service-errors";
 import "./SupplierDetail.css";
 
 const DAYS: { key: keyof OpeningHours; label: string }[] = [
@@ -40,14 +41,14 @@ export default function SupplierDetail() {
         }
 
         if (!response.ok) {
-          throw new Error(`Server responded ${response.status}`);
+          throw new Error(serviceUnavailable("Supplier Service"));
         }
 
         const data: { supplier: Supplier } = await response.json();
         setSupplier(data.supplier);
       } catch {
         if (!controller.signal.aborted) {
-          setError("Unable to reach the server.");
+          setError(serviceUnavailable("Supplier Service"));
         }
       } finally {
         if (!controller.signal.aborted) {

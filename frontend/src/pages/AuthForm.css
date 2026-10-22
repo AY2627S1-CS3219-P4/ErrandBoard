@@ -168,6 +168,15 @@
   text-align: left;
 }
 
+.auth-form-notice {
+  width: min(100%, var(--auth-card-max-width));
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+  border: 1px solid #4c8f60;
+  border-radius: 0.375rem;
+  color: #27683b;
+}
+
 .auth-submit {
   display: block;
   width: 100%;
@@ -204,6 +213,10 @@
 }
 
 @media (prefers-color-scheme: dark) {
+  .auth-form-notice {
+    color: #9ad7a8;
+  }
+
   .auth-page {
     --auth-tip-color: #fca5a5;
     --auth-card-bg: #1f2028;

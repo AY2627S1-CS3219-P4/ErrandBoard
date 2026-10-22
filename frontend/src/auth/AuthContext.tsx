@@ -7,6 +7,7 @@ import {
 } from "react";
 import { AuthContext, type AuthStatus, type AuthUser } from "./auth-context";
 import { apiFetch, AUTH_SESSION_EXPIRED_EVENT, userApiUrl } from "../api/client";
+import { readCurrentUser } from "./session-check";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("checking");
@@ -14,15 +15,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadCurrentUser = useCallback(async (): Promise<AuthUser | null> => {
     const response = await apiFetch(userApiUrl("/auth/me"));
-
-    if (!response.ok) return null;
-
-    const body = (await response.json()) as { user?: AuthUser };
-    return body.user ?? null;
+    return readCurrentUser(response);
   }, []);
 
   const refreshAuth = useCallback(async (showCheckingState = true) => {
-    if (showCheckingState) setStatus("checking");
+    if (showCheckingState && !user) setStatus("checking");
     try {
       const currentUser = await loadCurrentUser();
       const authenticated = currentUser !== null;
@@ -30,11 +27,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus(authenticated ? "authenticated" : "unauthenticated");
       return authenticated;
     } catch {
-      setUser(null);
-      setStatus("unauthenticated");
+      // A failed check is not proof that the session was revoked. Retain a
+      // previously verified user, but never grant access on a fresh load.
+      setStatus(user ? "authenticated" : "unavailable");
       return false;
     }
-  }, [loadCurrentUser]);
+  }, [loadCurrentUser, user]);
 
   const logout = useCallback(async () => {
     try {
@@ -43,12 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: "include",
       });
 
-      if (!response.ok) {
-        throw new Error(`Logout failed (HTTP ${response.status})`);
-      }
-    } finally {
+      if (!response.ok) throw new Error("Logout could not be confirmed");
       setUser(null);
       setStatus("unauthenticated");
+    } catch {
+      // Do not claim logout succeeded if the revocation request never arrived.
+      throw new Error("Unable to log out right now. Please try again.");
     }
   }, []);
 
@@ -62,8 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         if (!active) return;
-        setUser(null);
-        setStatus("unauthenticated");
+        setStatus("unavailable");
       });
     return () => { active = false; };
   }, [loadCurrentUser]);

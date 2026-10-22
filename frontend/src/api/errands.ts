@@ -1,5 +1,6 @@
 import { orderApiUrl, apiFetch, requestCreditBalanceRefresh } from "./client";
 import type { Errand, ErrandAction, CreateErrandInput, ErrandFilters } from "../types/errand";
+import { serviceUnavailable } from "./service-errors";
 
 /*define errand exclusive errors here*/
 export class ErrandApiError extends Error {
@@ -28,13 +29,15 @@ const CODE_MESSAGES: Record<string, string> = {
   ACCESS_REVOKED: "Your session is no longer valid. Please log in again.",
   ACCOUNT_INACTIVE: "Your account is inactive.",
   AUTHORIZATION_UNAVAILABLE: "Authorization is temporarily unavailable. Please try again.",
+  ORDER_CREATION_PENDING: "We could not confirm whether your errand was created. Check My Errands before trying again.",
+  CREDIT_RECONCILIATION_REQUIRED: "This errand needs a credit check. Please contact support before trying again.",
 };
 
 export function describeError(error: unknown): string {
   if (error instanceof ErrandApiError) {
-    return CODE_MESSAGES[error.code] ?? (error.status >= 500 ? "Something went wrong on our side. Please try again shortly." : error.message);
+    return CODE_MESSAGES[error.code] ?? (error.status >= 500 ? serviceUnavailable("Order Service") : error.message);
   }
-  return "Unable to reach the Order Service.";
+  return serviceUnavailable("Order Service");
 }
 
 
@@ -47,7 +50,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     response = await apiFetch(orderApiUrl(path), { ...init, headers });
   } catch (error) {
     if (init.signal?.aborted) throw error; // callers ignore their own aborts
-    throw new ErrandApiError(0, "NETWORK", "Unable to reach the Order Service.");
+    throw new ErrandApiError(0, "NETWORK", serviceUnavailable("Order Service"));
   }
 
   if (!response.ok) {

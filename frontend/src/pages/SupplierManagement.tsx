@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch, supplierApiUrl } from "../api/client";
+import { serviceResponseError, serviceUnavailable } from "../api/service-errors";
 import { CATEGORY_LABELS, type Supplier } from "../types/supplier";
 import "./SupplierManagement.css";
 
@@ -52,13 +53,7 @@ function formFromSupplier(supplier: Supplier): SupplierForm {
 }
 
 async function responseError(response: Response): Promise<string> {
-  try {
-    const body = await response.json() as { error?: string };
-    if (body.error) return body.error;
-  } catch {
-    // Fall through to a status-based message.
-  }
-  return `Supplier Service responded with HTTP ${response.status}.`;
+  return serviceResponseError(response, "Supplier management", "Unable to complete the supplier request.");
 }
 
 export default function SupplierManagement() {
@@ -85,14 +80,16 @@ export default function SupplierManagement() {
       const body = await response.json() as { suppliers: Supplier[] };
       setSuppliers(body.suppliers);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to load suppliers.");
+      setError(requestError instanceof TypeError ? serviceUnavailable("Supplier management") : requestError instanceof Error ? requestError.message : "Unable to load suppliers.");
     } finally {
       setIsLoading(false);
     }
   }, [search, showInactive]);
 
   useEffect(() => {
-    void loadSuppliers();
+    let active = true;
+    queueMicrotask(() => { if (active) void loadSuppliers(); });
+    return () => { active = false; };
   }, [loadSuppliers]);
 
   const activeCount = useMemo(() => suppliers.filter((supplier) => supplier.isActive).length, [suppliers]);
@@ -143,7 +140,7 @@ export default function SupplierManagement() {
       cancelEditing();
       await loadSuppliers();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Unable to save supplier.");
+      setError(requestError instanceof TypeError ? serviceUnavailable("Supplier management") : requestError instanceof Error ? requestError.message : "Unable to save supplier.");
     } finally {
       setIsSaving(false);
     }
@@ -172,7 +169,7 @@ export default function SupplierManagement() {
       setNotice(`${supplier.name} was ${action === "deactivate" ? "deactivated" : "reactivated"}.`);
       await loadSuppliers();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : `Unable to ${action} supplier.`);
+      setError(requestError instanceof TypeError ? serviceUnavailable("Supplier management") : requestError instanceof Error ? requestError.message : `Unable to ${action} supplier.`);
     } finally {
       setDeletingId(null);
       setStatusChange(null);

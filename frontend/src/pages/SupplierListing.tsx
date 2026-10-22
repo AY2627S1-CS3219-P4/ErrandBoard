@@ -4,6 +4,7 @@ import FilterModal from "../components/FilterModal";
 import SupplierCard from "../components/SupplierCard";
 import type { Supplier, SupplierFilters } from "../types/supplier";
 import { apiFetch, supplierApiUrl } from "../api/client";
+import { serviceUnavailable } from "../api/service-errors";
 import "./Settings.css";
 import "./SupplierListing.css";
 
@@ -62,14 +63,14 @@ export default function SupplierListing() {
         });
 
         if (!response.ok) {
-          throw new Error(`Supplier Service responded ${response.status}`);
+          throw new Error(serviceUnavailable("Supplier Service"));
         }
 
         const data: { suppliers: Supplier[] } = await response.json();
         setSuppliers(data.suppliers);
       } catch {
         if (!controller.signal.aborted) {
-          setError("Unable to reach the Supplier Service.");
+          setError(serviceUnavailable("Supplier Service"));
         }
       } finally {
         if (!controller.signal.aborted) {

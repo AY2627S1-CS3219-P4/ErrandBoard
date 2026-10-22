@@ -30,7 +30,8 @@ frontend/playwright-artifacts/
 frontend/playwright/
 frontend/.playwright/
 frontend/playwright.config.*
-frontend/tests/
+frontend/tests/*
+!frontend/tests/*.test.mjs
 frontend/scripts/save-playwright-auth.mjs
 
 # OS
