@@ -5,9 +5,33 @@ import { authenticate } from "../middleware/auth.middleware.js";
 import { notifyCreditBalanceUpdated, subscribeToCreditBalance } from "../events/credit-balance-events.js";
 import { UserCredit } from "../models/UserCredit.js";
 import { ensureCreditAccount } from "../services/credit-account.service.js";
-import { CreditOperationError, reserveCredits } from "../services/credit-operations.service.js";
+import { CreditOperationError, getReservationStatus, refundCredits, reserveCredits } from "../services/credit-operations.service.js";
 
 export const creditRouter = Router();
+
+function authorizeOrderService(req: Request, res: Response): boolean {
+  const expectedKey = process.env.ORDER_CREDIT_API_KEY;
+  if (!expectedKey) {
+    res.status(503).json({ code: "CREDIT_UNAVAILABLE", error: "Credit operations are unavailable" });
+    return false;
+  }
+  const suppliedKey = /^Bearer (\S+)$/.exec(req.get("authorization") ?? "")?.[1];
+  if (!suppliedKey) {
+    res.status(401).json({ code: "SERVICE_AUTH_REQUIRED", error: "Service authentication required" });
+    return false;
+  }
+  const expectedHash = createHash("sha256").update(expectedKey).digest();
+  const suppliedHash = createHash("sha256").update(suppliedKey).digest();
+  if (!timingSafeEqual(expectedHash, suppliedHash)) {
+    res.status(403).json({ code: "SERVICE_AUTH_FAILED", error: "Service authentication failed" });
+    return false;
+  }
+  return true;
+}
+
+function validObjectId(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-fA-F]{24}$/.test(value);
+}
 
 // Only trusted backend callers may provision accounts. This key must not be
 // exposed to browsers; replace it with workload identity in deployment.
@@ -51,26 +75,10 @@ creditRouter.put("/accounts/:userId", provisionCreditAccount);
 
 /** Order Service calls this before acknowledging a newly created order. */
 export async function reserveOrderCredits(req: Request, res: Response): Promise<void> {
-  const expectedKey = process.env.ORDER_CREDIT_API_KEY;
-  if (!expectedKey) {
-    res.status(503).json({ error: "Credit reservation is unavailable" });
-    return;
-  }
-  const suppliedKey = /^Bearer (\S+)$/.exec(req.get("authorization") ?? "")?.[1];
-  if (!suppliedKey) {
-    res.status(401).json({ error: "Service authentication required" });
-    return;
-  }
-  const expectedHash = createHash("sha256").update(expectedKey).digest();
-  const suppliedHash = createHash("sha256").update(suppliedKey).digest();
-  if (!timingSafeEqual(expectedHash, suppliedHash)) {
-    res.status(403).json({ error: "Service authentication failed" });
-    return;
-  }
+  if (!authorizeOrderService(req, res)) return;
 
   const { orderId, requesterId, amount } = req.body ?? {};
-  if (typeof orderId !== "string" || !/^[0-9a-fA-F]{24}$/.test(orderId) ||
-      typeof requesterId !== "string" || !/^[0-9a-fA-F]{24}$/.test(requesterId) ||
+  if (!validObjectId(orderId) || !validObjectId(requesterId) ||
       !Number.isSafeInteger(amount) || amount <= 0) {
     res.status(400).json({ error: "Valid orderId, requesterId, and positive integer amount are required" });
     return;
@@ -95,6 +103,57 @@ export async function reserveOrderCredits(req: Request, res: Response): Promise<
 }
 
 creditRouter.post("/reservations", reserveOrderCredits);
+
+/** Internal reconciliation read; never available to a browser access token. */
+export async function inspectOrderReservation(req: Request, res: Response): Promise<void> {
+  if (!authorizeOrderService(req, res)) return;
+  const orderId = req.params.orderId;
+  if (!validObjectId(orderId)) {
+    res.status(400).json({ code: "INVALID_ORDER_ID", error: "Valid orderId is required" });
+    return;
+  }
+  try {
+    res.status(200).json(await getReservationStatus(new Types.ObjectId(orderId)));
+  } catch (error) {
+    if (error instanceof CreditOperationError) {
+      res.status(error.status).json({ code: "CREDIT_RECONCILIATION_REQUIRED", error: error.message });
+      return;
+    }
+    console.error("Credit reservation lookup failed", error);
+    res.status(503).json({ code: "CREDIT_UNAVAILABLE", error: "Credit reservation status is unavailable" });
+  }
+}
+
+/** Compensate only a reservation for which Order did not persist an Errand. */
+export async function releaseOrderReservation(req: Request, res: Response): Promise<void> {
+  if (!authorizeOrderService(req, res)) return;
+  const orderId = req.params.orderId;
+  const { requesterId, amount } = req.body ?? {};
+  if (!validObjectId(orderId) || !validObjectId(requesterId) ||
+      !Number.isSafeInteger(amount) || amount <= 0) {
+    res.status(400).json({ code: "INVALID_RESERVATION", error: "Valid orderId, requesterId, and positive integer amount are required" });
+    return;
+  }
+  try {
+    const result = await refundCredits({
+      orderId: new Types.ObjectId(orderId),
+      requesterId: new Types.ObjectId(requesterId),
+      amount,
+    });
+    if (result.applied) notifyCreditBalanceUpdated([requesterId]);
+    res.status(200).json({ ...result, state: "REFUNDED" });
+  } catch (error) {
+    if (error instanceof CreditOperationError) {
+      res.status(error.status).json({ code: "CREDIT_OPERATION_CONFLICT", error: error.message });
+      return;
+    }
+    console.error("Credit reservation release failed", error);
+    res.status(503).json({ code: "CREDIT_UNAVAILABLE", error: "Credit reservation release is unavailable" });
+  }
+}
+
+creditRouter.get("/reservations/:orderId", inspectOrderReservation);
+creditRouter.post("/reservations/:orderId/release", releaseOrderReservation);
 
 /** Return only the authenticated user's own balances. */
 export async function getMyBalance(req: Request, res: Response): Promise<void> {
