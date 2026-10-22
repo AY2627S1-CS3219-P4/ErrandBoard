@@ -1,6 +1,15 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "./useAuth";
 
+function AuthenticationUnavailable() {
+  const { refreshAuth } = useAuth();
+  return <main className="auth-page" role="alert">
+    <h1>Authentication is temporarily unavailable</h1>
+    <p>We could not check your session. Your account has not been logged out.</p>
+    <button type="button" onClick={() => void refreshAuth()}>Try again</button>
+  </main>;
+}
+
 export function RequireAuth() {
   const { status } = useAuth();
   const location = useLocation();
@@ -8,6 +17,7 @@ export function RequireAuth() {
   if (status === "checking") {
     return <main className="auth-page" role="status">Checking your session…</main>;
   }
+  if (status === "unavailable") return <AuthenticationUnavailable />;
   if (status === "unauthenticated") {
     return <Navigate to="/login" replace state={{
       message: "Access denied. Please log in to view this page.",
@@ -24,6 +34,7 @@ export function RequireAdmin() {
   if (status === "checking") {
     return <main className="auth-page" role="status">Checking your permissions…</main>;
   }
+  if (status === "unavailable") return <AuthenticationUnavailable />;
 
   if (status === "unauthenticated") {
     return <Navigate to="/login" replace state={{
@@ -49,6 +60,7 @@ export function RequireSuperadmin() {
   if (status === "checking") {
     return <main className="auth-page" role="status">Checking your permissions…</main>;
   }
+  if (status === "unavailable") return <AuthenticationUnavailable />;
 
   if (status === "unauthenticated") {
     return <Navigate to="/login" replace state={{
@@ -71,6 +83,7 @@ export function RedirectIfAuthenticated() {
   if (status === "checking") {
     return <main className="auth-page" role="status">Checking your session…</main>;
   }
+  if (status === "unavailable") return <AuthenticationUnavailable />;
   return status === "authenticated" ? <Navigate to="/home" replace /> : <Outlet />;
 }
 
@@ -79,5 +92,6 @@ export function HomeRedirect() {
   if (status === "checking") {
     return <main className="auth-page" role="status">Checking your session…</main>;
   }
+  if (status === "unavailable") return <AuthenticationUnavailable />;
   return <Navigate to={status === "authenticated" ? "/home" : "/login"} replace />;
 }

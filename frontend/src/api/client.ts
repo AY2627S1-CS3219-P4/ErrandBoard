@@ -19,7 +19,8 @@ export function requestCreditBalanceRefresh(): void {
 // Share concurrent reads, but don't keep a successful balance cached indefinitely.
 const creditBalanceRequests = new Map<string, Promise<CreditBalance>>();
 
-let refreshInFlight: Promise<boolean> | null = null;
+type RefreshOutcome = "refreshed" | "invalid" | "unavailable";
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
 export function userApiUrl(path: string): string {
   return `${USER_API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -42,8 +43,7 @@ export function getCreditBalance(userId: string): Promise<CreditBalance> {
   const cachedRequest = creditBalanceRequests.get(userId);
   if (cachedRequest) return cachedRequest;
 
-  let request: Promise<CreditBalance>;
-  request = apiFetch(creditApiUrl("/credit/me/balance"), { cache: "no-store" })
+  const request: Promise<CreditBalance> = apiFetch(creditApiUrl("/credit/me/balance"), { cache: "no-store" })
     .then(async (response) => {
       if (!response.ok) throw new Error(`Credit balance request failed (HTTP ${response.status})`);
       const balance = await response.json() as Partial<CreditBalance>;
@@ -76,15 +76,19 @@ async function isAccessRevoked(response: Response): Promise<boolean> {
     body?.code === "INVALID_ACCESS_TOKEN";
 }
 
-async function refreshAccessToken(): Promise<boolean> {
+async function refreshAccessToken(): Promise<RefreshOutcome> {
   if (!refreshInFlight) {
     refreshInFlight = fetch(userApiUrl("/auth/refresh"), {
       method: "POST",
       credentials: "include",
       headers: { Accept: "application/json" },
     })
-      .then((response) => response.ok)
-      .catch(() => false)
+      .then((response): RefreshOutcome => {
+        if (response.ok) return "refreshed";
+        if (response.status === 401 || response.status === 403) return "invalid";
+        return "unavailable";
+      })
+      .catch((): RefreshOutcome => "unavailable")
       .finally(() => { refreshInFlight = null; });
   }
   return refreshInFlight;
@@ -109,10 +113,16 @@ export async function apiFetch(input: string | URL, init: RequestInit = {}): Pro
   }
 
   const retryAfterRefresh = async (): Promise<Response> => {
-    const refreshed = await refreshAccessToken();
-    if (!refreshed) {
+    const refreshOutcome = await refreshAccessToken();
+    if (refreshOutcome === "invalid") {
       dispatchSessionExpired();
       return firstResponse;
+    }
+    if (refreshOutcome === "unavailable") {
+      return Response.json({
+        code: "AUTHORIZATION_UNAVAILABLE",
+        error: "Authentication is temporarily unavailable. Please try again.",
+      }, { status: 503 });
     }
 
     // Retry exactly once. A second expiry is returned to the caller, not looped.

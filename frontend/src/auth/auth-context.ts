@@ -1,6 +1,6 @@
 import { createContext } from "react";
 
-export type AuthStatus = "checking" | "authenticated" | "unauthenticated";
+export type AuthStatus = "checking" | "authenticated" | "unauthenticated" | "unavailable";
 
 export type AccountType = "USER" | "ADMIN" | "SUPERADMIN";
 
