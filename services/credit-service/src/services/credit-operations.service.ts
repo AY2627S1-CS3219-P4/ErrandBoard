@@ -17,6 +17,35 @@ export interface CreditOperation {
 
 export interface CreditOperationResult { applied: boolean }
 
+export type ReservationState = "NOT_RESERVED" | "RESERVED" | "REFUNDED" | "TRANSFERRED";
+export interface ReservationStatus {
+  state: ReservationState;
+  requesterId?: string;
+  amount?: number;
+  courierId?: string;
+}
+
+/** Read the durable operation log after a lost reservation or release response. */
+export async function getReservationStatus(orderId: Types.ObjectId): Promise<ReservationStatus> {
+  const start = await TransactionLog.findOne({ orderId, transactionType: "ORDER_START" });
+  const end = await TransactionLog.findOne({ orderId, transactionType: "ORDER_END" });
+  if (!start && !end) return { state: "NOT_RESERVED" };
+  if (!start || start.action !== "RESERVE" ||
+      end && (!end.requesterId.equals(start.requesterId) || end.amount !== start.amount)) {
+    throw new CreditOperationError(409, "Credit operation log needs reconciliation");
+  }
+  if (end && (end.action !== "REFUND" && end.action !== "TRANSFER" ||
+      end.action === "TRANSFER" && !end.courierId)) {
+    throw new CreditOperationError(409, "Credit operation log needs reconciliation");
+  }
+  return {
+    state: end ? end.action === "REFUND" ? "REFUNDED" : "TRANSFERRED" : "RESERVED",
+    requesterId: start.requesterId.toString(),
+    amount: start.amount,
+    ...(end?.action === "TRANSFER" && end.courierId ? { courierId: end.courierId.toString() } : {}),
+  };
+}
+
 function isDuplicateKey(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === 11000;
 }
