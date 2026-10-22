@@ -17,9 +17,10 @@ export class ErrandApiError extends Error {
   }
 }
 
+// 503 upstream outages (SUPPLIER_UNAVAILABLE, SERVICE_UPSTREAM_ERROR) are intentionally left
+// out: they fall through to the generic 5xx message below, avoiding internal service names.
 const CODE_MESSAGES: Record<string, string> = {
   SUPPLIER_NOT_FOUND: "This supplier no longer exists or has been deactivated.",
-  SUPPLIER_UNAVAILABLE: "The supplier service is unavailable. Please try again shortly.",
   SELF_ASSIGN: "You cannot accept your own errand.",
   UPDATE_CONFLICT: "This errand was just changed by someone else. Refreshing the latest state.",
   ERRAND_NOT_FOUND: "This errand is no longer available.",

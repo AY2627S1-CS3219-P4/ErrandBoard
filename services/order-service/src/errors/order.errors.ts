@@ -67,6 +67,20 @@ export class InvalidStatusTransitionError extends Error {
 
 export class InsufficientCreditsError extends Error {}
 
+export class CreditRecoveryRequiredError extends Error {
+  constructor() {
+    super("Credit operation needs reconciliation. Please try again later.");
+    this.name = "CreditRecoveryRequiredError";
+  }
+}
+
+export class OrderCreationPendingError extends Error {
+  constructor() {
+    super("We could not confirm this errand yet. Any reserved credits are being checked and will be released if no errand was created.");
+    this.name = "OrderCreationPendingError";
+  }
+}
+
 export class UpstreamError extends Error {
   constructor(
     public readonly service: string,

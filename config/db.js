@@ -30,6 +30,7 @@ db.createRole({
     role: "order_service_role",
         privileges: [
             { resource: { db: "errandboard", collection: "errands" }, actions: ["find", "insert", "update", "remove"] },
+            { resource: { db: "errandboard", collection: "orderCreation" }, actions: ["find", "insert", "update", "remove"] },
         ],
         roles: []
 })
@@ -109,6 +110,11 @@ db.errands.createIndex({ requesterId: 1, status: 1});
 db.errands.createIndex({ courierId: 1, status: 1});
 db.errands.createIndex({ createdAt: -1});
 db.errands.createIndex({ eventPending: 1 }, { partialFilterExpression: { eventPending: true } });
+db.createCollection("orderCreation");
+db.orderCreation.createIndex(
+    { state: 1, retryAt: 1 },
+    { partialFilterExpression: { state: "PENDING" } }
+);
 
 
 // Credit Service
