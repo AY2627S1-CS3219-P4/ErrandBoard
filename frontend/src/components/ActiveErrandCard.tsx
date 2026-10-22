@@ -18,6 +18,7 @@ export default function ActiveErrandCard({
   role,
   now,
   busyAction,
+  error = "",
   onAction,
   onOpen,
 }: {
@@ -25,6 +26,7 @@ export default function ActiveErrandCard({
   role: "requester" | "courier";
   now: number;
   busyAction: ErrandAction | null;
+  error?: string;
   onAction: (action: ErrandAction) => void;
   onOpen: () => void;
 }) {
@@ -96,6 +98,8 @@ export default function ActiveErrandCard({
           </span>
         </span>
       </button>
+
+      {error && <p className="active-errand-error" role="alert">{error}</p>}
 
       <div className="active-errand-actions">
         {role === "requester" ? (

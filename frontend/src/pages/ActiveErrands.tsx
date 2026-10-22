@@ -23,7 +23,8 @@ export default function ActiveErrands() {
 
   const [errands, setErrands] = useState<Errand[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(""); // list-load failures (page-level)
+  const [actionError, setActionError] = useState<{ id: string; message: string } | null>(null); // per-card
   const [refreshTick, setRefreshTick] = useState(0);
   const [busy, setBusy] = useState<{ id: string; action: ErrandAction } | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export default function ActiveErrands() {
     if (prompt && !window.confirm(prompt)) return;
 
     setBusy({ id: errand._id, action });
-    setError("");
+    setActionError(null);
     try {
       const updated = await runErrandAction(errand._id, action);
       // Terminal errands leave the active list everything else is updated in place.
@@ -64,8 +65,11 @@ export default function ActiveErrands() {
           : current.filter((item) => item._id !== updated._id),
       );
     } catch (cause) {
-      setError(describeError(cause));
-      if (cause instanceof ErrandApiError && cause.status === 409) setRefreshTick((tick) => tick + 1);
+      setActionError({ id: errand._id, message: describeError(cause) }); // show next to the card that failed
+      // 409 (conflict/deadline) or 404 (already gone) mean our copy is stale, so reload from the server.
+      if (cause instanceof ErrandApiError && (cause.status === 409 || cause.status === 404)) {
+        setRefreshTick((tick) => tick + 1);
+      }
     } finally {
       setBusy(null);
     }
@@ -85,6 +89,7 @@ export default function ActiveErrands() {
             role={role}
             now={now}
             busyAction={busy?.id === errand._id ? busy.action : null}
+            error={actionError?.id === errand._id ? actionError.message : ""}
             onAction={(action) => handleAction(errand, action)}
             onOpen={() => setPreviewId(errand._id)}
           />
