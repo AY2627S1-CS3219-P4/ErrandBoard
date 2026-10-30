@@ -45,6 +45,7 @@ services:
     entrypoint: ["mongosh", "mongodb://mongodb:27017/admin?directConnection=true", "--quiet", "--file", "/mongodb/init-replica-set.js"]
     environment:
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGO_REPLICA_SET_HOST: ${MONGO_REPLICA_SET_HOST:-mongodb:27017}
     volumes:
       - ./config/mongodb/init-replica-set.js:/mongodb/init-replica-set.js:ro
     depends_on:

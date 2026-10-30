@@ -3,6 +3,8 @@ if (!adminDb.auth("admin", process.env.MONGO_ROOT_PASSWORD)) {
   throw new Error("Replica-set initialization could not authenticate as MongoDB admin");
 }
 
+const replicaSetHost = process.env.MONGO_REPLICA_SET_HOST || "mongodb:27017";
+
 let needsInitiation = false;
 try {
   const status = adminDb.runCommand({ replSetGetStatus: 1 });
@@ -18,7 +20,7 @@ if (needsInitiation) {
   const result = adminDb.runCommand({
     replSetInitiate: {
       _id: "rs0",
-      members: [{ _id: 0, host: "mongodb:27017" }],
+      members: [{ _id: 0, host: replicaSetHost }],
     },
   });
   if (result.ok !== 1) throw new Error(result.errmsg || "Replica-set initiation failed");
