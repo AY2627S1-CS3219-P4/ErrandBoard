@@ -239,3 +239,31 @@ jobs:
 
       - name: Validate Compose without loading a local environment file
         run: docker compose --env-file /dev/null -f compose.yaml config --quiet
+
+  deploy:
+    name: Build and register ECS deployment
+    needs: [user-service, supplier-service, order-service, credit-service, frontend, compose-config]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write
+    concurrency:
+      group: errandboard-ecs-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Checkout tested commit
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Assume scoped AWS deployment role
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::614099836367:role/ErrandBoardGitHubDeployRole
+          aws-region: ap-southeast-1
+          allowed-account-ids: '614099836367'
+
+      - name: Build ARM64 images and update ECS task definitions
+        run: bash scripts/deploy-ecs.sh

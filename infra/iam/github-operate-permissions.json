@@ -1,0 +1,38 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InspectWebsiteHost",
+      "Effect": "Allow",
+      "Action": "ec2:DescribeInstances",
+      "Resource": "*"
+    },
+    {
+      "Sid": "StartStopWebsiteHost",
+      "Effect": "Allow",
+      "Action": ["ec2:StartInstances", "ec2:StopInstances"],
+      "Resource": "arn:aws:ec2:ap-southeast-1:614099836367:instance/i-0d9f56cf5a7a6b091"
+    },
+    {
+      "Sid": "CheckEcsHostRegistration",
+      "Effect": "Allow",
+      "Action": "ecs:ListContainerInstances",
+      "Resource": "arn:aws:ecs:ap-southeast-1:614099836367:cluster/ErrandBoard"
+    },
+    {
+      "Sid": "OperateEightWebsiteServices",
+      "Effect": "Allow",
+      "Action": ["ecs:DescribeServices", "ecs:UpdateService"],
+      "Resource": [
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/mongodb",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/redis",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/rabbitmq",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/user-service",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/supplier-service",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/order-service",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/credit-service",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/frontend"
+      ]
+    }
+  ]
+}

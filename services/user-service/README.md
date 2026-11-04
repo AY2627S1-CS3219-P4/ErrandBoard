@@ -2,7 +2,7 @@
 
 MongoDB is the durable record for account role, active status, authorization version, and refresh sessions. Redis holds the current role, active status, version, and a temporary block for each user. Every protected User or Supplier Service request compares the signed access token with Redis. Missing or unreachable Redis state denies authorization; it never grants access.
 
-The local `compose.yaml` starts Redis on the private Compose network with persistent storage and no host port. `REDIS_URL` points both services at that container. In AWS, configure `REDIS_URL` for a private managed Redis compatible service, with authentication and TLS enabled. Do not copy the local Redis URL into a public deployment.
+The local `compose.yaml` starts Redis on the Compose network, and `REDIS_URL` points both services at that container. In the current AWS deployment, Redis runs as a private ECS service on the database EC2 host; app tasks use its private DNS name. Keep Redis inaccessible from the public internet.
 
 On a role change, deactivation/reactivation, or password change, User Service blocks the user's Redis state, revokes all refresh sessions, updates MongoDB and increments `authzVersion`, then publishes the new state. A successful response means the new state is visible to token verifiers. Access tokens issued before the version change are rejected immediately on subsequent requests. Requests already in progress cannot be recalled.
 
