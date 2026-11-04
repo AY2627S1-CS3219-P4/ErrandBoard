@@ -1,16 +1,9 @@
-import { useEffect, useState, type MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useLeaveGuard } from "./leave-guard";
-import {
-    CREDIT_BALANCE_REFRESH_EVENT,
-    creditApiUrl,
-    getCreditBalance,
-} from "../api/client";
+import { useCreditBalance } from "../hooks/useCreditBalance";
 import "./Sidebar.css";
-
-const CREDIT_BALANCE_EVENT = "credit-balance-updated";
-const EVENT_RECONNECT_DELAY_MS = 5_000;
 
 const linkClass = (isActive: boolean) =>
     isActive ? "sidebar-link sidebar-link-active" : "sidebar-link";
@@ -21,78 +14,10 @@ export default function Sidebar() {
     const { pathname } = useLocation();
     const [isLoggingOut, setIsLoggingOut] = useState(false);
     const [logoutError, setLogoutError] = useState("");
-    const [availableCredits, setAvailableCredits] = useState<number | null>(null);
-    const [creditsUnavailable, setCreditsUnavailable] = useState(false);
-    const [balanceUserId, setBalanceUserId] = useState<string | null>(null);
+    const { available: availableCredits, ready: balanceReady, unavailable: creditsUnavailable } =
+        useCreditBalance(user?.id);
     const { shouldBlockLeave } = useLeaveGuard();
     const isAdmin = user?.accountType === "ADMIN" || user?.accountType === "SUPERADMIN";
-
-    useEffect(() => {
-        if (!user?.id) return;
-
-        let active = true;
-        let eventSource: EventSource | undefined;
-        let reconnectTimer: number | undefined;
-        let reconnecting = false;
-
-        const refreshBalance = async () => {
-            try {
-                const balance = await getCreditBalance(user.id);
-                if (active) {
-                    setBalanceUserId(user.id);
-                    setAvailableCredits(balance.available);
-                    setCreditsUnavailable(false);
-                }
-            } catch {
-                if (active) {
-                    setBalanceUserId(user.id);
-                    setCreditsUnavailable(true);
-                }
-            }
-        };
-
-        const connectToBalanceEvents = () => {
-            if (!active) return;
-            eventSource = new EventSource(creditApiUrl("/credit/me/events"), { withCredentials: true });
-            eventSource.addEventListener(CREDIT_BALANCE_EVENT, () => {
-                void refreshBalance();
-            });
-            eventSource.onerror = () => {
-                eventSource?.close();
-                eventSource = undefined;
-                if (reconnecting) return;
-                reconnecting = true;
-
-                // A balance request also refreshes an expired access cookie
-                // through apiFetch before the event stream is reopened.
-                void refreshBalance().finally(() => {
-                    if (active) {
-                        reconnectTimer = window.setTimeout(() => {
-                            reconnectTimer = undefined;
-                            reconnecting = false;
-                            connectToBalanceEvents();
-                        }, EVENT_RECONNECT_DELAY_MS);
-                    }
-                });
-            };
-        };
-
-        const handleLocalBalanceRefresh = () => {
-            void refreshBalance();
-        };
-
-        void refreshBalance();
-        connectToBalanceEvents();
-        window.addEventListener(CREDIT_BALANCE_REFRESH_EVENT, handleLocalBalanceRefresh);
-
-        return () => {
-            active = false;
-            window.removeEventListener(CREDIT_BALANCE_REFRESH_EVENT, handleLocalBalanceRefresh);
-            eventSource?.close();
-            reconnecting = false;
-            if (reconnectTimer !== undefined) window.clearTimeout(reconnectTimer);
-        };
-    }, [user?.id]);
 
     function handleNavigate(event: MouseEvent<HTMLAnchorElement>) {
         if (shouldBlockLeave()) event.preventDefault();
@@ -158,11 +83,11 @@ export default function Sidebar() {
                 <div className="sidebar-user">
                     <div className="sidebar-user-line">
                         <span className="sidebar-username">{user?.username}</span>
-                        {balanceUserId === user?.id && creditsUnavailable ? (
+                        {creditsUnavailable ? (
                             <span className="sidebar-credits sidebar-credits-unavailable" role="status">
                                 Credits temporarily unavailable
                             </span>
-                        ) : balanceUserId === user?.id && availableCredits !== null ? (
+                        ) : balanceReady && availableCredits !== null ? (
                             <span className="sidebar-credits" aria-label={`Available balance: ${availableCredits} credits`}>
                                 {availableCredits} credits
                             </span>
