@@ -10,7 +10,7 @@
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:AY2627S1-CS3219-P4/ErrandBoard:ref:refs/heads/main"
+          "token.actions.githubusercontent.com:sub": "repo:AY2627S1-CS3219-P4@328997165/ErrandBoard@1369491803:ref:refs/heads/main"
         }
       }
     }
