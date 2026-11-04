@@ -74,7 +74,9 @@ services:
       - errandboard-network
 
   user-service:
-    build: ./services/user-service
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
     environment:
       PORT: 3001
       MONGO_HOST: mongodb
@@ -102,7 +104,9 @@ services:
       - errandboard-network
 
   user-seed:
-    build: ./services/user-service
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
     image: errandboard/user-service
     command: ["npm", "run", "seed"]
     environment:
@@ -126,7 +130,9 @@ services:
       - errandboard-network
 
   supplier-seed:
-    build: ./services/supplier-service
+    build:
+      context: .
+      dockerfile: services/supplier-service/Dockerfile
     image: errandboard/supplier-service
     command: ["npm", "run", "seed"]
     environment:
@@ -135,7 +141,7 @@ services:
       MONGO_SUPPLIER_SERVICE_PASSWORD: ${MONGO_SUPPLIER_SERVICE_PASSWORD}
       SEED_CSV_PATH: /seed/supplier-seed-data.csv
     volumes:
-      - ./data/csv:/seed:ro   # the build context doesn't include /data
+      - ./data/csv:/seed:ro
     depends_on:
       mongodb:
         condition: service_healthy
@@ -146,7 +152,9 @@ services:
       - errandboard-network
 
   supplier-service:
-    build: ./services/supplier-service
+    build:
+      context: .
+      dockerfile: services/supplier-service/Dockerfile
     image: errandboard/supplier-service
     environment:
       PORT: 3002

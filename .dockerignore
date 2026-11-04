@@ -1,0 +1,11 @@
+.git
+.github
+.conda
+.env
+.env.*
+!.env.example
+**/node_modules
+**/dist
+**/coverage
+**/.DS_Store
+cookies.txt

@@ -1,0 +1,35 @@
+name: Website controls
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Start, stop, or inspect the AWS website
+        required: true
+        type: choice
+        options: [status, up, down]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: errandboard-website-operation
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::614099836367:role/ErrandBoardGitHubOperateRole
+          aws-region: ap-southeast-1
+          allowed-account-ids: '614099836367'
+      - name: Run website operation
+        run: bash scripts/website.sh "${{ inputs.operation }}"
