@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, test, type TestContext } from "node:te
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
 import { OrderCreation } from "../src/models/OrderCreation.js";
 import { setEventPublisher } from "../src/event/publisher.js";
-import type { ErrandEvent } from "../src/event/types.js";
+import type { PublishableEvent } from "../src/event/types.js";
 import type { ErrandStatus } from "../src/status/errandState.js";
 import { runLifecycleSweep } from "../src/queue/sweep.js";
 
@@ -52,10 +52,16 @@ function mockDueFind(
   const calls: FindCall[] = [];
   cleared = [];
   t.mock.method(Errand, "updateOne", (async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
-    cleared.push({ filter, update });
+    // only the settlement-event flag is tracked here; status-event outbox bookkeeping is covered
+    // in status-events.test.ts
+    if ("$unset" in update && "eventPending" in (update.$unset as object)) cleared.push({ filter, update });
     return { acknowledged: true };
   }) as never);
   t.mock.method(Errand, "find", ((query: Record<string, unknown>) => {
+    if ("notifyPending" in query) {
+      const statusRelay = { sort() { return statusRelay; }, limit() { return Promise.resolve([]); } };
+      return statusRelay;
+    }
     if ("eventPending" in query) {
       const relay = {
         sort() { return relay; },
@@ -84,7 +90,11 @@ function mockTransition(
   decide: (filter: Record<string, unknown>, update: UpdateCall["update"]) => ErrandRecord | null,
 ) {
   const calls: UpdateCall[] = [];
-  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, update: UpdateCall["update"]) => {
+  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, rawUpdate: Record<string, any>) => {
+    // drop the notification-outbox fields (covered in status-events.test.ts) so these tests pin the transition
+    const { $push, ...rest } = rawUpdate;
+    const { notifyPending, ...set } = rest.$set;
+    const update = { ...rest, $set: set } as UpdateCall["update"];
     calls.push({ filter, update });
     return decide(filter, update);
   }) as never);
@@ -100,7 +110,7 @@ function assertDueDate(value: unknown, before: number, after: number) {
 }
 
 describe("runLifecycleSweep", () => {
-  let published: ErrandEvent[];
+  let published: PublishableEvent[];
 
   beforeEach(() => {
     published = [];

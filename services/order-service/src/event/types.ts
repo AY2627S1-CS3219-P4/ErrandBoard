@@ -18,9 +18,43 @@ export interface ErrandEvent {
     } 
 }
 
+// ---- Status-change events (consumed by the Notification Service) ----
+// Unlike the terminal events above, these are emitted for EVERY transition and carry no settlement
+// semantics: Credit never binds to this routing key. See src/event/status.events.ts.
+export const STATUS_EVENT_TYPE = "errand.status.changed" as const;
+
+export type ActorRole = "REQUESTER" | "COURIER" | "SYSTEM";
+
+export interface Actor {
+    role: ActorRole;
+    userId: string | null; // null for the lifecycle sweep
+}
+export const SYSTEM_ACTOR: Actor = { role: "SYSTEM", userId: null };
+
+export interface StatusChangeEvent {
+    key: string; // errandId
+    value: {
+        eventId: string; // `<errandId>:status:<STATUS>`; an errand reaches each status at most once
+        type: typeof STATUS_EVENT_TYPE;
+        errandId: string;
+        status: ErrandStatus;
+        previousStatus: ErrandStatus;
+        actor: Actor;
+        requesterId: string;
+        courierId: string | null;
+        credit: number;
+        supplierName: string;
+        dropoff: string;
+        deadline: string | null; // deliverBy for PICKED_UP, confirmBy for PENDING_COMPLETION
+        occurredAt: string;
+    };
+}
+
+export type PublishableEvent = ErrandEvent | StatusChangeEvent;
+
 export interface EventPublisher {
     isReady(): boolean;
-    publish(event: ErrandEvent): Promise<void>;
+    publish(event: PublishableEvent): Promise<void>;
     close(): Promise<void>;
 }
 

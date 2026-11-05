@@ -72,11 +72,20 @@ function isError(expected: new (...args: never[]) => Error) {
 
 type UpdateCall = { filter: Record<string, unknown>; update: { $set: Record<string, unknown> }; options: unknown };
 
+// Every transition also carries a notification-outbox entry ($push + notifyPending, see
+// src/event/status.events.ts). It is asserted in status-events.test.ts; strip it here so these tests
+// keep pinning the transition itself.
+function stripOutbox(update: Record<string, any>): UpdateCall["update"] {
+  const { $push, ...rest } = update;
+  const { notifyPending, ...set } = rest.$set;
+  return { ...rest, $set: set } as UpdateCall["update"];
+}
+
 // Mocks the atomic update. `result` is what the update matched; `existing` is what the follow-up lookup finds.
 function mockUpdate(t: TestContext, result: ErrandRecord | null, existing: ErrandRecord | null = result) {
   const calls: UpdateCall[] = [];
-  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, update: UpdateCall["update"], options: unknown) => {
-    calls.push({ filter, update, options });
+  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, update: Record<string, unknown>, options: unknown) => {
+    calls.push({ filter, update: stripOutbox(update), options });
     return result;
   }) as never);
   t.mock.method(Errand, "findById", (async () => existing) as never);
@@ -474,7 +483,7 @@ describe("acceptErrand", () => {
       requesterId: { $ne: COURIER_ID },
     });
     assert.deepEqual(calls[0].update, { $set: { status: "ACCEPTED", courierId: COURIER_ID } });
-    assert.deepEqual(calls[0].options, { new: true, runValidators: true });
+    assert.deepEqual(calls[0].options, { returnDocument: 'after', runValidators: true });
   });
 
   test("requester cannot accept their own errand", async (t) => {

@@ -1,6 +1,6 @@
 import amqp, { ChannelWrapper } from "amqp-connection-manager";
 import type { ConfirmChannel } from "amqplib";
-import { EXCHANGE_NAME, type ErrandEvent, type EventPublisher } from "./types.js";
+import { EXCHANGE_NAME, STATUS_EVENT_TYPE, type EventPublisher, type PublishableEvent } from "./types.js";
 
 export class PublishError extends Error {}
 export class UnroutableError extends PublishError {}
@@ -19,13 +19,16 @@ export class RabbitPublisher implements EventPublisher {
         return this.connected();
     }
     
-    async publish(event: ErrandEvent): Promise<void> {
+    async publish(event: PublishableEvent): Promise<void> {
         const { eventId, type } = event.value;
         this.returnMessages.delete(eventId); //clear stale state from previous attempts jic
         try {
             await this.channel.publish(EXCHANGE_NAME, type, Buffer.from(JSON.stringify(event)), {
                 persistent: true,
-                mandatory: true,
+                // Settlement events must never vanish: an unbound queue is an error. Status events are
+                // informational, so if the Notification queue has never been declared the broker may
+                // drop them instead of wedging the outbox relay behind an unroutable message.
+                mandatory: type !== STATUS_EVENT_TYPE,
                 messageId: eventId,
                 contentType: "application/json",
                 timeout: 5_000,

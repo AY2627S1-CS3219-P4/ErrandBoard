@@ -3,7 +3,9 @@ import { fetchActiveSupplier } from "../clients/supplier.client.js";
 import { reserveCredits } from "../clients/credit.client.js";
 import { CreditRecoveryRequiredError, DeliveryDeadlinePassedError, ErrandNotFoundError, InsufficientCreditsError, InvalidStatusTransitionError, OrderCreationPendingError, SelfAssignErrandError, UpdateConflictError, ValidationError } from "../errors/order.errors.js";
 import { publishTerminalEvent } from "../event/errand.events.js";
-import { Errand, type ErrandRecord } from "../models/Errand.js";
+import { publishStatusEvents, statusEventId } from "../event/status.events.js";
+import { SYSTEM_ACTOR, type Actor } from "../event/types.js";
+import { Errand, type ErrandRecord, type StatusOutboxEntry } from "../models/Errand.js";
 import { closeUnreservedCreation, queueCreationRecovery, recordOrderCreation, saveErrandAndCompleteCreation } from "./order-creation.service.js";
 import { ACTIVE_STATUSES, isTerminal } from "../status/errandState.js";
 import { type ErrandStatus, validTransition } from "../status/errandState.js";
@@ -150,17 +152,33 @@ export async function createErrand(input: CreateErrandInput): Promise<ErrandReco
   return errand;
 }
 
-async function updateErrand(id: string, from: ErrandStatus, to: ErrandStatus, filter: Record<string, unknown> = {}, update: Record<string, unknown> = {}) {
+async function updateErrand(id: string, from: ErrandStatus, to: ErrandStatus, filter: Record<string, unknown> = {}, update: Record<string, unknown> = {}, actor: Actor = SYSTEM_ACTOR) {
   if (!validTransition(from, to)) {
     throw new InvalidStatusTransitionError(from, to);
   }
   if (!isObjectIdString(id)) throw new ErrandNotFoundError;
 
+  // Notification outbox entry: committed atomically with the transition, so a crash or broker outage
+  // can delay a status notification but never lose it.
+  const deadline = [update.deliverBy, update.confirmBy].find((d): d is Date => d instanceof Date);
+  const outboxEntry: StatusOutboxEntry = {
+    eventId: statusEventId(id, to),
+    status: to,
+    previousStatus: from,
+    actorRole: actor.role,
+    ...(actor.userId ? { actorId: actor.userId } : {}),
+    at: new Date(),
+    ...(deadline ? { deadline } : {}),
+  };
+
   const updated = await Errand.findOneAndUpdate(
     // checking and updating of errand are in the same operation
     { _id: id, status: from, ...filter },
-    { $set: { status: to, ...update , ...(isTerminal(to) ? { eventPending: true } : {})} },
-    { new: true, runValidators: true }
+    {
+      $set: { status: to, ...update , ...(isTerminal(to) ? { eventPending: true } : {}), notifyPending: true },
+      $push: { notifyOutbox: outboxEntry },
+    },
+    { returnDocument: 'after', runValidators: true }
   ) as ErrandRecord | null;
 
   if (!updated) {
@@ -170,6 +188,7 @@ async function updateErrand(id: string, from: ErrandStatus, to: ErrandStatus, fi
   }
 
   await publishTerminalEvent(updated);
+  await publishStatusEvents(updated); // best effort; leftovers are relayed by the sweep
   
   return updated;
 }
@@ -182,7 +201,7 @@ export async function acceptErrand(id: string, courierId: string) {
         courierId: { $exists: false },  // courier must not have been assigned before
         requesterId: { $ne: courierId },    // requester cannot take their own errand
         expiresAt: { $gt: new Date() } // expired errands cannot be accepted
-      }, { courierId })
+      }, { courierId }, { role: "COURIER", userId: courierId })
 
     return updated;
   } catch (error) {
@@ -198,7 +217,8 @@ export async function acceptErrand(id: string, courierId: string) {
 export async function pickUpErrand(id: string, courierId: string) {
   const updated = await updateErrand(id, "ACCEPTED", "PICKED_UP",
     { courierId },
-    { deliverBy: new Date(Date.now() + DELIVERY_DEADLINE) }
+    { deliverBy: new Date(Date.now() + DELIVERY_DEADLINE) },
+    { role: "COURIER", userId: courierId }
   );
 
   return updated;
@@ -209,7 +229,8 @@ export async function deliverErrand(id: string, courierId: string) {
     const updated = await updateErrand(id, "PICKED_UP", "PENDING_COMPLETION",
       { courierId,
         deliverBy: { $gt: new Date() } },  // courier should not be able to deliver errand later than the deadline
-      { confirmBy: new Date(Date.now() + CONFIRMATION_DEADLINE) }
+      { confirmBy: new Date(Date.now() + CONFIRMATION_DEADLINE) },
+      { role: "COURIER", userId: courierId }
     );
 
     return updated;
@@ -228,7 +249,7 @@ export async function deliverErrand(id: string, courierId: string) {
 
 export async function completeErrand(id: string, requesterId: string) {
   const updated = await updateErrand(id, "PENDING_COMPLETION", "COMPLETED",
-    { requesterId }
+    { requesterId }, {}, { role: "REQUESTER", userId: requesterId }
   );
 
   return updated;
@@ -237,7 +258,7 @@ export async function completeErrand(id: string, requesterId: string) {
 // requesters can cancel only an open errand they created
 export async function cancelErrandByRequester(id: string, requesterId: string) {
   const updated = await updateErrand(id, "OPEN", "CANCELLED",
-    { requesterId }
+    { requesterId }, {}, { role: "REQUESTER", userId: requesterId }
   );
 
   return updated;
@@ -246,7 +267,7 @@ export async function cancelErrandByRequester(id: string, requesterId: string) {
 // couriers can cancel only an errand they accepted
 export async function cancelErrandByCourier(id: string, courierId: string) {
   const updated = await updateErrand(id, "ACCEPTED", "CANCELLED",
-    { courierId }
+    { courierId }, {}, { role: "COURIER", userId: courierId }
   );
 
   return updated;
