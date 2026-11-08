@@ -110,11 +110,14 @@ db.errands.createIndex({ requesterId: 1, status: 1});
 db.errands.createIndex({ courierId: 1, status: 1});
 db.errands.createIndex({ createdAt: -1});
 db.errands.createIndex({ eventPending: 1 }, { partialFilterExpression: { eventPending: true } });
+db.errands.createIndex({ notifyPending: 1 }, { partialFilterExpression: { notifyPending: true } });
+
 db.createCollection("orderCreation");
 db.orderCreation.createIndex(
     { state: 1, retryAt: 1 },
     { partialFilterExpression: { state: "PENDING" } }
 );
+
 
 
 // Credit Service
