@@ -5,6 +5,7 @@ import { parse } from "csv-parse/sync";
 import { connectDb, disconnectDb } from "../db.js";
 import { User, type AccountType } from "../models/User.js";
 import { syncCreditAccount } from "../services/credit-account.client.js";
+import { authorizationStore } from "../security/authorization-state.js";
 
 interface SeedRow {
   email: string;
@@ -85,10 +86,13 @@ export async function seedUsers(rows: SeedRow[]): Promise<void> {
   const emails = [...new Set(users.map((user) => user.email))];
   if (emails.length) {
     const persisted = await User.find({ email: { $in: emails } })
-      .select("_id isActive")
+      .select("_id isActive accountType authzVersion")
       .lean();
     if (persisted.length !== emails.length) {
       throw new Error("Could not resolve every seeded User ID for credit provisioning");
+    }
+    for (const user of persisted) {
+      await authorizationStore.initialize(user._id.toString(), user);
     }
     for (let offset = 0; offset < persisted.length; offset += 10) {
       const results = await Promise.allSettled(persisted.slice(offset, offset + 10).map((user) =>
@@ -113,8 +117,10 @@ async function main(): Promise<void> {
   });
   await connectDb();
   try {
+    await authorizationStore.connect();
     await seedUsers(rows);
   } finally {
+    await authorizationStore.close();
     await disconnectDb();
   }
 }

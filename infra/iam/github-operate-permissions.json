@@ -33,6 +33,45 @@
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/credit-service",
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/frontend"
       ]
+    },
+    {
+      "Sid": "InspectSeedTasks",
+      "Effect": "Allow",
+      "Action": "ecs:ListTasks",
+      "Resource": "arn:aws:ecs:ap-southeast-1:614099836367:cluster/ErrandBoard"
+    },
+    {
+      "Sid": "DescribeSeedTasksAndDefinitions",
+      "Effect": "Allow",
+      "Action": ["ecs:DescribeTasks", "ecs:StopTask", "ecs:DescribeTaskDefinition"],
+      "Resource": [
+        "arn:aws:ecs:ap-southeast-1:614099836367:task/ErrandBoard/*",
+        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/*"
+      ]
+    },
+    {
+      "Sid": "RegisterResetTask",
+      "Effect": "Allow",
+      "Action": "ecs:RegisterTaskDefinition",
+      "Resource": "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/errandboard-reset-seed:*"
+    },
+    {
+      "Sid": "RunSeedTasks",
+      "Effect": "Allow",
+      "Action": "ecs:RunTask",
+      "Resource": [
+        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/errandboard-reset-seed:*",
+        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/user-service:*",
+        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/supplier-service:*"
+      ],
+      "Condition": {"ArnEquals": {"ecs:cluster": "arn:aws:ecs:ap-southeast-1:614099836367:cluster/ErrandBoard"}}
+    },
+    {
+      "Sid": "PassSeedTaskRoles",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::614099836367:role/ecsTaskExecutionRole",
+      "Condition": {"StringEquals": {"iam:PassedToService": "ecs-tasks.amazonaws.com"}}
     }
   ]
 }

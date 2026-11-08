@@ -20,6 +20,12 @@ The RabbitMQ container uses the separate default-user and default-password field
 
 After this branch is merged into `main`, open **GitHub → Actions → Website controls → Run workflow** on `main` and choose `up`. Choose `status` to inspect AWS and `down` to stop the whole website. This workflow runs `scripts/website.sh` with a short-lived AWS role scoped to the eight ECS services and the database EC2 host. It does not seed data. The workflow is available from GitHub after merge, without opening CloudShell.
 
+## Explicit destructive reset and seed
+
+The separate **Reset and seed AWS database** workflow runs only when manually dispatched on `main` with `WIPE_ERRANDBOARD_AND_SEED` as its confirmation input. It requires the database host stopped and all eight ECS services at desired count zero. It starts MongoDB, Redis and RabbitMQ, deletes application records and cached/queued state, seeds suppliers and users from the CSV files baked into their current images, provisions seed users' credit accounts, and returns website compute to zero. This erases registered users, supplier edits, errands, credit balances, sessions, and outstanding work. Normal `up`, `down`, CD and `status` never seed or erase data.
+
+Before the workflow can run, merge its code to `main`, let CD deploy the updated Order and User Service images, and update the live inline policy on `ErrandBoardGitHubOperateRole` from `infra/iam/github-operate-permissions.json`. The role needs ECS task run/registration permissions and `iam:PassRole`; committing the JSON file alone does not update IAM. Check the current inline policy name with `aws iam list-role-policies --role-name ErrandBoardGitHubOperateRole` and apply the updated file using that name. Do not run reset if the role has not been updated. A failed seed leaves the website stopped; inspect the stopped task logs before rerunning the operation.
+
 From a terminal with this repository checked out and AWS CLI credentials, the same operations are `./scripts/website.sh up`, `./scripts/website.sh status`, and `./scripts/website.sh down`. In CloudShell, clone or pull this repository before running the script; CloudShell does not automatically contain local files. If using a named local CLI profile, prefix the command with `AWS_PROFILE=your-profile`.
 
 The commands below show what the script performs. The backend services use Linux ARM64 Fargate task definitions; the database services use the EC2 host. Keep the ECS service desired count at one while the app is meant to be live.

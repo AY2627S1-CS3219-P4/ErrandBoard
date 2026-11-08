@@ -4,6 +4,7 @@ import { Types } from "mongoose";
 import { User } from "../src/models/User.js";
 import { backfillUserCredits } from "../src/scripts/backfill-user-credits.js";
 import { seedUsers } from "../src/scripts/seed-users.js";
+import { authorizationStore } from "../src/security/authorization-state.js";
 
 test("seeding provisions credits for new and previously seeded users using their persisted IDs", async (t) => {
   process.env.CREDIT_SERVICE_URL = "http://credit-service:3004";
@@ -25,6 +26,7 @@ test("seeding provisions credits for new and previously seeded users using their
   ];
 
   t.mock.method(User, "updateMany", async () => ({}));
+  t.mock.method(authorizationStore, "initialize", async () => {});
   const bulkWrite = t.mock.method(User, "bulkWrite", async () => ({ upsertedCount: 1, matchedCount: 1 }));
   t.mock.method(User, "find", () => ({
     select: () => ({ lean: async () => persisted }),
@@ -55,6 +57,7 @@ test("seeding fails when credit provisioning fails so a rerun can repair it", as
     delete process.env.CREDIT_INTERNAL_API_KEY;
   });
   t.mock.method(User, "updateMany", async () => ({}));
+  t.mock.method(authorizationStore, "initialize", async () => {});
   t.mock.method(User, "bulkWrite", async () => ({ upsertedCount: 0, matchedCount: 1 }));
   t.mock.method(User, "find", () => ({
     select: () => ({ lean: async () => [{ _id: new Types.ObjectId(), isActive: true }] }),
