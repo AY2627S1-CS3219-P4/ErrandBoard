@@ -148,7 +148,7 @@ db.createCollection("transactionLog");
 db.transactionLog.createIndex({ orderId: 1, transactionType: 1 }, { unique: true });
 
 //Notification service
-db.createCollcetion("notifications");
+db.createCollection("notifications");
 db.notifications.createIndex({ userId: 1, eventId: 1 }, { unique: true });
 db.notifications.createIndex({ userId: 1, _id: -1 });
 db.notifications.createIndex({ userId: 1, readAt: 1 });

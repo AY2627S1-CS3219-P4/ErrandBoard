@@ -20,7 +20,7 @@ function retryCount(message: ConsumeMessage): number {
 type Acker = Pick<ConfirmChannel, "ack" | "nack">;
 type RetrySender = Pick<ChannelWrapper, "sendToQueue">;
 
-/** Exported for tests. Mirrors Credit's consumer: ack on success, retry queue on transient failure, DLQ otherwise. */
+//copy of credit consumer 
 export async function handleMessage(channel: Acker, wrapper: RetrySender, message: ConsumeMessage, deps: ProcessorDeps): Promise<void> {
   try {
     const event = parseStatusEvent(message);

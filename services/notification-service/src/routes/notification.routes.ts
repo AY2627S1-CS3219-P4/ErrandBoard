@@ -12,6 +12,7 @@ export interface RouterDeps {
   pushEnabled: boolean;
 }
 
+//utility functions
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 const bad = (res: Response, code: string, error: string, status = 400) => { res.status(status).json({ code, error }); };
 
@@ -20,23 +21,27 @@ function limitFrom(value: unknown, fallback = 30, max = 100): number {
   return Number.isInteger(n) && n > 0 ? Math.min(n, max) : fallback;
 }
 
+
 export function createNotificationRouter(deps: RouterDeps): Router {
   const router = Router();
 
-  // Public: the browser needs this to subscribe. It is a public key by design.
+  //get vapid public-key no auth required, reject if push not configured
   router.get("/vapid-public-key", (_req, res) => {
     if (!deps.pushEnabled) return bad(res, "PUSH_NOT_CONFIGURED", "Web Push is not enabled", 503);
+
     res.json({ publicKey: settings.vapidPublicKey });
   });
 
+  //everything else requires a valid logged in user
   router.use(authenticate);
-  const me = (req: Request) => req.user!.userId; // authenticate guarantees it
+  const me = (req: Request) => req.user!.userId; 
 
-  // ---- live stream (Server-Sent Events) ----
+  //
   router.get("/stream", async (req, res) => {
     const userId = me(req);
     deps.hub.subscribe(userId, res);
     const last = req.get("Last-Event-ID");
+
     if (last && OBJECT_ID.test(last)) {
       // subscribe first, replay second: see LiveHub.replay
       deps.hub.replay(res, await deps.notifications.since(userId, last, 50));

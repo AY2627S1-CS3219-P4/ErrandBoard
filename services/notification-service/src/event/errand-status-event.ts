@@ -43,6 +43,11 @@ const isObjectId = (v: unknown): v is string => typeof v === "string" && /^[0-9a
 const isText = (v: unknown, max: number): v is string => typeof v === "string" && v.length > 0 && v.length <= max;
 const isIsoDate = (v: unknown): v is string => typeof v === "string" && !Number.isNaN(Date.parse(v));
 
+
+//holy wall of text but basically verifies the status event is not corrupted
+//define a fail function that basically throws an event error if any of the checks fail
+//checks include: message body not JSON, payload empty/not object, key is not errand id, missing value, unknown status type, unallowed transition, eventID mismatch,
+//incorrect acotrs,  invalid user Id, invalid credit value, invalid date values 
 export function parseStatusEvent(message: Pick<ConsumeMessage, "content" | "properties">): StatusChangeEvent {
   let payload: unknown;
   try {
