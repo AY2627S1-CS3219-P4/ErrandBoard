@@ -1,0 +1,135 @@
+/* Errand oversight — admin page; Disputes is the first tab.
+   Reuses .admin-dashboard, .account-admin-panel and .account-table styling. */
+
+/* Tabs within the Errand oversight page (buttons, since they switch in-page content). */
+.oversight-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1.5rem 0 0.5rem; }
+.oversight-tab {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.oversight-tab:hover,
+.oversight-tab-active { border-color: var(--accent-border); background: var(--accent-bg); color: var(--accent); }
+.oversight-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dispute-table td small {
+  display: block;
+  color: var(--text-muted, #6b7280);
+  font-size: 0.78rem;
+  word-break: break-all;
+}
+
+.dispute-source-tag {
+  display: inline-block;
+  margin-bottom: 0.25rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.dispute-source-tag.system { background: rgba(185, 119, 14, 0.14); color: #b9770e; }
+.dispute-source-tag.manual { background: rgba(192, 57, 43, 0.12); color: #c0392b; }
+
+/* The dispute table has 6 columns; override the account-table's 5-column widths. */
+@media (min-width: 921px) {
+  .dispute-table { table-layout: fixed; }
+  .dispute-table th:nth-child(1) { width: 26%; } /* Errand */
+  .dispute-table th:nth-child(2) { width: 18%; } /* Parties */
+  .dispute-table th:nth-child(3) { width: 20%; } /* Reason */
+  .dispute-table th:nth-child(4) { width: 10%; } /* Disputed */
+  .dispute-table th:nth-child(5) { width: 8%; }  /* Credit */
+  .dispute-table th:nth-child(6) { width: 18%; } /* Actions */
+}
+
+/* The two user ids are long; let them wrap rather than stretch the layout. */
+.dispute-table td small { overflow-wrap: anywhere; word-break: normal; }
+
+/* Give the resolve buttons room; they can stack on narrow desktop widths. */
+.dispute-table .account-row-actions .account-role-button { white-space: normal; }
+
+/* Expandable Errand cell: a disclosure toggle showing just the errand id. */
+.dispute-expand-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.dispute-expand-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 0.25rem; }
+.dispute-expand-caret {
+  display: inline-block;
+  color: var(--accent);
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: transform 140ms ease;
+}
+.dispute-expand-caret.open { transform: rotate(90deg); }
+.dispute-errand-id {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.8rem;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+/* The expandable detail panel, spanning the full row. */
+.dispute-details-row > td {
+  padding: 0.5rem 0.6rem 1rem 1.6rem;
+  background: var(--accent-bg);
+}
+.dispute-details {
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+.dispute-details > div {
+  display: grid;
+  grid-template-columns: 7rem 1fr;
+  gap: 0.6rem;
+  align-items: start;
+}
+.dispute-details dt {
+  margin: 0;
+  color: var(--text-muted, #6b7280);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.dispute-details dd {
+  margin: 0;
+  color: var(--text-h);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+/* On mobile the table reflows to stacked cards; keep the detail panel full-width. */
+@media (max-width: 920px) {
+  .dispute-details-row,
+  .dispute-details-row > td { display: block; }
+  .dispute-details-row > td { padding: 0.25rem 0 0.75rem; }
+  .dispute-details-row > td::before { display: none; } /* no data-label on this cell */
+  .dispute-details > div { grid-template-columns: 6rem 1fr; }
+}

@@ -19,6 +19,7 @@ export class ErrandApiError extends Error {
 
 // 503 upstream outages (SUPPLIER_UNAVAILABLE, SERVICE_UPSTREAM_ERROR) are intentionally left
 // out: they fall through to the generic 5xx message below, avoiding internal service names.
+// DISPUTE_ALREADY_RESOLVED omitted, uses the server message that includes the resolved state (whether the requester or courier was refunded)
 const CODE_MESSAGES: Record<string, string> = {
   SUPPLIER_NOT_FOUND: "This supplier no longer exists or has been deactivated.",
   SELF_ASSIGN: "You cannot accept your own errand.",
@@ -96,9 +97,41 @@ export async function acceptErrand(id: string): Promise<Errand> {
   return runErrandAction(id, "accept");
 }
 
-export async function runErrandAction(id: string, action: ErrandAction | "accept"): Promise<Errand> {
+export async function runErrandAction(id: string, action: Exclude<ErrandAction, "dispute"> | "accept"): Promise<Errand> {
   const body = await request<{ errand: Errand }>(`/errands/${encodeURIComponent(id)}/${action}`, {
     method: "POST",
   });
+  return body.errand;
+}
+
+// dispute carries a reason body, so it cannot reuse the bodyless runErrandAction helper.
+export async function disputeErrand(id: string, reason: string): Promise<Errand> {
+  const body = await request<{ errand: Errand }>(`/errands/${encodeURIComponent(id)}/dispute`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+  return body.errand;
+}
+
+// admin: the dispute queue
+export async function listDisputes(signal?: AbortSignal): Promise<Errand[]> {
+  return (await request<{ errands: Errand[] }>("/errands/disputes", { signal })).errands;
+}
+
+// admin: resolve a dispute by refunding the requester
+export async function resolveDisputeRefund(id: string): Promise<Errand> {
+  const body = await request<{ errand: Errand }>(`/errands/${encodeURIComponent(id)}/resolve-refund`, {
+    method: "POST",
+  });
+  requestCreditBalanceRefresh();
+  return body.errand;
+}
+
+// admin: resolve a dispute by transferring the credit to the courier
+export async function resolveDisputeTransfer(id: string): Promise<Errand> {
+  const body = await request<{ errand: Errand }>(`/errands/${encodeURIComponent(id)}/resolve-transfer`, {
+    method: "POST",
+  });
+  requestCreditBalanceRefresh();
   return body.errand;
 }

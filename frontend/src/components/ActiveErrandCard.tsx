@@ -64,9 +64,17 @@ export default function ActiveErrandCard({
         ? `Confirm receipt · ${timeLeft(errand.confirmBy, now)}`
         : "Confirmation window has closed";
     }
+    else if (status === "DISPUTED") hint = "Under review by an admin";
   } else if (status === "ACCEPTED") hint = `Pick up from ${errand.supplier.name}`;
   else if (status === "PICKED_UP") hint = `Deliver to ${errand.dropoff}`;
   else if (status === "PENDING_COMPLETION") hint = "Waiting for the requester to confirm";
+  else if (status === "DISPUTED") hint = "Under review by an admin";
+
+  // A delivered errand (PENDING_COMPLETION) can be disputed only while the confirm window is open.
+  const canDispute =
+    status === "ACCEPTED" ||
+    status === "PICKED_UP" ||
+    (status === "PENDING_COMPLETION" && confirmOpen);
 
   const label = (action: ErrandAction, idle: string, working: string) => (busyAction === action ? working : idle);
 
@@ -99,6 +107,10 @@ export default function ActiveErrandCard({
         </span>
       </button>
 
+      {status === "DISPUTED" && errand.disputeReason && (
+        <p className="active-errand-dispute" role="status">Dispute reason: {errand.disputeReason}</p>
+      )}
+
       {error && <p className="active-errand-error" role="alert">{error}</p>}
 
       <div className="active-errand-actions">
@@ -111,6 +123,14 @@ export default function ActiveErrandCard({
               onClick={() => onAction("cancel")}
             >
               {label("cancel", "Cancel errand", "Cancelling…")}
+            </button>
+            <button
+              type="button"
+              className="errand-btn errand-btn-warning"
+              disabled={busy || !canDispute}
+              onClick={() => onAction("dispute")}
+            >
+              {label("dispute", "Dispute", "Disputing…")}
             </button>
             <button
               type="button"

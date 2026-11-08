@@ -9,9 +9,13 @@ import {
   deliver,
   complete,
   cancelByRequester,
-  cancelByCourier
+  cancelByCourier,
+  dispute,
+  listDisputes,
+  resolveRefund,
+  resolveTransfer
 } from "../controller/order.controller.js";
-import { authenticate } from "../middleware/auth.middleware.js";
+import { authenticate, requireAdmin } from "../middleware/auth.middleware.js";
 
 export const errandRouter = Router();
 
@@ -21,6 +25,8 @@ errandRouter.use(authenticate);
 //read routes
 errandRouter.get("/", list);
 errandRouter.get("/mine", mine);
+// admin dispute queue — declared before "/:id" so "disputes" is not captured as an id
+errandRouter.get("/disputes", requireAdmin, listDisputes);
 errandRouter.get("/:id", getById);
 
 //create routes
@@ -33,3 +39,8 @@ errandRouter.post("/:id/deliver", deliver);
 errandRouter.post("/:id/complete", complete);
 errandRouter.post("/:id/cancel", cancelByRequester);
 errandRouter.post("/:id/courier-cancel", cancelByCourier);
+
+//dispute: requester raises it, admins resolve it
+errandRouter.post("/:id/dispute", dispute);
+errandRouter.post("/:id/resolve-refund", requireAdmin, resolveRefund);
+errandRouter.post("/:id/resolve-transfer", requireAdmin, resolveTransfer);

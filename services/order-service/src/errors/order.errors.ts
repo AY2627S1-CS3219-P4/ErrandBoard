@@ -57,6 +57,17 @@ export class DeliveryDeadlinePassedError extends Error {
   }
 }
 
+export class DisputeResolvedError extends Error {
+  constructor(public readonly status: ErrandStatus) {
+    const outcome = status === "CANCELLED" ? "the requester was refunded"
+      : status === "COMPLETED" ? "the courier was paid"
+      : `status ${status}`;
+    super(`This dispute has already been resolved (${outcome}).`);
+    this.name = "DisputeResolvedError";
+    Object.setPrototypeOf(this, DisputeResolvedError.prototype);
+  }
+}
+
 export class InvalidStatusTransitionError extends Error {
   constructor(from: ErrandStatus, to: ErrandStatus) {
     super(`Errand transition from ${from} to ${to} is not allowed`);

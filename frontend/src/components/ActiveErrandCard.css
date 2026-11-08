@@ -65,6 +65,10 @@
   font-weight: 700;
 }
 
+.active-errand-status-disputed { background: rgba(185, 119, 14, 0.14); color: #b9770e; }
+
+.active-errand-dispute { margin: 0.25rem 0 0; color: #b9770e; font-size: 0.8rem; }
+
 .active-errand-error { margin: 0.25rem 0 0; color: #c0392b; font-size: 0.8rem; }
 
 .active-errand-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; }

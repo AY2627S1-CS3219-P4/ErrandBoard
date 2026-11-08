@@ -1,5 +1,6 @@
 import { model, Schema, type Types } from "mongoose";
 import { ERRAND_STATUSES, type ErrandStatus } from "../status/errandState.js";
+import { TERMINAL_CAUSES, type TerminalCause } from "../event/types.js";
 
 export interface SupplierCopy {
     supplierId: string;
@@ -20,6 +21,10 @@ export interface ErrandDocument {
     expiresAt: Date;
     deliverBy?: Date;
     confirmBy?: Date;
+    disputeReason?: string;
+    disputedAt?: Date;
+    disputedBy?: string; //requester userId, or "system" for an auto-dispute by the sweep
+    terminalCause?: TerminalCause; //why the errand reached its terminal state (feeds the event payload)
     createdAt: Date;
     updatedAt: Date;
     eventPending?: boolean; //if true this errand owes an event operation
@@ -48,6 +53,10 @@ const errandSchema = new Schema<ErrandDocument>(
     expiresAt: { type: Date, required: true },
     deliverBy: Date,
     confirmBy: Date,
+    disputeReason: { type: String, trim: true, maxlength: 300 },
+    disputedAt: Date,
+    disputedBy: String,
+    terminalCause: { type: String, enum: TERMINAL_CAUSES },
     eventPending: Boolean,
     },
     { collection: "errands", timestamps: true }
@@ -58,6 +67,7 @@ errandSchema.index({ status: 1, deliverBy: 1});
 errandSchema.index({ status: 1, confirmBy: 1 });
 errandSchema.index({ requesterId: 1, status: 1 });
 errandSchema.index({ courierId: 1, status: 1 });
+errandSchema.index({ status: 1, disputedAt: 1 }, { partialFilterExpression: { status: "DISPUTED" } });
 errandSchema.index({ createdAt: -1 });
 errandSchema.index({ eventPending: 1 }, { partialFilterExpression: { eventPending: true } });
 

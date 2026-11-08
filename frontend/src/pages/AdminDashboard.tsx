@@ -59,12 +59,12 @@ export default function AdminDashboard() {
             <span>Manage campus suppliers and facilities</span>
             <small>Open management tools</small>
           </Link>
-          <button className="admin-tool-card" type="button" disabled>
+          <Link className="admin-tool-card admin-tool-link" to="/admin/disputes">
             <span className="tool-card-label">ACTIVITY</span>
             <strong>Errand oversight</strong>
-            <span>Review platform errands and activity</span>
-            <small>Coming soon</small>
-          </button>
+            <span>Review platform errands and resolve disputes</span>
+            <small>Open errand oversight</small>
+          </Link>
           <button className="admin-tool-card" type="button" disabled>
             <span className="tool-card-label">FINANCE</span>
             <strong>Credit statistics</strong>

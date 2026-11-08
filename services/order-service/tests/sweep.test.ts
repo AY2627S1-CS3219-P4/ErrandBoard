@@ -129,7 +129,7 @@ describe("runLifecycleSweep", () => {
     }
   });
 
-  test("transitions every due errand and publishes its terminal event", async (t) => {
+  test("transitions every due errand; terminal ones publish, auto-disputes do not", async (t) => {
     mockDueFind(t, {
       OPEN: [{ _id: OPEN_ID }],
       PICKED_UP: [{ _id: PICKED_ID }],
@@ -145,19 +145,24 @@ describe("runLifecycleSweep", () => {
     const byId = Object.fromEntries(updates.map((c) => [c.filter._id, c]));
     assert.deepEqual(byId[OPEN_ID].filter.status, "OPEN");
     assert.deepEqual(byId[OPEN_ID].update.$set.status, "EXPIRED");
+    // PICKED_UP past its deadline is auto-disputed (held), not cancelled
     assert.deepEqual(byId[PICKED_ID].filter.status, "PICKED_UP");
-    assert.deepEqual(byId[PICKED_ID].update.$set.status, "CANCELLED");
+    assert.deepEqual(byId[PICKED_ID].update.$set.status, "DISPUTED");
+    assert.deepEqual(byId[PICKED_ID].update.$set.disputeReason, "Delivery deadline passed");
     assert.deepEqual(byId[PENDING_ID].filter.status, "PENDING_COMPLETION");
     assert.deepEqual(byId[PENDING_ID].update.$set.status, "COMPLETED");
-    // the outbox flag is written in the same atomic update as the terminal status
-    for (const c of updates) assert.equal(c.update.$set.eventPending, true);
+    // the outbox flag is written only for terminal targets; a dispute is non-terminal
+    assert.equal(byId[OPEN_ID].update.$set.eventPending, true);
+    assert.equal(byId[PENDING_ID].update.$set.eventPending, true);
+    assert.equal(byId[PICKED_ID].update.$set.eventPending, undefined, "auto-dispute must not set the outbox flag");
 
+    // only the two terminal transitions publish; the auto-dispute is held silently
     assert.deepEqual(
       published.map((e) => e.value.type).sort(),
-      ["errand.cancelled", "errand.completed", "errand.expired"],
+      ["errand.completed", "errand.expired"],
     );
     // every event that reached the broker had its flag cleared
-    assert.equal(cleared.length, 3);
+    assert.equal(cleared.length, 2);
     for (const c of cleared) assert.deepEqual(c.update, { $unset: { eventPending: "" } });
   });
 
