@@ -24,7 +24,14 @@ After this branch is merged into `main`, open **GitHub → Actions → Website c
 
 The separate **Reset and seed AWS database** workflow runs only when manually dispatched on `main` with `WIPE_ERRANDBOARD_AND_SEED` as its confirmation input. It requires the database host stopped and all eight ECS services at desired count zero. It starts MongoDB, Redis and RabbitMQ, deletes application records and cached/queued state, seeds suppliers and users from the CSV files baked into their current images, provisions seed users' credit accounts, and returns website compute to zero. This erases registered users, supplier edits, errands, credit balances, sessions, and outstanding work. Normal `up`, `down`, CD and `status` never seed or erase data.
 
-Before the workflow can run, merge its code to `main`, let CD deploy the updated Order and User Service images, and update the live inline policy on `ErrandBoardGitHubOperateRole` from `infra/iam/github-operate-permissions.json`. The role needs ECS task run/registration permissions and `iam:PassRole`; committing the JSON file alone does not update IAM. Check the current inline policy name with `aws iam list-role-policies --role-name ErrandBoardGitHubOperateRole` and apply the updated file using that name. Do not run reset if the role has not been updated. A failed seed leaves the website stopped; inspect the stopped task logs before rerunning the operation.
+Before the workflow can run, merge its code to `main`, let CD deploy the updated Order and User Service images, and update the live inline policy on `ErrandBoardGitHubOperateRole` from `infra/iam/github-operate-permissions.json`. Committing the JSON file does not update IAM. `ecs:DescribeTaskDefinition` and `ecs:RegisterTaskDefinition` require `Resource: "*"`; scoping them to task definition ARNs causes AccessDenied even when the action appears in the policy. In CloudShell with the repository checkout updated, find the existing inline policy name and replace that policy with the file:
+
+```bash
+aws iam list-role-policies --role-name ErrandBoardGitHubOperateRole --query PolicyNames --output text
+aws iam put-role-policy --role-name ErrandBoardGitHubOperateRole --policy-name EXISTING_INLINE_POLICY_NAME --policy-document file://infra/iam/github-operate-permissions.json
+```
+
+Replace `EXISTING_INLINE_POLICY_NAME` with the name returned by the first command. Run this in AWS account `614099836367` using an identity permitted to edit the role. The `put-role-policy` command replaces that inline policy; do not use a different policy name, which would leave the old one attached. A failed seed leaves the website stopped; inspect the stopped task logs before rerunning the operation.
 
 From a terminal with this repository checked out and AWS CLI credentials, the same operations are `./scripts/website.sh up`, `./scripts/website.sh status`, and `./scripts/website.sh down`. In CloudShell, clone or pull this repository before running the script; CloudShell does not automatically contain local files. If using a named local CLI profile, prefix the command with `AWS_PROFILE=your-profile`.
 
