@@ -38,7 +38,8 @@
       "Sid": "InspectSeedTasks",
       "Effect": "Allow",
       "Action": "ecs:ListTasks",
-      "Resource": "arn:aws:ecs:ap-southeast-1:614099836367:cluster/ErrandBoard"
+      "Resource": "arn:aws:ecs:ap-southeast-1:614099836367:container-instance/ErrandBoard/*",
+      "Condition": {"ArnEquals": {"ecs:cluster": "arn:aws:ecs:ap-southeast-1:614099836367:cluster/ErrandBoard"}}
     },
     {
       "Sid": "DescribeSeedTasksAndDefinitions",
