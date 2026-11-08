@@ -8,6 +8,7 @@ import {
 import { AuthContext, type AuthStatus, type AuthUser } from "./auth-context";
 import { apiFetch, AUTH_SESSION_EXPIRED_EVENT, userApiUrl } from "../api/client";
 import { readCurrentUser } from "./session-check";
+import { releasePushForLogout, syncPushSubscription } from "../notifications/push";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("checking");
@@ -35,6 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadCurrentUser, user]);
 
   const logout = useCallback(async () => {
+    // Needs the session cookie, so it must run before the logout request. Best effort; never blocks logout.
+    await releasePushForLogout();
     try {
       const response = await apiFetch(userApiUrl("/auth/logout"), {
         method: "POST",
@@ -45,6 +48,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setStatus("unauthenticated");
     } catch {
+      // Still signed in, so keep this device's notifications working.
+      void syncPushSubscription().catch(() => undefined);
       // Do not claim logout succeeded if the revocation request never arrived.
       throw new Error("Unable to log out right now. Please try again.");
     }

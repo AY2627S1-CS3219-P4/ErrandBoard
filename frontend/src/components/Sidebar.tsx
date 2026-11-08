@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useLeaveGuard } from "./leave-guard";
+import { useNotifications } from "../notifications/useNotifications";
 import {
     CREDIT_BALANCE_REFRESH_EVENT,
     creditApiUrl,
@@ -25,6 +26,7 @@ export default function Sidebar() {
     const [creditsUnavailable, setCreditsUnavailable] = useState(false);
     const [balanceUserId, setBalanceUserId] = useState<string | null>(null);
     const { shouldBlockLeave } = useLeaveGuard();
+    const { unread } = useNotifications();
     const isAdmin = user?.accountType === "ADMIN" || user?.accountType === "SUPERADMIN";
 
     useEffect(() => {
@@ -138,6 +140,16 @@ export default function Sidebar() {
                 <li>
                     <NavLink className={({ isActive }) => linkClass(isActive)} to="/errands/active" end onClick={handleNavigate}>
                         My Errands
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink className={({ isActive }) => linkClass(isActive)} to="/notifications" onClick={handleNavigate}>
+                        Notifications
+                        {unread > 0 && (
+                            <span className="sidebar-badge" aria-label={`${unread} unread`}>
+                                {unread > 99 ? "99+" : unread}
+                            </span>
+                        )}
                     </NavLink>
                 </li>
                 {isAdmin && (
