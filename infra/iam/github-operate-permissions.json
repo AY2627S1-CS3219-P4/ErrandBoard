@@ -43,17 +43,20 @@
     {
       "Sid": "DescribeSeedTasksAndDefinitions",
       "Effect": "Allow",
-      "Action": ["ecs:DescribeTasks", "ecs:StopTask", "ecs:DescribeTaskDefinition"],
-      "Resource": [
-        "arn:aws:ecs:ap-southeast-1:614099836367:task/ErrandBoard/*",
-        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/*"
-      ]
+      "Action": ["ecs:DescribeTasks", "ecs:StopTask"],
+      "Resource": "arn:aws:ecs:ap-southeast-1:614099836367:task/ErrandBoard/*"
+    },
+    {
+      "Sid": "DescribeTaskDefinitions",
+      "Effect": "Allow",
+      "Action": "ecs:DescribeTaskDefinition",
+      "Resource": "*"
     },
     {
       "Sid": "RegisterResetTask",
       "Effect": "Allow",
       "Action": "ecs:RegisterTaskDefinition",
-      "Resource": "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/errandboard-reset-seed:*"
+      "Resource": "*"
     },
     {
       "Sid": "RunSeedTasks",
