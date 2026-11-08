@@ -15,8 +15,6 @@ import type { ErrandStatus } from "../status/errandState.js";
 import { getEventPublisher } from "./publisher.js";
 import { STATUS_EVENT_TYPE, type StatusChangeEvent } from "./types.js";
 
-// An errand reaches each status at most once (the state machine has no cycles), so
-// (errandId, status) is a stable idempotency key.
 export function statusEventId(errandId: string, status: ErrandStatus): string {
   return `${errandId}:status:${status}`;
 }
@@ -33,8 +31,6 @@ export function buildStatusEvent(errand: ErrandRecord, entry: StatusOutboxEntry)
       previousStatus: entry.previousStatus,
       actor: { role: entry.actorRole, userId: entry.actorId ?? null },
       requesterId: errand.requesterId,
-      // courierId is assigned once (on accept) and never changes, so reading it from the current
-      // document is correct even if this entry is relayed after later transitions.
       courierId: errand.courierId ?? null,
       credit: errand.credit,
       supplierName: errand.supplier.name,
