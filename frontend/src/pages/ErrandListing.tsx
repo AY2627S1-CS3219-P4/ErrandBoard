@@ -5,6 +5,7 @@ import { acceptErrand, describeError, ErrandApiError, listOpenErrands } from "..
 import { useAuth } from "../auth/useAuth";
 import ErrandCard from "../components/ErrandCard";
 import ErrandPreviewModal from "../components/ErrandPreviewModal";
+import ThemedSelect from "../components/ThemedSelect";
 import { useNow } from "../hooks/useNow";
 import type { Errand } from "../types/errand";
 import type { Supplier } from "../types/supplier";
@@ -155,11 +156,16 @@ export default function ErrandListing() {
           value={searchInput}
           onChange={(event) => setSearchInput(event.target.value)}
         />
-        <label className="visually-hidden" htmlFor="errand-building">Pickup location</label>
-        <select id="errand-building" value={building} onChange={(event) => setBuilding(event.target.value)}>
-          <option value="">Any pickup location</option>
-          {buildings.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
+        <ThemedSelect
+          className="errands-filter-select"
+          ariaLabel="Pickup location"
+          value={building}
+          onChange={setBuilding}
+          options={[
+            { value: "", label: "Any pickup location" },
+            ...buildings.map((name) => ({ value: name, label: name })),
+          ]}
+        />
         <label className="visually-hidden" htmlFor="errand-dropoff">Drop-off location</label>
         <input
           id="errand-dropoff"
@@ -169,10 +175,13 @@ export default function ErrandListing() {
           value={dropoffInput}
           onChange={(event) => setDropoffInput(event.target.value)}
         />
-        <label className="visually-hidden" htmlFor="errand-since">Posted</label>
-        <select id="errand-since" value={sinceKey} onChange={(event) => setSinceKey(event.target.value as typeof sinceKey)}>
-          {SINCE_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
-        </select>
+        <ThemedSelect
+          className="errands-filter-select"
+          ariaLabel="Posted"
+          value={sinceKey}
+          onChange={(next) => setSinceKey(next as typeof sinceKey)}
+          options={SINCE_OPTIONS.map((option) => ({ value: option.key, label: option.label }))}
+        />
       </div>
 
       {!hasLoaded && <p className="errands-status">Loading errands…</p>}

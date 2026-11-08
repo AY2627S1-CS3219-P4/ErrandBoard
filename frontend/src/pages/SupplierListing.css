@@ -29,9 +29,13 @@
   padding: 0.65rem 0.9rem;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
-  background: #f8f8f8;
+  background: var(--bg);
   color: var(--text-h);
   font: inherit;
+}
+
+.supplier-search input[type="search"]::placeholder {
+  color: var(--text);
 }
 
 .supplier-search input[type="search"]:focus {
@@ -48,7 +52,7 @@
   justify-content: center;
   border: 1px solid var(--border);
   border-radius: 0.75rem;
-  background: #f8f8f8;
+  background: var(--bg);
   color: var(--text-h);
   font-size: 1.25rem;
   cursor: pointer;
