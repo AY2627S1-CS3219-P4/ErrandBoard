@@ -224,6 +224,7 @@ jobs:
       MONGO_SUPPLIER_SERVICE_PASSWORD: ci-placeholder-supplier
       MONGO_ORDER_SERVICE_PASSWORD: ci-placeholder-order
       MONGO_CREDIT_SERVICE_PASSWORD: ci-placeholder-credit
+      MONGO_NOTIFICATION_SERVICE_PASSWORD: ci-placeholder-notification
       MONGO_REPLICA_SET_KEY: ci-placeholder-replica-set-key-1234567890
       RABBITMQ_DEFAULT_USER: ci-placeholder-rabbit-user
       RABBITMQ_DEFAULT_PASS: ci-placeholder-rabbit-password
