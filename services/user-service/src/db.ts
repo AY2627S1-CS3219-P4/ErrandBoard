@@ -1,13 +1,14 @@
 import mongoose from 'mongoose';
 import { Session } from './models/Session.js';
 import { User } from './models/User.js';
+import { logger } from "./logger.js";
 
-mongoose.connection.on("error", () => {
-    console.error("MongoDB connection error");
+mongoose.connection.on("error", (err) => {
+    logger.error({ err }, "MongoDB connection error");
 });
 
 mongoose.connection.on("disconnected", () => {
-    console.warn("MongoDB disconnected");
+    logger.warn("MongoDB disconnected");
 });
 
 export async function connectDb(): Promise<void> {

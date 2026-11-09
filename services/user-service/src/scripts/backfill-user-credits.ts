@@ -4,6 +4,7 @@ import { connectDb, disconnectDb } from "../db.js";
 import { User } from "../models/User.js";
 import { syncCreditAccount } from "../services/credit-account.client.js";
 import { initialCreditRetryAt, markCreditSetupReady } from "../services/credit-provisioning.service.js";
+import { logger } from "../logger.js";
 
 // Run once after deploying Credit Service to provision accounts for Users that
 // existed before registration and seeding started calling it.
@@ -44,7 +45,7 @@ async function main(): Promise<void> {
   await connectDb();
   try {
     const count = await backfillUserCredits();
-    console.log(`Credit accounts synchronized for ${count} users`);
+    logger.info({ count }, "Credit accounts synchronized");
   } finally {
     await disconnectDb();
   }
@@ -52,7 +53,7 @@ async function main(): Promise<void> {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
-    console.error("Credit backfill failed:", error);
+    logger.error({ err: error }, "Credit backfill failed");
     process.exitCode = 1;
   });
 }

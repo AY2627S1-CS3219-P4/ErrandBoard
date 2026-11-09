@@ -1,4 +1,5 @@
 import { app } from "./app.js";
+import { logger } from "./logger.js";
 import { connectDb, disconnectDb } from "./db.js";
 import { authorizationStore } from "./security/authorization-state.js";
 import { startCreditProvisioningWorker } from "./services/credit-provisioning.service.js";
@@ -12,7 +13,7 @@ async function main(): Promise<void> {
     const stopCreditProvisioningWorker = startCreditProvisioningWorker();
 
     const server = app.listen(port, "0.0.0.0", () => {
-        console.log(`User service listening on port ${port}`);
+        logger.info({ port }, "User service listening");
     });
 
     const shutdown = async () => {
@@ -29,7 +30,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-    console.error("User Service failed to start:", error);
+    logger.error({ err: error }, "User Service failed to start");
     await disconnectDb();
     await authorizationStore.close();
     process.exitCode = 1;

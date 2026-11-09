@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { logger } from "../logger.js";
 import { createClient } from "redis";
 import amqp from "amqplib";
 
@@ -40,7 +41,7 @@ async function main(): Promise<void> {
         if (existing.has(name)) await db.collection(name).deleteMany({});
       }
       await redis.flushDb();
-      console.log("Cleared application MongoDB collections, Redis database, and credit event queues");
+      logger.info("Cleared application MongoDB collections, Redis database, and credit event queues");
     }
   } finally {
     await rabbit.close();
@@ -49,4 +50,4 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((error) => { console.error("Reset failed:", error); process.exitCode = 1; });
+main().catch((error) => { logger.error({ err: error }, "Reset failed"); process.exitCode = 1; });

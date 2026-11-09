@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { logger } from "../logger.js";
 import type { AccessTokenClaims } from "../types/auth.types.js";
 
 export type AuthorizationDecision = "allowed" | "inactive" | "revoked" | "unavailable";
@@ -19,7 +20,7 @@ const client = createClient({
   disableOfflineQueue: true,
   socket: { connectTimeout: 2000 },
 });
-client.on("error", (error) => console.error("Redis authorization connection error:", error));
+client.on("error", (error) => logger.error({ err: error }, "Redis authorization connection error"));
 
 export const authorizationStore = {
   async connect(): Promise<void> {

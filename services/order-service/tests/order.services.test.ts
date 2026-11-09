@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, test, type TestContext } from "node:test";
 import mongoose from "mongoose";
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
+import { logger } from "../src/logger.js";
 import { OrderCreation } from "../src/models/OrderCreation.js";
 import { setEventPublisher } from "../src/event/publisher.js";
 import {
@@ -598,7 +599,7 @@ describe("completeErrand", () => {
   });
 
   test("a publish failure after commit does not fail the request or clear the pending flag", async (t) => {
-    t.mock.method(console, "error", () => {});
+    t.mock.method(logger, "error", () => {});
     setEventPublisher({ isReady: () => true, publish: async () => { throw new Error("broker down"); }, close: async () => {} });
     const completed = makeErrand({ status: "COMPLETED", courierId: COURIER_ID });
     mockUpdate(t, completed);

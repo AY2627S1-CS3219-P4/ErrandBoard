@@ -6,6 +6,7 @@ import { setEventPublisher } from "../src/event/publisher.js";
 import type { ErrandEvent } from "../src/event/types.js";
 import type { ErrandStatus } from "../src/status/errandState.js";
 import { runLifecycleSweep } from "../src/queue/sweep.js";
+import { logger } from "../src/logger.js";
 
 // mirrors the constant in sweep.ts
 const SWEEP_BATCH = 200;
@@ -167,7 +168,7 @@ describe("runLifecycleSweep", () => {
   });
 
   test("a publish failure after commit does not fail the sweep and leaves the event pending", async (t) => {
-    t.mock.method(console, "error", () => {});
+    t.mock.method(logger, "error", () => {});
     setEventPublisher({ isReady: () => true, publish: async () => { throw new Error("broker down"); }, close: async () => {} });
     mockDueFind(t, { OPEN: [{ _id: OPEN_ID }] });
     mockTransition(t, (filter, update) =>
@@ -191,7 +192,7 @@ describe("runLifecycleSweep", () => {
   });
 
   test("the relay stops at the first failed publish so a down broker is not hit repeatedly", async (t) => {
-    t.mock.method(console, "error", () => {});
+    t.mock.method(logger, "error", () => {});
     let attempts = 0;
     setEventPublisher({ isReady: () => true, publish: async () => { attempts++; throw new Error("broker down"); }, close: async () => {} });
     mockDueFind(t, {}, [
@@ -207,7 +208,7 @@ describe("runLifecycleSweep", () => {
   });
 
   test("the relay warns when a terminal event has been pending for over two minutes", async (t) => {
-    const warn = t.mock.method(console, "warn", () => {});
+    const warn = t.mock.method(logger, "warn", () => {});
     mockDueFind(t, {}, [makeErrand({
       _id: OPEN_ID,
       status: "EXPIRED",
@@ -216,11 +217,12 @@ describe("runLifecycleSweep", () => {
     mockTransition(t, () => null);
     await runLifecycleSweep();
     assert.equal(warn.mock.callCount(), 1);
-    assert.match(String(warn.mock.calls[0].arguments[0]), /terminal event backlog/);
+    // pino signature is logger.warn(contextObj, message); the message is the 2nd argument.
+    assert.match(String(warn.mock.calls[0].arguments[1]), /terminal event backlog/);
   });
 
   test("a failing transition is skipped and does not stop the sweep", async (t) => {
-    t.mock.method(console, "warn", () => {}); // silence the per-item warning
+    t.mock.method(logger, "warn", () => {}); // silence the per-item warning
     mockDueFind(t, { OPEN: [{ _id: BAD_ID }, { _id: GOOD_ID }] });
     // BAD_ID matches nothing (findById also null -> ErrandNotFoundError); GOOD_ID succeeds
     const updates = mockTransition(t, (filter) =>

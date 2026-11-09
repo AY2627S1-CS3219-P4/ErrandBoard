@@ -1,5 +1,6 @@
 // src/event/errand.events.ts
 import { Errand, type ErrandRecord } from "../models/Errand.js";
+import { logger } from "../logger.js";
 import { getEventPublisher } from "./publisher.js";
 import { publicEventType, type ErrandEvent, type TerminalCause } from "./types.js";
 
@@ -43,7 +44,7 @@ export async function publishTerminalEvent(errand: ErrandRecord): Promise<boolea
     );
     return true;
   } catch (err) {
-    console.error(`publish ${event.value.eventId} failed, left for relay:`, (err as Error).message);
+    logger.error({ err, eventId: event.value.eventId }, "Publish failed, left for relay");
     return false;
   }
 }
@@ -57,7 +58,7 @@ export async function flushPendingEvents(limit = 200): Promise<number> {
 
   const oldest = pending[0];
   if (oldest && Date.now() - oldest.updatedAt.getTime() > 2 * 60_000) {
-    console.warn(`Order terminal event backlog: oldest pending errand ${oldest._id} is over two minutes old`);
+    logger.warn({ errandId: oldest._id }, "Order terminal event backlog: oldest pending errand is over two minutes old");
   }
 
   let sent = 0;

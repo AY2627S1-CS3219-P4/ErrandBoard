@@ -1,5 +1,6 @@
 //Main entry point
 import { app } from "./app.js";
+import { logger } from "./logger.js";
 import { connectDb, disconnectDb } from "./config/db.js";
 import { authorizationStore } from "./security/authorization-state.js";
 
@@ -12,7 +13,7 @@ async function main(): Promise<void> {
 
     //have the express app listen
     const server = app.listen(port, "0.0.0.0", () => {
-    console.log(`Supplier service listening on port ${port}`);
+    logger.info({ port }, "Supplier service listening");
   });
 
   const shutdown = async () => {
@@ -28,7 +29,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-  console.error("Supplier Service failed to start:", error);
+  logger.error({ err: error }, "Supplier Service failed to start");
   await disconnectDb();
   await authorizationStore.close();
   process.exitCode = 1;

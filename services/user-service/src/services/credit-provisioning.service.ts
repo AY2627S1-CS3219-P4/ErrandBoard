@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { User } from "../models/User.js";
 import { syncCreditAccount } from "./credit-account.client.js";
+import { logger } from "../logger.js";
 
 const FIRST_RETRY_MS = 5_000;
 const MAX_RETRY_MS = 5 * 60_000;
@@ -26,7 +27,7 @@ export async function recordCreditSetupFailure(userId: string, attempts: number,
       $unset: { creditSetupLeaseId: "", creditSetupLeaseUntil: "" },
     },
   );
-  console.warn(`Credit provisioning pending for user ${userId}; attempt ${attempts}`);
+  logger.warn({ userId, attempt: attempts }, "Credit provisioning pending");
 }
 
 export async function markCreditSetupReady(userId: string, leaseId?: string): Promise<void> {
@@ -61,7 +62,7 @@ export async function retryOneCreditAccount(now = new Date()): Promise<boolean> 
     await markCreditSetupReady(user._id.toString(), leaseId);
   } catch (error) {
     await recordCreditSetupFailure(user._id.toString(), (user.creditSetupAttempts ?? 0) + 1, leaseId);
-    console.warn(`Credit provisioning retry failed for user ${user._id}:`, (error as Error).message);
+    logger.warn({ err: error, userId: user._id }, "Credit provisioning retry failed");
   }
   return true;
 }
@@ -73,7 +74,7 @@ export function startCreditProvisioningWorker(): () => Promise<void> {
     running = (async () => {
       for (let count = 0; count < 20 && await retryOneCreditAccount(); count++) { /* bounded batch */ }
     })()
-      .catch((error) => console.error("Credit provisioning worker failed:", error))
+      .catch((error) => logger.error({ err: error }, "Credit provisioning worker failed"))
       .finally(() => { running = undefined; });
   };
   const timer = setInterval(tick, POLL_MS);

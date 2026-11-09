@@ -1,4 +1,5 @@
 import { app } from "./app.js";
+import { logger } from "./logger.js";
 import { connectDb, disconnectDb } from "./db.js";
 import { authorizationStore } from "./security/authorization-state.js";
 import { startErrandConsumer } from "./event/rabbit.consumer.js";
@@ -21,7 +22,7 @@ async function main(): Promise<void> {
     closeErrandConsumer = await startErrandConsumer();
 
     const server = app.listen(port, "0.0.0.0", () => {
-        console.log(`Credit service listening on port ${port}`);
+        logger.info({ port }, "Credit service listening");
     });
 
     const shutdown = async () => {
@@ -38,7 +39,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-    console.error("Credit Service failed to start:", error);
+    logger.error({ err: error }, "Credit Service failed to start");
     await closeErrandConsumer?.();
     await disconnectDb();
     await authorizationStore.close();
