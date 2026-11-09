@@ -5,6 +5,7 @@ import { isAllowedPushEndpoint, isValidSubscriptionKeys } from "../security/push
 import type { LiveHub } from "../services/live-hub.js";
 import type { NotificationStore, SubscriptionStore } from "../types/notification.types.js";
 
+//RouterDeps is the interface which handles notifications stored, subscriptions stored and the livehub
 export interface RouterDeps {
   notifications: NotificationStore;
   subscriptions: SubscriptionStore;
@@ -48,14 +49,18 @@ export function createNotificationRouter(deps: RouterDeps): Router {
     }
   });
 
-  // ---- inbox ----
+  //notification inbox this is the source of "truth", the frontedn calls this on first load or reconnect to update the list
+  //SSE and web push append to the list on the frontend
+  //in the unlikely event a notification is dropped, on reconnect the frontend can still get the updated notifications list from here 
   router.get("/", async (req, res) => {
     const before = typeof req.query.before === "string" && OBJECT_ID.test(req.query.before) ? req.query.before : undefined;
+    
     const items = await deps.notifications.list(me(req), {
       limit: limitFrom(req.query.limit),
       before,
       unreadOnly: req.query.unread === "true",
     });
+    
     res.json({ items, nextCursor: items.length ? items[items.length - 1].id : null });
   });
 
@@ -65,7 +70,9 @@ export function createNotificationRouter(deps: RouterDeps): Router {
 
   router.post("/read", async (req, res) => {
     const { ids, all } = (req.body ?? {}) as { ids?: unknown; all?: unknown };
+    
     let updated: number;
+    
     if (all === true) {
       updated = await deps.notifications.markAllRead(me(req));
     } else if (Array.isArray(ids) && ids.length > 0 && ids.length <= 100 && ids.every((i) => typeof i === "string" && OBJECT_ID.test(i))) {
@@ -73,24 +80,32 @@ export function createNotificationRouter(deps: RouterDeps): Router {
     } else {
       return bad(res, "VALIDATION_FAILED", "Provide { all: true } or { ids: [up to 100 notification ids] }");
     }
+    
     res.json({ updated, unread: await deps.notifications.unreadCount(me(req)) });
   });
 
-  // ---- Web Push subscriptions ----
+
+  //Web Push subscriptions 
   router.post("/subscriptions", async (req, res) => {
+
     if (!deps.pushEnabled) return bad(res, "PUSH_NOT_CONFIGURED", "Web Push is not enabled", 503);
+
     const sub = (req.body as { subscription?: { endpoint?: unknown; keys?: unknown; expirationTime?: unknown } } | undefined)?.subscription;
+    
     if (!sub || !isAllowedPushEndpoint(sub.endpoint, settings.pushHostAllowlist)) {
       return bad(res, "INVALID_SUBSCRIPTION", "subscription.endpoint must be an https URL on a recognised push service");
     }
+    
     if (!isValidSubscriptionKeys(sub.keys)) {
       return bad(res, "INVALID_SUBSCRIPTION", "subscription.keys.p256dh and subscription.keys.auth are required");
     }
+    
     await deps.subscriptions.upsert(
       me(req),
       { endpoint: sub.endpoint, keys: sub.keys, expirationTime: typeof sub.expirationTime === "number" ? sub.expirationTime : null },
       req.get("user-agent") ?? undefined,
     );
+    
     res.status(201).json({ ok: true });
   });
 

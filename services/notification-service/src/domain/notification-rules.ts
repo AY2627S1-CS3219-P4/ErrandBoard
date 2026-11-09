@@ -12,7 +12,7 @@ export interface PlannedNotification {
 }
 
 export interface RuleOptions {
-  /** Offer the one-tap "Confirm receipt" button (see README "Interactive actions"). */
+  //if set to true allows verifying from the notif directly, honestly not really recommended
   directActions: boolean;
 }
 

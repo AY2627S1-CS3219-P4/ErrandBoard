@@ -15,9 +15,7 @@ export async function connectDb(): Promise<void> {
     pass: pw,
     authSource: db,
     serverSelectionTimeoutMS: 5000,
-    // Same posture as the other services: the running service has no createCollection/createIndex
-    // rights. Collections and indexes come from migrations/notification-service.js.
-    autoCreate: false,
+    autoCreate: false, //index creation is specified in db.js under mongodb configs
     autoIndex: false,
     bufferCommands: false,
   });

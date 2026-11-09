@@ -5,23 +5,18 @@ type SseResponse = Pick<Response, "status" | "set" | "flushHeaders" | "write" | 
 
 export interface LiveHubOptions {
   heartbeatMs: number;
-  /**
-   * Streams are closed after roughly this long so every reconnect re-runs authentication. Access
-   * tokens live 15 minutes, and a stream opened with a token that is later revoked must not
-   * outlive it indefinitely. EventSource reconnects on its own and resumes via Last-Event-ID.
-   */
+  //streams are given a lifespan, reason being that tokens expire eventually and the stream is verified with that token that will expire
+  //as such the stream itself should also refresh along with the token periodically
   maxAgeMs: number;
   maxPerUser: number;
 }
 
 const DEFAULTS: LiveHubOptions = { heartbeatMs: 25_000, maxAgeMs: 10 * 60_000, maxPerUser: 8 };
 
+
 /**
- * Server-Sent Events fan-out to a user's open tabs/devices.
- *
- * In-memory, so it only reaches connections held by THIS process. With several replicas, a
- * message consumed by replica A would not reach a stream held by replica B; swap this class for a
- * Redis pub/sub-backed one before scaling out (the interface is just subscribe/publish).
+ * Server-Sent Events (SSE) fan-out to a user's open tabs/devices.
+ * Simple pub sub
  */
 export class LiveHub {
   private readonly streams = new Map<string, Set<SseResponse>>();
@@ -54,11 +49,13 @@ export class LiveHub {
     const heartbeat = setInterval(() => {
       if (res.writable && !res.writableEnded) res.write(": keep-alive\n\n");
     }, this.opts.heartbeatMs);
+
     // +/-10% jitter so reconnects after a deploy do not arrive as one herd
     const lifetime = setTimeout(() => res.end(), this.opts.maxAgeMs * (0.9 + Math.random() * 0.2));
     heartbeat.unref();
     lifetime.unref();
 
+    //add listener for when close occurs to clear interval and timeout and remove stream from set
     res.on("close", () => {
       clearInterval(heartbeat);
       clearTimeout(lifetime);
