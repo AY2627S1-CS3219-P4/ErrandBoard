@@ -9,6 +9,7 @@ const event: ErrandEvent = {
   value: {
     eventId: "errand-1:errand.completed",
     type: "errand.completed",
+    cause: "CONFIRMED",
     requesterId: "requester-1",
     courierId: "courier-1",
     credit: 5,

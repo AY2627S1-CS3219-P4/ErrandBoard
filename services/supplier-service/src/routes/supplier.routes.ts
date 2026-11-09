@@ -4,7 +4,8 @@ import {
     deactivate,
     getById,
     list,
-    update
+    update,
+    stats
 } from "../controllers/supplier.controller.js";
 import {
     authenticate,
@@ -17,6 +18,8 @@ export const supplierRouter = Router();
 
 //Get routes (public, but admins can also see inactive suppliers)
 supplierRouter.get("/", optionalAuthenticate, list);
+//admin dashboard statistics — declared before "/:id" so "stats" is not captured as an id
+supplierRouter.get("/stats", authenticate, requireAdmin, stats);
 supplierRouter.get("/:id", optionalAuthenticate, getById);
 
 

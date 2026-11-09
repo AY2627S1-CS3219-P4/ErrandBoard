@@ -9,6 +9,8 @@ import SupplierDetail from "./pages/SupplierDetail";
 import AdminDashboard from "./pages/AdminDashboard";
 import AccountAdministration from "./pages/AccountAdministration";
 import SupplierManagement from "./pages/SupplierManagement";
+import DisputeManagement from "./pages/DisputeManagement";
+import CreditStatistics from "./pages/CreditStatistics";
 import AppLayout from "./components/AppLayout";
 import { AuthProvider } from "./auth/AuthContext";
 import { HomeRedirect, RedirectIfAuthenticated, RequireAdmin, RequireAuth, RequireSuperadmin } from "./auth/RouteGuards";
@@ -39,6 +41,8 @@ export default function App() {
               <Route element={<RequireAdmin />}>
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/admin/suppliers" element={<SupplierManagement />} />
+                <Route path="/admin/disputes" element={<DisputeManagement />} />
+                <Route path="/admin/credits" element={<CreditStatistics />} />
                 <Route element={<RequireSuperadmin />}>
                   <Route path="/admin/accounts" element={<AccountAdministration />} />
                 </Route>

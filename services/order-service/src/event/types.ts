@@ -6,16 +6,30 @@ export const EXCHANGE_NAME = "errand.events";
 
 export type EventType = "errand.completed" | "errand.cancelled" | "errand.expired";
 
+// Why an errand reached its terminal state. Lets a notification consumer tell a dispute
+// outcome apart from an ordinary completion/cancellation; the credit service ignores it.
+export const TERMINAL_CAUSES = [
+    "CONFIRMED",            // requester confirmed receipt
+    "AUTO_CONFIRMED",       // confirmation window lapsed, auto-completed by the sweep
+    "REQUESTER_CANCELLED",  // requester cancelled an open errand
+    "COURIER_CANCELLED",    // courier cancelled an accepted errand
+    "EXPIRED",              // open errand expired unaccepted
+    "DISPUTE_REFUNDED",     // admin resolved a dispute in the requester's favour
+    "DISPUTE_TRANSFERRED",  // admin resolved a dispute in the courier's favour
+] as const;
+export type TerminalCause = (typeof TERMINAL_CAUSES)[number];
+
 export interface ErrandEvent {
     key: string //errandId
     value: {
         eventId: string;
         type: EventType;
+        cause: TerminalCause;
         requesterId: string;
         courierId: string | null;
         credit: number;
         occurredAt: string;
-    } 
+    }
 }
 
 // ---- Status-change events (consumed by the Notification Service) ----
@@ -23,7 +37,7 @@ export interface ErrandEvent {
 // semantics: Credit never binds to this routing key. See src/event/status.events.ts.
 export const STATUS_EVENT_TYPE = "errand.status.changed" as const;
 
-export type ActorRole = "REQUESTER" | "COURIER" | "SYSTEM";
+export type ActorRole = "REQUESTER" | "COURIER" | "SYSTEM" | "ADMIN";
 
 export interface Actor {
     role: ActorRole;

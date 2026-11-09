@@ -1,6 +1,7 @@
 import express from "express";
 import { authRouter } from "./routes/auth.routes.js";
 import { accountRouter } from "./routes/account.routes.js";
+import { adminRouter } from "./routes/admin.routes.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { AuthorizationStateError } from "./security/authorization-state.js";
@@ -27,6 +28,7 @@ app.get("/health", (_req, res) => {
 // Routes
 app.use("/auth", authRouter);
 app.use("/accounts", accountRouter);
+app.use("/admin", adminRouter);
 
 app.use((error: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (error instanceof AuthorizationStateError) {

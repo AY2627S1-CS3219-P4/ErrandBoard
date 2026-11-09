@@ -1,9 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { Types } from "mongoose";
-import { authenticate } from "../middleware/auth.middleware.js";
+import { authenticate, requireAdmin } from "../middleware/auth.middleware.js";
 import { notifyCreditBalanceUpdated, subscribeToCreditBalance } from "../events/credit-balance-events.js";
 import { UserCredit } from "../models/UserCredit.js";
+import { TransactionLog } from "../models/TransactionLog.js";
 import { ensureCreditAccount } from "../services/credit-account.service.js";
 import { CreditOperationError, getReservationStatus, refundCredits, reserveCredits } from "../services/credit-operations.service.js";
 
@@ -177,6 +178,87 @@ export async function getMyBalance(req: Request, res: Response): Promise<void> {
 }
 
 creditRouter.get("/me/balance", authenticate, getMyBalance);
+
+/**
+ * Admin-only: platform-wide credit statistics for the admin dashboard and the
+ * dedicated Credit Statistics page.
+ *
+ * "Total credits in system" counts both available and reserved credits, since
+ * reserved credits are still in circulation (held against open/disputed errands).
+ * Balance figures come from UserCredits; the lifetime transferred/refunded totals
+ * come from the transactionLog ledger.
+ */
+// Histogram of available-credit balances. Accounts start at 100, so the bands are
+// centred on 100 with a dedicated "exactly 100" bucket (untouched accounts). Each
+// boundary is the inclusive lower edge of a bin; the last bin runs to +Infinity.
+const AVAILABLE_BUCKET_BOUNDARIES = [0, 1, 50, 100, 101, 150, 200, Infinity];
+const AVAILABLE_BUCKET_LABELS = ["0", "1–49", "50–99", "100", "101–149", "150–199", "200+"];
+
+export async function getCreditStats(_req: Request, res: Response): Promise<void> {
+  try {
+    const [balanceRows, ledgerRows, bucketRows] = await Promise.all([
+      UserCredit.aggregate<{ available: number; reserve: number; accounts: number; activeAccounts: number }>([
+        {
+          $group: {
+            _id: null,
+            available: { $sum: "$available" },
+            reserve: { $sum: "$reserve" },
+            accounts: { $sum: 1 },
+            activeAccounts: { $sum: { $cond: ["$isActive", 1, 0] } },
+          },
+        },
+      ]),
+      // lifetime credits moved, split by action (TRANSFER to couriers vs REFUND to requesters)
+      TransactionLog.aggregate<{ _id: string; amount: number }>([
+        { $group: { _id: "$action", amount: { $sum: "$amount" } } },
+      ]),
+      // distribution of available balances across the fixed bands above
+      UserCredit.aggregate<{ _id: number; count: number }>([
+        {
+          $bucket: {
+            groupBy: "$available",
+            boundaries: AVAILABLE_BUCKET_BOUNDARIES,
+            // a negative balance should never happen, but keep it from throwing
+            default: -1,
+            output: { count: { $sum: 1 } },
+          },
+        },
+      ]),
+    ]);
+
+    const totals = balanceRows[0];
+    const available = totals?.available ?? 0;
+    const reserve = totals?.reserve ?? 0;
+    const accounts = totals?.accounts ?? 0;
+
+    const byAction = Object.fromEntries(ledgerRows.map((row) => [row._id, row.amount]));
+
+    // Map each bucket's lower-boundary key back to its label, defaulting empty bins to 0.
+    const countByBoundary = new Map(bucketRows.map((row) => [row._id, row.count]));
+    const availableDistribution = AVAILABLE_BUCKET_LABELS.map((label, index) => ({
+      label,
+      count: countByBoundary.get(AVAILABLE_BUCKET_BOUNDARIES[index]) ?? 0,
+    }));
+
+    res.json({
+      stats: {
+        totalCredits: available + reserve,
+        available,
+        reserve,
+        accounts,
+        activeAccounts: totals?.activeAccounts ?? 0,
+        transferred: byAction.TRANSFER ?? 0, // lifetime paid out to couriers
+        refunded: byAction.REFUND ?? 0,      // lifetime returned to requesters
+        availableDistribution,               // histogram bins for the Credit Statistics page
+      },
+    });
+  } catch (error) {
+    console.error("Credit stats lookup failed", error);
+    res.status(500).json({ code: "CREDIT_STATS_UNAVAILABLE", error: "Credit statistics unavailable" });
+  }
+}
+
+creditRouter.get("/stats", authenticate, requireAdmin, getCreditStats);
 
 creditRouter.get("/me/events", authenticate, (req, res) => {
   if (!req.user) {

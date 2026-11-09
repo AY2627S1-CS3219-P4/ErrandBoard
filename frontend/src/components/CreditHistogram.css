@@ -1,0 +1,96 @@
+.credit-histogram {
+  margin: 1.5rem 0 0;
+}
+
+.credit-histogram-caption {
+  color: var(--text-h);
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.credit-histogram-plot {
+  position: relative;
+}
+
+.credit-histogram-plot svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* recessive gridlines and baseline */
+.credit-histogram-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.credit-histogram-baseline {
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+/* single-hue bars: the app accent */
+.credit-histogram-bar {
+  fill: var(--accent);
+  transition: opacity 0.12s ease;
+}
+
+.credit-histogram-bar.is-hovered {
+  opacity: 0.78;
+}
+
+.credit-histogram-value {
+  fill: var(--text-h);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: var(--mono);
+}
+
+.credit-histogram-axis-label {
+  fill: var(--text);
+  font-size: 0.72rem;
+  font-family: var(--mono);
+}
+
+.credit-histogram-xtitle {
+  color: var(--text);
+  font-size: 0.78rem;
+  text-align: center;
+  margin: 0.25rem 0 0;
+  letter-spacing: 0.02em;
+}
+
+.credit-histogram-empty {
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 1rem 0;
+}
+
+/* hover tooltip */
+.credit-histogram-tooltip {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  box-shadow: var(--shadow, 0 0.5rem 1rem rgba(0, 0, 0, 0.12));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.credit-histogram-tooltip strong {
+  color: var(--text-h);
+  font-size: 0.85rem;
+}
+
+.credit-histogram-tooltip span {
+  color: var(--text);
+  font-size: 0.8rem;
+}

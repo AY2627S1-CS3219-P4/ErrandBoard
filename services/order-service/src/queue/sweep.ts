@@ -1,7 +1,7 @@
 import { Errand } from "../models/Errand.js";
 import {
   expireOpenErrand,
-  cancelErrandAfterDeadline,
+  disputeErrandAfterDeadline,
   completeErrandAfterDeadline,
 } from "../services/order.services.js";
 import { ErrandStatus } from "../status/errandState.js";
@@ -41,6 +41,6 @@ export async function runLifecycleSweep() {
   await flushPendingStatusEvents();
   for (let count = 0; count < LIFECYCLE_SWEEP_BATCH && await reconcileOnePendingCreation(now); count++) { /* bounded recovery batch */ }
   await sweep("OPEN", "expiresAt", expireOpenErrand, now);
-  await sweep("PICKED_UP", "deliverBy", cancelErrandAfterDeadline, now);
+  await sweep("PICKED_UP", "deliverBy", disputeErrandAfterDeadline, now);
   await sweep("PENDING_COMPLETION", "confirmBy", completeErrandAfterDeadline, now);
 }

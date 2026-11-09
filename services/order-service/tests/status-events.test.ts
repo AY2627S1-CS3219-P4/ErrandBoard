@@ -10,9 +10,12 @@ import {
   acceptErrand,
   cancelErrandByCourier,
   completeErrand,
+  disputeErrand,
+  disputeErrandAfterDeadline,
   deliverErrand,
   expireOpenErrand,
   pickUpErrand,
+  resolveDisputeRefund,
 } from "../src/services/order.services.js";
 
 const ERRAND_ID = "507f1f77bcf86cd799439011";
@@ -73,6 +76,21 @@ function mockDb(t: TestContext, updated: ErrandRecord | null) {
   return transitions;
 }
 
+// like mockDb, but leaves a findById mock the caller installed first in place
+function mockDbKeepingFindById(t: TestContext, updated: ErrandRecord | null) {
+  writes = [];
+  const transitions: { filter: Record<string, unknown>; update: Record<string, any> }[] = [];
+  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, update: Record<string, any>) => {
+    transitions.push({ filter, update });
+    return updated;
+  }) as never);
+  t.mock.method(Errand, "updateOne", (async (filter: Record<string, unknown>, update: Record<string, any>, options: unknown) => {
+    writes.push({ filter, update, options });
+    return { acknowledged: true };
+  }) as never);
+  return transitions;
+}
+
 const statusEvents = () => published.filter((e): e is StatusChangeEvent => e.value.type === STATUS_EVENT_TYPE);
 
 describe("outbox entry is written atomically with the transition", () => {
@@ -120,6 +138,29 @@ describe("outbox entry is written atomically with the transition", () => {
     await expireOpenErrand(ERRAND_ID);
     assert.equal(transitions[0].update.$push.notifyOutbox.actorRole, "SYSTEM");
     assert.equal("actorId" in transitions[0].update.$push.notifyOutbox, false);
+  });
+
+  test("a requester dispute records the status it left; an admin resolution is attributed to the admin", async (t) => {
+    t.mock.method(Errand, "findById", (async () => makeErrand({ status: "PICKED_UP", courierId: COURIER_ID })) as never);
+    let transitions = mockDbKeepingFindById(t, makeErrand({ status: "DISPUTED" }));
+    await disputeErrand(ERRAND_ID, REQUESTER_ID, "never arrived");
+    let entryPushed = transitions[0].update.$push.notifyOutbox;
+    assert.deepEqual([entryPushed.previousStatus, entryPushed.status, entryPushed.actorRole, entryPushed.actorId],
+      ["PICKED_UP", "DISPUTED", "REQUESTER", REQUESTER_ID]);
+
+    t.mock.method(Errand, "findById", (async () => makeErrand({ status: "DISPUTED", courierId: COURIER_ID })) as never);
+    transitions = mockDbKeepingFindById(t, makeErrand({ status: "CANCELLED" }));
+    await resolveDisputeRefund(ERRAND_ID, "admin-1");
+    entryPushed = transitions[0].update.$push.notifyOutbox;
+    assert.deepEqual([entryPushed.previousStatus, entryPushed.status, entryPushed.actorRole, entryPushed.actorId],
+      ["DISPUTED", "CANCELLED", "ADMIN", "admin-1"]);
+  });
+
+  test("the sweep's auto-dispute is a SYSTEM action", async (t) => {
+    const transitions = mockDb(t, makeErrand({ status: "DISPUTED" }));
+    await disputeErrandAfterDeadline(ERRAND_ID);
+    const pushed = transitions[0].update.$push.notifyOutbox;
+    assert.deepEqual([pushed.previousStatus, pushed.status, pushed.actorRole], ["PICKED_UP", "DISPUTED", "SYSTEM"]);
   });
 
   test("a lost race (update matched nothing) publishes nothing", async (t) => {
@@ -305,7 +346,7 @@ describe("RabbitPublisher with status events", () => {
     const { publisher, calls } = publisherWithCalls();
     await publisher.publish({
       key: ERRAND_ID,
-      value: { eventId: `${ERRAND_ID}:errand.completed`, type: "errand.completed", requesterId: "r", courierId: "c", credit: 5, occurredAt: new Date().toISOString() },
+      value: { eventId: `${ERRAND_ID}:errand.completed`, type: "errand.completed", cause: "CONFIRMED", requesterId: "r", courierId: "c", credit: 5, occurredAt: new Date().toISOString() },
     });
     assert.equal(calls[0].options.mandatory, true);
   });
