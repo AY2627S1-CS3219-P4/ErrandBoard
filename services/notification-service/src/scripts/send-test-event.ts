@@ -8,12 +8,12 @@ import { EXCHANGE_NAME, STATUS_EVENT_TYPE, type ErrandStatus } from "../event/er
 
 const [requesterId, courierId, status = "PENDING_COMPLETION"] = process.argv.slice(2);
 const PREVIOUS: Record<string, ErrandStatus> = {
-  ACCEPTED: "OPEN", PICKED_UP: "ACCEPTED", PENDING_COMPLETION: "PICKED_UP", COMPLETED: "PENDING_COMPLETION", CANCELLED: "ACCEPTED", EXPIRED: "OPEN",
+  ACCEPTED: "OPEN", PICKED_UP: "ACCEPTED", PENDING_COMPLETION: "PICKED_UP", COMPLETED: "PENDING_COMPLETION", CANCELLED: "ACCEPTED", EXPIRED: "OPEN", "DISPUTED": "PICKED_UP"
 };
 const objectId = /^[0-9a-f]{24}$/i;
 
 if (!objectId.test(requesterId ?? "") || !objectId.test(courierId ?? "") || !PREVIOUS[status]) {
-  console.error("usage: send-test-event <requesterId(24 hex)> <courierId(24 hex)> [ACCEPTED|PICKED_UP|PENDING_COMPLETION|COMPLETED|CANCELLED|EXPIRED]");
+  console.error("usage: send-test-event <requesterId(24 hex)> <courierId(24 hex)> [ACCEPTED|PICKED_UP|PENDING_COMPLETION|DISPUTED|COMPLETED|CANCELLED|EXPIRED]");
   process.exit(1);
 }
 

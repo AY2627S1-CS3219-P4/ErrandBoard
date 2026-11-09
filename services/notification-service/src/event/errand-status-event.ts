@@ -73,7 +73,7 @@ export function parseStatusEvent(message: Pick<ConsumeMessage, "content" | "prop
   if (value.eventId !== `${key}:status:${status}` || message.properties.messageId !== value.eventId) return fail("eventId mismatch");
 
   const actor = value.actor as { role?: unknown; userId?: unknown } | null;
-  if (typeof actor !== "object" || actor === null || !["REQUESTER", "COURIER", "SYSTEM"].includes(actor.role as string)) return fail("bad actor");
+  if (typeof actor !== "object" || actor === null || !["REQUESTER", "COURIER", "SYSTEM", "ADMIN"].includes(actor.role as string)) return fail("bad actor");
   if (actor.role === "SYSTEM" ? actor.userId !== null : !isObjectId(actor.userId)) return fail("bad actor id");
 
   if (!isObjectId(value.requesterId)) return fail("bad requesterId");

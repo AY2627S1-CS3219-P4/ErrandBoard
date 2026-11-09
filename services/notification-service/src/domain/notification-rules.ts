@@ -74,8 +74,23 @@ export function planNotifications(ev: StatusChangeEvent["value"], opts: RuleOpti
       });
       break;
     }
+    
+    case "DISPUTED":
+      if (actor.role === "SYSTEM") {
+        // the delivery deadline passed: held for an admin rather than cancelled
+        toRequester({ kind: "ERRAND_DISPUTED_TIMEOUT", title: "Errand under review", body: `The ${shop} errand wasn't delivered in time, so it was sent to an admin for review. ${plural(credit, "credit")} stay on hold until it's resolved.` });
+        toCourier({ kind: "ERRAND_DISPUTED_TIMEOUT", title: "Errand under review", body: `The delivery deadline for the ${shop} errand passed, so it was sent to an admin for review. Credits stay on hold until it's resolved.` });
+      } else {
+        toCourier({ kind: "ERRAND_DISPUTED", title: "Errand disputed", body: `The requester raised a dispute about the ${shop} errand. An admin will review it; ${plural(credit, "credit")} stay on hold until then.` });
+      }
+      break;
 
     case "COMPLETED":
+      if (actor.role === "ADMIN") {
+        toCourier({ kind: "DISPUTE_PAID_OUT", title: "Dispute resolved in your favour", body: `An admin resolved the ${shop} dispute in your favour. ${plural(credit, "credit")} are being released to you.` });
+        toRequester({ kind: "DISPUTE_PAID_OUT", title: "Dispute resolved", body: `An admin resolved the ${shop} dispute in the courier's favour, so ${plural(credit, "credit")} were released to them.` });
++       break;
+      }
       toCourier({ kind: "ERRAND_COMPLETED", title: "Errand completed", body: `${plural(credit, "credit")} for the ${shop} errand are on their way to you.` });
       if (actor.role === "SYSTEM") {
         toRequester({
@@ -87,9 +102,14 @@ export function planNotifications(ev: StatusChangeEvent["value"], opts: RuleOpti
       break;
 
     case "CANCELLED":
-      if (previousStatus === "ACCEPTED" && actor.role === "COURIER") {
+      if (actor.role === "ADMIN") {
+        //admin settles dispute in requester's favour
+        toRequester({ kind: "DISPUTE_REFUNDED", title: "Dispute resolved in your favour", body: `An admin resolved the ${shop} dispute in your favour. ${plural(credit, "credit")} are being refunded.` });
+        toCourier({ kind: "DISPUTE_REFUNDED", title: "Dispute resolved", body: `An admin resolved the ${shop} dispute in the requester's favour, so ${plural(credit, "credit")} were refunded to them.` });
+      } else if (previousStatus === "ACCEPTED" && actor.role === "COURIER") {
         toRequester({ kind: "ERRAND_CANCELLED_BY_COURIER", title: "Courier cancelled", body: `Your courier cancelled the ${shop} errand. ${plural(credit, "credit")} are being refunded.` });
       } else if (previousStatus === "PICKED_UP" && actor.role === "SYSTEM") {
+        //legacy where if the service times out order is cancelled, it now disputes instead
         toRequester({ kind: "ERRAND_CANCELLED_TIMEOUT", title: "Errand cancelled", body: `The ${shop} errand wasn't delivered in time and was cancelled. ${plural(credit, "credit")} are being refunded.` });
         toCourier({ kind: "ERRAND_CANCELLED_TIMEOUT", title: "Errand cancelled", body: `The delivery deadline for the ${shop} errand passed, so it was cancelled.` });
       }
