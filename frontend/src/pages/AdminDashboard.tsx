@@ -20,7 +20,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
+    // `loading` starts true; the flag is cleared in finally once the fetch settles.
     getAdminStats(controller.signal)
       .then((result) => setStats(result))
       .catch(() => { /* getAdminStats swallows per-service failures; a throw here is an aborted load */ })

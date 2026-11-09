@@ -5,6 +5,7 @@ import type { AccountType } from "../auth/auth-context";
 import { apiFetch, userApiUrl } from "../api/client";
 import { serviceResponseError, serviceUnavailable } from "../api/service-errors";
 import { StatCard, StatGrid } from "../components/StatCard";
+import ConfirmModal from "../components/ConfirmModal";
 import { getUserStats, type UserStats } from "../api/adminStats";
 import "./AdminDashboard.css";
 import "./AccountAdministration.css";
@@ -32,6 +33,8 @@ export default function AccountAdministration() {
   const [notice, setNotice] = useState("");
   const [stats, setStats] = useState<UserStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  // a privileged action awaiting confirmation (promote to admin, or deactivate an account)
+  const [pendingAction, setPendingAction] = useState<{ account: ManagedAccount; kind: "promote" | "deactivate" } | null>(null);
 
   const loadAccounts = useCallback(async () => {
     setIsLoading(true); setError("");
@@ -45,7 +48,7 @@ export default function AccountAdministration() {
   }, []);
 
   const loadStats = useCallback(async (signal?: AbortSignal) => {
-    setStatsLoading(true);
+    // `statsLoading` starts true; the flag is cleared once the fetch settles.
     try {
       setStats(await getUserStats(signal));
     } catch {
@@ -63,7 +66,8 @@ export default function AccountAdministration() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadStats(controller.signal);
+    // defer out of the synchronous effect body (matches the loadAccounts effect above)
+    queueMicrotask(() => { if (!controller.signal.aborted) void loadStats(controller.signal); });
     return () => controller.abort();
   }, [loadStats]);
   const visibleAccounts = useMemo(() => filter === "ALL" ? accounts : accounts.filter((account) => account.accountType === filter), [accounts, filter]);
@@ -92,6 +96,14 @@ export default function AccountAdministration() {
     finally { setUpdatingId(null); }
   }
 
+  // runs the confirmed privileged action, then dismisses the modal
+  async function confirmPendingAction() {
+    if (!pendingAction) return;
+    const { account, kind } = pendingAction;
+    await (kind === "promote" ? changeRole(account) : changeStatus(account));
+    setPendingAction(null);
+  }
+
   return (
     <main className="admin-dashboard account-administration-page">
       <Link className="admin-back-button" to="/admin"><span aria-hidden="true">←</span>Back to dashboard</Link>
@@ -108,8 +120,24 @@ export default function AccountAdministration() {
         <div className="account-filters" aria-label="Account filters">{(["ALL", "ADMIN", "USER"] as Filter[]).map((value) => <button key={value} className={`account-filter ${filter === value ? "active" : ""}`} type="button" onClick={() => setFilter(value)}>{value === "ALL" ? "All accounts" : `${value === "ADMIN" ? "Admins" : "Users"} (${accounts.filter((account) => account.accountType === value).length})`}</button>)}</div>
         {notice && <p className="account-notice" role="status">{notice}</p>}
         {error && <p className="account-error" role="alert">{error}</p>}
-        {isLoading ? <p className="account-empty-state">Loading accounts...</p> : visibleAccounts.length === 0 ? <p className="account-empty-state">No accounts found.</p> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Account</th><th>Email</th><th>Role</th><th>Status</th><th><span className="visually-hidden">Actions</span></th></tr></thead><tbody>{visibleAccounts.map((account) => <tr key={account._id}><td data-label="Account"><strong>{account.username}</strong><small>Joined {new Date(account.createdAt).toLocaleDateString()}</small></td><td data-label="Email">{account.email}</td><td data-label="Role"><span className={`account-role-badge ${account.accountType === "ADMIN" ? "admin" : "user"}`}>{account.accountType}</span></td><td data-label="Status"><span className={`account-status-badge ${account.isActive ? "active" : "inactive"}`}>{account.isActive ? "Active" : "Inactive"}</span></td><td className="account-row-actions"><button className={`account-role-button ${account.accountType === "ADMIN" ? "demote" : "promote"}`} type="button" disabled={updatingId === account._id} onClick={() => void changeRole(account)}>{updatingId === account._id ? "Updating..." : account.accountType === "ADMIN" ? "Demote to User" : "Promote to Admin"}</button><button className={`account-role-button account-status-button ${account.isActive ? "demote" : "promote"}`} type="button" disabled={updatingId === account._id} onClick={() => void changeStatus(account)}>{updatingId === account._id ? "Updating..." : account.isActive ? "Deactivate" : "Activate"}</button></td></tr>)}</tbody></table></div>}
+        {isLoading ? <p className="account-empty-state">Loading accounts...</p> : visibleAccounts.length === 0 ? <p className="account-empty-state">No accounts found.</p> : <div className="account-table-wrap"><table className="account-table"><thead><tr><th>Account</th><th>Email</th><th>Role</th><th>Status</th><th><span className="visually-hidden">Actions</span></th></tr></thead><tbody>{visibleAccounts.map((account) => <tr key={account._id}><td data-label="Account"><strong>{account.username}</strong><small>Joined {new Date(account.createdAt).toLocaleDateString()}</small></td><td data-label="Email">{account.email}</td><td data-label="Role"><span className={`account-role-badge ${account.accountType === "ADMIN" ? "admin" : "user"}`}>{account.accountType}</span></td><td data-label="Status"><span className={`account-status-badge ${account.isActive ? "active" : "inactive"}`}>{account.isActive ? "Active" : "Inactive"}</span></td><td className="account-row-actions"><button className={`account-role-button ${account.accountType === "ADMIN" ? "demote" : "promote"}`} type="button" disabled={updatingId === account._id} onClick={() => account.accountType === "ADMIN" ? void changeRole(account) : setPendingAction({ account, kind: "promote" })}>{updatingId === account._id ? "Updating..." : account.accountType === "ADMIN" ? "Demote to User" : "Promote to Admin"}</button><button className={`account-role-button account-status-button ${account.isActive ? "demote" : "promote"}`} type="button" disabled={updatingId === account._id} onClick={() => account.isActive ? setPendingAction({ account, kind: "deactivate" }) : void changeStatus(account)}>{updatingId === account._id ? "Updating..." : account.isActive ? "Deactivate" : "Activate"}</button></td></tr>)}</tbody></table></div>}
       </section>
+
+      {pendingAction && (
+        <ConfirmModal
+          title={pendingAction.kind === "promote" ? "Promote to Admin?" : "Deactivate account?"}
+          message={
+            pendingAction.kind === "promote"
+              ? `${pendingAction.account.username} will gain Admin privileges, including access to the admin dashboard.`
+              : `${pendingAction.account.username} will be signed out and blocked from accessing the platform until reactivated.`
+          }
+          confirmLabel={pendingAction.kind === "promote" ? "Promote" : "Deactivate"}
+          tone={pendingAction.kind === "deactivate" ? "danger" : "default"}
+          busy={updatingId === pendingAction.account._id}
+          onConfirm={() => void confirmPendingAction()}
+          onClose={() => setPendingAction(null)}
+        />
+      )}
     </main>
   );
 }

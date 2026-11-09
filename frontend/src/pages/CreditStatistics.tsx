@@ -20,8 +20,6 @@ export default function CreditStatistics() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setFailed(false);
     getCreditStats(controller.signal)
       .then((result) => setStats(result))
       .catch(() => { if (!controller.signal.aborted) setFailed(true); })

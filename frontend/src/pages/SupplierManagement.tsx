@@ -82,7 +82,7 @@ export default function SupplierManagement() {
   // Stats come from the service endpoint (unfiltered totals), independent of the list's
   // search/showInactive filter — so the cards stay accurate regardless of the current view.
   const loadStats = useCallback(async (signal?: AbortSignal) => {
-    setStatsLoading(true);
+    // `statsLoading` starts true; the flag is cleared once the fetch settles.
     try {
       setStats(await getSupplierStats(signal));
     } catch {
@@ -117,7 +117,8 @@ export default function SupplierManagement() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void loadStats(controller.signal);
+    // defer out of the synchronous effect body (matches the loadAccounts effect above)
+    queueMicrotask(() => { if (!controller.signal.aborted) void loadStats(controller.signal); });
     return () => controller.abort();
   }, [loadStats]);
 
