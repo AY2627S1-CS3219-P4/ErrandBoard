@@ -14,6 +14,7 @@ export interface PlannedNotification {
 export interface RuleOptions {
   //if set to true allows verifying from the notif directly, honestly not really recommended
   directActions: boolean;
+  reviewPath: (errandId: string) => string;
 }
 
 type Draft = Omit<PlannedNotification, "recipientId" | "recipientRole" | "urgency" | "actions"> &
@@ -22,6 +23,7 @@ type Draft = Omit<PlannedNotification, "recipientId" | "recipientRole" | "urgenc
 // The Order Service route that the service worker calls when the button is tapped.
 const confirmAction = (errandId: string): NotificationAction =>
   ({ action: "confirm", title: "Confirm receipt", request: { method: "POST", path: `/errands/${errandId}/complete` } });
+
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -70,7 +72,7 @@ export function planNotifications(ev: StatusChangeEvent["value"], opts: RuleOpti
         body: `Your courier marked the ${shop} errand as delivered at ${dropoff}. ` +
           `Confirm${within ? ` within ${within}` : ""} to release ${plural(credit, "credit")}.`,
         urgency: "high",
-        extra: opts.directActions ? [confirmAction(ev.errandId)] : [],
+        extra: [opts.directActions ? confirmAction(ev.errandId) : reviewAction(opts.reviewPath(ev.errandId))],
       });
       break;
     }
@@ -88,8 +90,8 @@ export function planNotifications(ev: StatusChangeEvent["value"], opts: RuleOpti
     case "COMPLETED":
       if (actor.role === "ADMIN") {
         toCourier({ kind: "DISPUTE_PAID_OUT", title: "Dispute resolved in your favour", body: `An admin resolved the ${shop} dispute in your favour. ${plural(credit, "credit")} are being released to you.` });
-        toRequester({ kind: "DISPUTE_PAID_OUT", title: "Dispute resolved", body: `An admin resolved the ${shop} dispute in the courier's favour, so ${plural(credit, "credit")} were released to them.` });
-+       break;
+        toRequester({ kind: "DISPUTE_PAID_OUT", title: "Dispute resolved", body: `An admin resolved the ${shop} dispute in the courier's favour, so ${plural(credit, "credit")} were released to them.` });       
+        break;
       }
       toCourier({ kind: "ERRAND_COMPLETED", title: "Errand completed", body: `${plural(credit, "credit")} for the ${shop} errand are on their way to you.` });
       if (actor.role === "SYSTEM") {

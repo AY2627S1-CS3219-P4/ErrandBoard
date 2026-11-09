@@ -21,7 +21,7 @@ export interface NotificationDocument {
 
 const actionSchema = new Schema<NotificationAction>(
   {
-    action: { type: String, enum: ["view", "confirm"], required: true },
+    action: { type: String, enum: ["view", "review", "confirm"], required: true },
     title: { type: String, required: true },
     request: { type: new Schema({ method: String, path: String }, { _id: false }), default: undefined },
   },

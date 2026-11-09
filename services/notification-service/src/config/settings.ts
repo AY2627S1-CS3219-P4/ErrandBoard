@@ -32,3 +32,14 @@ export const settings = {
 
   get frontendOrigin() { return process.env.FRONTEND_ORIGIN ?? "http://localhost:5173"; },
 };
+
+/** Where the frontend shows an errand (`APP_ERRAND_PATH`, `{id}` optional). */
+export function errandPath(errandId: string): string {
+  return settings.appErrandPath.replace("{id}", errandId);
+}
+
+/** Path that makes the frontend open its "confirm receipt" prompt for this errand. */
+export function reviewPath(errandId: string): string {
+  const base = errandPath(errandId);
+  return `${base}${base.includes("?") ? "&" : "?"}review=${errandId}`;
+}

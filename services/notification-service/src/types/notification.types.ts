@@ -18,8 +18,9 @@ export type RecipientRole = "REQUESTER" | "COURIER";
 export type Urgency = "normal" | "high";
 
 export interface NotificationAction {
-  action: "view" | "confirm";
+  action: "view" | "review"| "confirm";
   title: string;
+  url?: string;
   request?: { method: "POST"; path: string };
 }
 

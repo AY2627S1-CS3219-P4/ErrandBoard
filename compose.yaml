@@ -259,6 +259,7 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:?Set VAPID_SUBJECT, e.g. mailto:you@example.com}
       # the frontend has no /errands/:id page; active errands live here (the {id} placeholder is optional)
       APP_ERRAND_PATH: /errands/active
+      NOTIFY_DIRECT_ACTIONS: "false"
     ports:
       - "127.0.0.1:3005:3005"
     depends_on:

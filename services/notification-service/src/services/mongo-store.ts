@@ -24,7 +24,10 @@ function toView(row: Row): NotificationView {
     errandId: row.errandId,
     recipientRole: row.recipientRole,
     urgency: row.urgency,
-    actions: (row.actions ?? []).map((a) => ({ action: a.action, title: a.title, ...(a.request ? { request: a.request } : {}) })),
+    actions: (row.actions ?? []).map((a) => ({
+      action: a.action, title: a.title,
+      ...(a.url ? { url: a.url } : {}), ...(a.request ? { request: a.request } : {}),
+    })),
     occurredAt: row.occurredAt.toISOString(),
     readAt: row.readAt ? row.readAt.toISOString() : null,
   };

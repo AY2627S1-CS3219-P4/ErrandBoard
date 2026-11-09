@@ -133,6 +133,44 @@ describe("one-tap confirm (notification action)", () => {
   });
 });
 
+describe("review & confirm (opens the app, nothing is sent)", () => {
+  const review = { action: "review", title: "Review & confirm", url: `/errands/active?review=${ERRAND}` };
+  const data = () => ({ url: "/errands/active", errandId: ERRAND, actions: [review, { action: "view", title: "View errand" }] });
+
+  test("tapping the button opens ITS url (not the notification's), without calling any API", async () => {
+    const sw = boot(); await sw.click("review", data());
+    assert.deepEqual(sw.opened, [`https://app.test/errands/active?review=${ERRAND}`]);
+    assert.equal(sw.fetched.length, 0);
+  });
+
+  test("an already-open tab is focused and routed to the review url", async () => {
+    const posted: any[] = [];
+    const win = { url: "https://app.test/home", focus: async () => {}, postMessage: (m: any) => posted.push(plain(m)) };
+    const sw = boot({ windows: [win] }); await sw.click("review", data());
+    assert.deepEqual(posted, [{ type: "navigate", url: `/errands/active?review=${ERRAND}` }]);
+    assert.deepEqual(sw.opened, []);
+  });
+
+  test("the button is rendered like any other, without leaking its url into the visible action", async () => {
+    const sw = boot({ maxActions: 2 });
+    await sw.push(payload({ actions: data().actions }));
+    assert.deepEqual(sw.shown[0].options.actions, [{ action: "review", title: "Review & confirm" }, { action: "view", title: "View errand" }]);
+  });
+});
+
+describe("only same-origin app paths are ever opened", () => {
+  for (const hostile of ["https://evil.test/phish", "//evil.test/phish", "javascript:alert(1)", "/\\evil.test", "evil.test", undefined, 42]) {
+    test(`refuses ${String(hostile)}`, async () => {
+      const sw = boot();
+      await sw.click("", { url: hostile, actions: [] });
+      assert.deepEqual(sw.opened, ["https://app.test/"]);
+      const sw2 = boot();
+      await sw2.click("review", { url: "/ok", actions: [{ action: "review", title: "x", url: hostile }] });
+      assert.deepEqual(sw2.opened, [hostile === undefined ? "https://app.test/ok" : "https://app.test/"]);
+    });
+  }
+});
+
 describe("opening the app", () => {
   test("tapping the notification opens the errand and closes the notification", async () => {
     const closed = { n: 0 }; const sw = boot(); await sw.click("", clickData(), closed);

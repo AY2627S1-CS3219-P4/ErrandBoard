@@ -64,7 +64,8 @@ self.addEventListener("notificationclick", (event) => {
   notification.close();
 
   const spec = (data.actions || []).find((a) => a.action === event.action);
-  event.waitUntil(spec && spec.request ? runAction(spec, data) : openApp(data.url));
+  if (spec && spec.request) return event.waitUntil(runAction(spec, data));
+  event.waitUntil(openApp(spec && spec.url ? spec.url : data.url)); // "review" buttons carry their own url
 });
 
 async function runAction(spec, data) {
@@ -94,8 +95,13 @@ function confirmation(data, title, body) {
   });
 }
 
+// Only same-origin app paths may be opened, whatever a payload says ("//evil.test" and absolute URLs are not paths).
+function safePath(p) {
+  return typeof p === "string" && p.startsWith("/") && !p.startsWith("//") && !p.includes("\\") ? p : "/";
+}
+
 async function openApp(path) {
-  const target = new URL(path || "/", self.location.origin);
+  const target = new URL(safePath(path), self.location.origin);
   const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
   for (const w of windows) {
     if (new URL(w.url).origin === target.origin) {

@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-<<<<<<< HEAD
 import { Link, useSearchParams } from "react-router-dom";
-import { describeError, ErrandApiError, listMyErrands, runErrandAction } from "../api/errands";
-=======
-import { Link } from "react-router-dom";
-import { describeError, disputeErrand, ErrandApiError, listMyErrands, runErrandAction } from "../api/errands";
->>>>>>> main
+import { describeError, ErrandApiError, listMyErrands, runErrandAction, disputeErrand} from "../api/errands";
 import { useAuth } from "../auth/useAuth";
 import ActiveErrandCard from "../components/ActiveErrandCard";
 import ErrandPreviewModal from "../components/ErrandPreviewModal";
@@ -90,7 +85,6 @@ export default function ActiveErrands() {
     }
   }, []);
 
-<<<<<<< HEAD
   // The "Review & confirm" button on a delivered-notification opens /errands/active?review=<errandId>.
   // Offer the same Confirm action as the card (including its "cannot be undone" prompt) instead of
   // paying out from the notification itself. Derived while rendering: it disappears once the errand moves on.
@@ -99,7 +93,6 @@ export default function ActiveErrands() {
   const reviewErrand = reviewId
     ? errands.find((item) => item._id === reviewId && item.requesterId === user?.id && item.status === "PENDING_COMPLETION")
     : undefined;
-=======
   const handleAction = useCallback((errand: Errand, action: ErrandAction) => {
     // disputing opens a modal to collect a reason; other actions just confirm.
     if (action === "dispute") {
@@ -116,7 +109,6 @@ export default function ActiveErrands() {
     const ok = await runMutation(errand, "dispute", () => disputeErrand(errand._id, reason));
     if (ok) setDisputeId(null); // keep the modal open on failure so the error shows in context
   }, [runMutation]);
->>>>>>> main
 
   const requested = errands.filter((errand) => errand.requesterId === user?.id);
   const accepted = errands.filter((errand) => errand.courierId === user?.id);

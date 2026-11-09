@@ -1,6 +1,6 @@
 import { createApp } from "./app.js";
 import { connectDb, disconnectDb } from "./config/db.js";
-import { settings } from "./config/settings.js";
+import { errandPath, reviewPath, settings } from "./config/settings.js";
 import { startStatusConsumer } from "./event/rabbit.consumer.js";
 import { authorizationStore } from "./security/authorization-state.js";
 import { LiveHub } from "./services/live-hub.js";
@@ -27,7 +27,7 @@ async function main(): Promise<void> {
     notifications,
     hub,
     push,
-    rules: { directActions: settings.directActions },
+    rules: { directActions: settings.directActions, reviewPath},
     errandPath: (id) => settings.appErrandPath.replace("{id}", id),
   });
 
