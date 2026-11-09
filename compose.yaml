@@ -116,6 +116,7 @@ services:
       MONGO_USER_SERVICE_PASSWORD: ${MONGO_USER_SERVICE_PASSWORD}
       CREDIT_SERVICE_URL: http://credit-service:3004
       CREDIT_INTERNAL_API_KEY: ${CREDIT_INTERNAL_API_KEY}
+      REDIS_URL: redis://redis:6379
       SEED_CSV_PATH: /seed/user-seed-data.csv
     volumes:
       - ./data/csv:/seed:ro
@@ -124,6 +125,8 @@ services:
         condition: service_healthy
       mongodb-rs-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
       credit-service:
         condition: service_healthy
     restart: "no"
