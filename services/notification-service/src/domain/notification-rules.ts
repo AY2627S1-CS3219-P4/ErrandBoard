@@ -24,6 +24,7 @@ type Draft = Omit<PlannedNotification, "recipientId" | "recipientRole" | "urgenc
 const confirmAction = (errandId: string): NotificationAction =>
   ({ action: "confirm", title: "Confirm receipt", request: { method: "POST", path: `/errands/${errandId}/complete` } });
 
+const reviewAction = (path: string): NotificationAction => ({ action: "review", title: "Review & confirm", url: path });
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
