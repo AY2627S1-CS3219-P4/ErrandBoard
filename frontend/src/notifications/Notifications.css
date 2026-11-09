@@ -118,3 +118,8 @@
 @media (max-width: 720px) {
   .notification-toasts { right: 0.75rem; bottom: 0.75rem; }
 }
+
+/* Inbox section on the Home page (the page itself is centre-aligned for the credits cards). */
+.home-inbox { margin-top: 2rem; text-align: left; }
+.home-inbox-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.home-inbox-header .home-card-title { margin: 0; }

@@ -1,0 +1,34 @@
+name: Reset and seed AWS database
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type WIPE_ERRANDBOARD_AND_SEED to erase all existing application data
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: errandboard-website-operation
+  cancel-in-progress: false
+
+jobs:
+  reset-seed:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'WIPE_ERRANDBOARD_AND_SEED'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::614099836367:role/ErrandBoardGitHubOperateRole
+          aws-region: ap-southeast-1
+          allowed-account-ids: '614099836367'
+      - name: Reset and seed
+        run: bash scripts/reset-seed-aws.sh WIPE_ERRANDBOARD_AND_SEED
