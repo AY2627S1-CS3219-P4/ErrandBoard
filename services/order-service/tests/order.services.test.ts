@@ -13,6 +13,7 @@ import {
   OrderCreationPendingError,
   UpdateConflictError,
   ValidationError,
+  DisputeResolvedError,
 } from "../src/errors/order.errors.js";
 import {
   acceptErrand,
@@ -23,15 +24,22 @@ import {
   createErrand,
   DELIVERY_DEADLINE,
   deliverErrand,
+  disputeErrand,
+  disputeErrandAfterDeadline,
   escapeRegex,
   EXPIRY_DEADLINE,
   getErrand,
+  getErrandStats,
   isObjectIdString,
+  listDisputedErrands,
   listMyErrands,
   listOpenErrands,
   pickUpErrand,
+  resolveDisputeRefund,
+  resolveDisputeTransfer,
   type CreateErrandInput,
 } from "../src/services/order.services.js";
+import { validTransition, isTerminal } from "../src/status/errandState.js";
 
 const ERRAND_ID = "507f1f77bcf86cd799439011";
 const REQUESTER_ID = "requester-1";
@@ -200,10 +208,19 @@ describe("listMyErrands", () => {
     await listMyErrands(COURIER_ID);
 
     assert.deepEqual(calls[0].query, {
-      status: { $in: ["OPEN", "ACCEPTED", "PICKED_UP", "PENDING_COMPLETION"] },
+      status: { $in: ["OPEN", "ACCEPTED", "PICKED_UP", "PENDING_COMPLETION", "DISPUTED"] },
       $or: [{ requesterId: COURIER_ID }, { courierId: COURIER_ID }],
     });
     assert.deepEqual(calls[0].sort, { updatedAt: -1 });
+  });
+});
+
+describe("listDisputedErrands", () => {
+  test("returns every disputed errand, oldest dispute first", async (t) => {
+    const calls = mockFind(t);
+    await listDisputedErrands();
+    assert.deepEqual(calls[0].query, { status: "DISPUTED" });
+    assert.deepEqual(calls[0].sort, { disputedAt: 1 });
   });
 });
 
@@ -474,7 +491,7 @@ describe("acceptErrand", () => {
       requesterId: { $ne: COURIER_ID },
     });
     assert.deepEqual(calls[0].update, { $set: { status: "ACCEPTED", courierId: COURIER_ID } });
-    assert.deepEqual(calls[0].options, { new: true, runValidators: true });
+    assert.deepEqual(calls[0].options, { returnDocument: "after", runValidators: true });
   });
 
   test("requester cannot accept their own errand", async (t) => {
@@ -577,7 +594,7 @@ describe("completeErrand", () => {
 
     assert.equal(await completeErrand(ERRAND_ID, REQUESTER_ID), completed);
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "PENDING_COMPLETION", requesterId: REQUESTER_ID });
-    assert.deepEqual(calls[0].update, { $set: { status: "COMPLETED", eventPending: true } });
+    assert.deepEqual(calls[0].update, { $set: { status: "COMPLETED", terminalCause: "CONFIRMED", eventPending: true } });
   });
 
   test("a publish failure after commit does not fail the request or clear the pending flag", async (t) => {
@@ -602,7 +619,7 @@ describe("cancellation", () => {
     const calls = mockUpdate(t, makeErrand({ status: "CANCELLED" }));
     await cancelErrandByRequester(ERRAND_ID, REQUESTER_ID);
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "OPEN", requesterId: REQUESTER_ID });
-    assert.deepEqual(calls[0].update, { $set: { status: "CANCELLED", eventPending: true } });
+    assert.deepEqual(calls[0].update, { $set: { status: "CANCELLED", terminalCause: "REQUESTER_CANCELLED", eventPending: true } });
   });
 
   test("requester cannot cancel once a courier has accepted", async (t) => {
@@ -614,5 +631,245 @@ describe("cancellation", () => {
     const calls = mockUpdate(t, makeErrand({ status: "CANCELLED", courierId: COURIER_ID }));
     await cancelErrandByCourier(ERRAND_ID, COURIER_ID);
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "ACCEPTED", courierId: COURIER_ID });
+  });
+});
+
+// records the routing-key types published during a transition
+function recordPublishedTypes() {
+  const types: string[] = [];
+  setEventPublisher({
+    isReady: () => true,
+    publish: async (event) => { types.push(event.value.type); },
+    close: async () => {},
+  });
+  return types;
+}
+
+// records the full events published during a transition (to inspect the payload, e.g. cause)
+function recordPublishedEvents() {
+  const events: { type: string; cause: string }[] = [];
+  setEventPublisher({
+    isReady: () => true,
+    publish: async (event) => { events.push({ type: event.value.type, cause: event.value.cause }); },
+    close: async () => {},
+  });
+  return events;
+}
+
+describe("errand state machine", () => {
+  test("DISPUTED is non-terminal and the dispute edges are allowed", () => {
+    assert.equal(isTerminal("DISPUTED"), false);
+    assert.equal(validTransition("ACCEPTED", "DISPUTED"), true);
+    assert.equal(validTransition("PICKED_UP", "DISPUTED"), true);
+    assert.equal(validTransition("PENDING_COMPLETION", "DISPUTED"), true);
+    assert.equal(validTransition("DISPUTED", "CANCELLED"), true);
+    assert.equal(validTransition("DISPUTED", "COMPLETED"), true);
+  });
+
+  test("the old PICKED_UP -> CANCELLED edge is removed", () => {
+    assert.equal(validTransition("PICKED_UP", "CANCELLED"), false);
+  });
+});
+
+describe("disputeErrand (requester)", () => {
+  test("ACCEPTED/PICKED_UP/PENDING_COMPLETION -> DISPUTED, holding credits (no event)", async (t) => {
+    const published = recordPublishedTypes();
+    const disputed = makeErrand({ status: "DISPUTED", courierId: COURIER_ID });
+    const calls = mockUpdate(t, disputed);
+
+    const before = Date.now();
+    assert.equal(await disputeErrand(ERRAND_ID, REQUESTER_ID, "  never showed up  "), disputed);
+    const after = Date.now();
+
+    const { $or, ...filter } = calls[0].filter as { $or: Record<string, unknown>[] };
+    assert.deepEqual(filter, {
+      _id: ERRAND_ID,
+      status: { $in: ["ACCEPTED", "PICKED_UP", "PENDING_COMPLETION"] },
+      requesterId: REQUESTER_ID,
+    });
+    // the confirm-window guard only constrains the PENDING_COMPLETION branch
+    assert.deepEqual($or[0], { status: { $in: ["ACCEPTED", "PICKED_UP"] } });
+    assert.equal(($or[1] as { status: string }).status, "PENDING_COMPLETION");
+    assertWithin(($or[1] as { confirmBy: { $gt: Date } }).confirmBy.$gt, before, after);
+    const { disputedAt, ...set } = calls[0].update.$set;
+    assert.deepEqual(set, { status: "DISPUTED", disputeReason: "never showed up", disputedBy: REQUESTER_ID });
+    assert.equal(calls[0].update.$set.eventPending, undefined, "a dispute must not set the outbox flag");
+    assertWithin(disputedAt, before, after);
+    assert.deepEqual(published, [], "a dispute must not publish a terminal event");
+  });
+
+  test("a PENDING_COMPLETION errand past its confirm window can no longer be disputed", async (t) => {
+    // CAS matches nothing because confirmBy <= now; findById shows the stale errand -> conflict
+    mockUpdate(t, null, makeErrand({
+      status: "PENDING_COMPLETION",
+      courierId: COURIER_ID,
+      confirmBy: new Date(Date.now() - 1000),
+    }));
+    await assert.rejects(disputeErrand(ERRAND_ID, REQUESTER_ID, "not what I ordered"), isError(UpdateConflictError));
+  });
+
+  test("an empty or whitespace reason is rejected before any database call", async (t) => {
+    const update = t.mock.method(Errand, "findOneAndUpdate", (async () => makeErrand()) as never);
+    await assert.rejects(disputeErrand(ERRAND_ID, REQUESTER_ID, "   "), isError(ValidationError));
+    await assert.rejects(disputeErrand(ERRAND_ID, REQUESTER_ID, ""), isError(ValidationError));
+    assert.equal(update.mock.callCount(), 0);
+  });
+
+  test("an over-long reason is rejected", async (t) => {
+    t.mock.method(Errand, "findOneAndUpdate", (async () => makeErrand()) as never);
+    await assert.rejects(disputeErrand(ERRAND_ID, REQUESTER_ID, "x".repeat(301)), isError(ValidationError));
+  });
+
+  test("a non-requester (or wrong status) is a conflict", async (t) => {
+    mockUpdate(t, null, makeErrand({ status: "ACCEPTED", requesterId: "someone-else", courierId: COURIER_ID }));
+    await assert.rejects(disputeErrand(ERRAND_ID, REQUESTER_ID, "problem"), isError(UpdateConflictError));
+  });
+
+  test("missing errand is not found", async (t) => {
+    mockUpdate(t, null, null);
+    await assert.rejects(disputeErrand(ERRAND_ID, REQUESTER_ID, "problem"), isError(ErrandNotFoundError));
+  });
+});
+
+describe("disputeErrandAfterDeadline (sweep)", () => {
+  test("PICKED_UP -> DISPUTED with a system reason, no event", async (t) => {
+    const published = recordPublishedTypes();
+    const disputed = makeErrand({ status: "DISPUTED", courierId: COURIER_ID });
+    const calls = mockUpdate(t, disputed);
+
+    await disputeErrandAfterDeadline(ERRAND_ID);
+
+    assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "PICKED_UP" });
+    const { disputedAt, ...set } = calls[0].update.$set;
+    assert.deepEqual(set, { status: "DISPUTED", disputeReason: "Delivery deadline passed", disputedBy: "system" });
+    assert.ok(disputedAt instanceof Date);
+    assert.deepEqual(published, []);
+  });
+});
+
+describe("dispute resolution (admin)", () => {
+  // the pre-read must see a still-DISPUTED errand, so the resolve proceeds to the atomic update
+  const stillDisputed = () => makeErrand({ status: "DISPUTED", courierId: COURIER_ID });
+
+  test("refund drives DISPUTED -> CANCELLED and publishes errand.cancelled", async (t) => {
+    const published = recordPublishedTypes();
+    const calls = mockUpdate(t, makeErrand({ status: "CANCELLED", courierId: COURIER_ID }), stillDisputed());
+
+    await resolveDisputeRefund(ERRAND_ID);
+
+    assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "DISPUTED" });
+    assert.deepEqual(calls[0].update, { $set: { status: "CANCELLED", terminalCause: "DISPUTE_REFUNDED", eventPending: true } });
+    assert.deepEqual(published, ["errand.cancelled"]);
+  });
+
+  test("transfer drives DISPUTED -> COMPLETED and publishes errand.completed with a courier", async (t) => {
+    const published = recordPublishedTypes();
+    const calls = mockUpdate(t, makeErrand({ status: "COMPLETED", courierId: COURIER_ID }), stillDisputed());
+
+    await resolveDisputeTransfer(ERRAND_ID);
+
+    assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "DISPUTED" });
+    assert.deepEqual(calls[0].update, { $set: { status: "COMPLETED", terminalCause: "DISPUTE_TRANSFERRED", eventPending: true } });
+    assert.deepEqual(published, ["errand.completed"]);
+  });
+
+  test("the published event carries the dispute cause so a notification service can distinguish it", async (t) => {
+    const events = recordPublishedEvents();
+    // the persisted doc the atomic write returns carries terminalCause; buildEvent reads it back
+    mockUpdate(t, makeErrand({ status: "CANCELLED", courierId: COURIER_ID, terminalCause: "DISPUTE_REFUNDED" }), stillDisputed());
+
+    await resolveDisputeRefund(ERRAND_ID);
+
+    assert.deepEqual(events, [{ type: "errand.cancelled", cause: "DISPUTE_REFUNDED" }]);
+  });
+
+  test("resolving an already-resolved errand reports DisputeResolvedError, not a generic conflict", async (t) => {
+    // the pre-read sees a terminal errand, so no update is attempted
+    const calls = mockUpdate(t, null, makeErrand({ status: "CANCELLED", courierId: COURIER_ID }));
+    await assert.rejects(resolveDisputeRefund(ERRAND_ID), isError(DisputeResolvedError));
+    assert.equal(calls.length, 0, "a settled dispute must not reach the atomic update");
+  });
+
+  test("losing the resolve race (resolved between pre-read and write) still reports DisputeResolvedError", async (t) => {
+    // pre-read sees DISPUTED, the CAS matches nothing, the re-read sees a now-terminal errand
+    let findByIdCalls = 0;
+    t.mock.method(Errand, "findById", (async () => {
+      findByIdCalls += 1;
+      return findByIdCalls === 1
+        ? makeErrand({ status: "DISPUTED", courierId: COURIER_ID })   // pre-read
+        : makeErrand({ status: "COMPLETED", courierId: COURIER_ID }); // re-read after the lost CAS
+    }) as never);
+    t.mock.method(Errand, "findOneAndUpdate", (async () => null) as never); // CAS matched nothing
+
+    await assert.rejects(resolveDisputeTransfer(ERRAND_ID), isError(DisputeResolvedError));
+  });
+
+  test("a missing errand is not found", async (t) => {
+    mockUpdate(t, null, null);
+    await assert.rejects(resolveDisputeRefund(ERRAND_ID), isError(ErrandNotFoundError));
+  });
+});
+
+describe("getErrandStats", () => {
+  // Route the two aggregations by pipeline shape: the dispute-detail one begins with a $match.
+  function mockAggregate(
+    t: TestContext,
+    statusRows: { _id: string; count: number }[],
+    disputeRows: { _id: boolean; count: number; credit: number }[],
+  ) {
+    t.mock.method(Errand, "aggregate", (async (pipeline: Record<string, unknown>[]) => {
+      const isDisputeDetail = pipeline.some((stage) => "$match" in stage);
+      return isDisputeDetail ? disputeRows : statusRows;
+    }) as never);
+  }
+
+  test("folds the status aggregation into a full breakdown with derived subtotals", async (t) => {
+    mockAggregate(
+      t,
+      [
+        { _id: "OPEN", count: 3 },
+        { _id: "ACCEPTED", count: 2 },
+        { _id: "PICKED_UP", count: 1 },
+        { _id: "PENDING_COMPLETION", count: 1 },
+        { _id: "COMPLETED", count: 10 },
+        { _id: "CANCELLED", count: 4 },
+        { _id: "EXPIRED", count: 2 },
+        { _id: "DISPUTED", count: 5 },
+      ],
+      [
+        { _id: true, count: 2, credit: 20 },   // system-raised
+        { _id: false, count: 3, credit: 35 },  // requester-raised
+      ],
+    );
+    t.mock.method(Errand, "countDocuments", (async () => 2) as never); // openActive
+
+    const stats = await getErrandStats();
+
+    assert.equal(stats.total, 28);
+    assert.equal(stats.active, 7); // OPEN+ACCEPTED+PICKED_UP+PENDING_COMPLETION = 3+2+1+1
+    assert.equal(stats.openActive, 2);
+    assert.equal(stats.open, 3);
+    assert.equal(stats.completed, 10);
+    assert.equal(stats.cancelled, 4);
+    assert.equal(stats.expired, 2);
+    assert.equal(stats.disputed, 5);
+    assert.equal(stats.disputedBySystem, 2);
+    assert.equal(stats.disputedByRequester, 3);
+    assert.equal(stats.creditsHeld, 55);
+  });
+
+  test("an empty platform yields all zeros", async (t) => {
+    mockAggregate(t, [], []);
+    t.mock.method(Errand, "countDocuments", (async () => 0) as never);
+
+    const stats = await getErrandStats();
+
+    assert.equal(stats.total, 0);
+    assert.equal(stats.active, 0);
+    assert.equal(stats.openActive, 0);
+    assert.equal(stats.disputed, 0);
+    assert.equal(stats.disputedBySystem, 0);
+    assert.equal(stats.disputedByRequester, 0);
+    assert.equal(stats.creditsHeld, 0);
   });
 });

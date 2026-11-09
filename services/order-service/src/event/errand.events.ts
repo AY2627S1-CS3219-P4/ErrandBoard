@@ -1,7 +1,15 @@
 // src/event/errand.events.ts
 import { Errand, type ErrandRecord } from "../models/Errand.js";
 import { getEventPublisher } from "./publisher.js";
-import { publicEventType, type ErrandEvent } from "./types.js";
+import { publicEventType, type ErrandEvent, type TerminalCause } from "./types.js";
+
+// Fallback for errands terminated before terminalCause was recorded (or by an untagged path):
+// infer the ordinary cause from the terminal status so the payload always carries one.
+function defaultCause(status: ErrandRecord["status"]): TerminalCause {
+  if (status === "EXPIRED") return "EXPIRED";
+  if (status === "COMPLETED") return "CONFIRMED";
+  return "REQUESTER_CANCELLED"; // CANCELLED
+}
 
 function buildEvent(errand: ErrandRecord): ErrandEvent | undefined {
   const type = publicEventType(errand.status);
@@ -13,6 +21,7 @@ function buildEvent(errand: ErrandRecord): ErrandEvent | undefined {
     value: {
       eventId: `${errandId}:${type}`,
       type,
+      cause: errand.terminalCause ?? defaultCause(errand.status),
       requesterId: errand.requesterId,
       courierId: errand.courierId ?? null,
       credit: errand.credit,

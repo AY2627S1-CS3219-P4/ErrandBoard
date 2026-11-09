@@ -95,6 +95,11 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+/* Auto-fitting variant for tab pages, whose stat rows have a variable number of cards. */
+.admin-stat-grid.admin-stat-grid--auto {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
 .admin-stat-card,
 .admin-tool-card {
   border: 1px solid var(--border);

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { describeError, ErrandApiError, listMyErrands, runErrandAction } from "../api/errands";
+import { describeError, disputeErrand, ErrandApiError, listMyErrands, runErrandAction } from "../api/errands";
 import { useAuth } from "../auth/useAuth";
 import ActiveErrandCard from "../components/ActiveErrandCard";
 import ErrandPreviewModal from "../components/ErrandPreviewModal";
+import DisputeModal from "../components/DisputeModal";
 import { useNow } from "../hooks/useNow";
 import { ACTIVE_STATUSES_SET, type Errand, type ErrandAction } from "../types/errand";
 import "./Errands.css";
@@ -28,6 +29,7 @@ export default function ActiveErrands() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [busy, setBusy] = useState<{ id: string; action: ErrandAction } | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [disputeId, setDisputeId] = useState<string | null>(null); // errand whose dispute modal is open
 
   useEffect(() => {
     const id = setInterval(() => setRefreshTick((tick) => tick + 1), REFRESH_MS);
@@ -50,34 +52,52 @@ export default function ActiveErrands() {
     return () => controller.abort();
   }, [refreshTick]);
 
-  const handleAction = useCallback(async (errand: Errand, action: ErrandAction) => {
-    const prompt = CONFIRMATIONS[action];
-    if (prompt && !window.confirm(prompt)) return;
-
+  // Runs one errand mutation and reconciles the list. `apply` performs the request.
+  const runMutation = useCallback(async (errand: Errand, action: ErrandAction, apply: () => Promise<Errand>) => {
     setBusy({ id: errand._id, action });
     setActionError(null);
     try {
-      const updated = await runErrandAction(errand._id, action);
-      // Terminal errands leave the active list everything else is updated in place.
+      const updated = await apply();
+      // Terminal errands leave the active list; active and disputed (held) errands stay in place.
       setErrands((current) =>
-        ACTIVE_STATUSES_SET.has(updated.status)
+        ACTIVE_STATUSES_SET.has(updated.status) || updated.status === "DISPUTED"
           ? current.map((item) => (item._id === updated._id ? updated : item))
           : current.filter((item) => item._id !== updated._id),
       );
+      return true;
     } catch (cause) {
       setActionError({ id: errand._id, message: describeError(cause) }); // show next to the card that failed
       // 409 (conflict/deadline) or 404 (already gone) mean our copy is stale, so reload from the server.
       if (cause instanceof ErrandApiError && (cause.status === 409 || cause.status === 404)) {
         setRefreshTick((tick) => tick + 1);
       }
+      return false;
     } finally {
       setBusy(null);
     }
   }, []);
 
+  const handleAction = useCallback((errand: Errand, action: ErrandAction) => {
+    // disputing opens a modal to collect a reason; other actions just confirm.
+    if (action === "dispute") {
+      setActionError(null);
+      setDisputeId(errand._id);
+      return;
+    }
+    const prompt = CONFIRMATIONS[action];
+    if (prompt && !window.confirm(prompt)) return;
+    void runMutation(errand, action, () => runErrandAction(errand._id, action));
+  }, [runMutation]);
+
+  const submitDispute = useCallback(async (errand: Errand, reason: string) => {
+    const ok = await runMutation(errand, "dispute", () => disputeErrand(errand._id, reason));
+    if (ok) setDisputeId(null); // keep the modal open on failure so the error shows in context
+  }, [runMutation]);
+
   const requested = errands.filter((errand) => errand.requesterId === user?.id);
   const accepted = errands.filter((errand) => errand.courierId === user?.id);
   const preview = errands.find((errand) => errand._id === previewId) ?? null;
+  const disputeTarget = errands.find((errand) => errand._id === disputeId) ?? null;
 
   function renderCards(list: Errand[], role: "requester" | "courier") {
     return (
@@ -139,6 +159,16 @@ export default function ActiveErrands() {
           now={now}
           isOwn={preview.requesterId === user?.id}
           onClose={() => setPreviewId(null)}
+        />
+      )}
+
+      {disputeTarget && (
+        <DisputeModal
+          errand={disputeTarget}
+          isBusy={busy?.id === disputeTarget._id && busy.action === "dispute"}
+          error={actionError?.id === disputeTarget._id ? actionError.message : ""}
+          onSubmit={(reason) => void submitDispute(disputeTarget, reason)}
+          onClose={() => setDisputeId(null)}
         />
       )}
     </main>

@@ -14,6 +14,7 @@ import {
     getSupplierById,
     listSuppliers,
     updateSupplier,
+    getSupplierStats,
     SupplierNotFoundError,
     DuplicateSupplierError
 
@@ -51,6 +52,11 @@ export async function list(req: Request, res: Response): Promise<void> {
     const suppliers = await listSuppliers({ search, category, building, address, showInactive });
 
     res.json({ suppliers });
+}
+
+// admin-only: platform-wide supplier statistics for the admin dashboard
+export async function stats(_req: Request, res: Response): Promise<void> {
+  res.json({ stats: await getSupplierStats() });
 }
 
 export async function getById(req: Request, res: Response): Promise<void> {

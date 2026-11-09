@@ -1,6 +1,7 @@
 import { QueryFilter } from "mongoose";
 import {
     Supplier,
+    SUPPLIER_CATEGORIES,
     type SupplierCategory,
     type SupplierDocument,
     type SupplierCoords,
@@ -157,6 +158,44 @@ export async function deactivateSupplier(
 
 
 //filter function for listing of suppliers
+
+// shape returned by getSupplierStats: totals plus a per-category breakdown
+export type CategoryCounts = Record<SupplierCategory, number>;
+
+export interface SupplierStats {
+  totalSuppliers: number;
+  activeSuppliers: number;
+  inactiveSuppliers: number;
+  byCategory: CategoryCounts; // counts active suppliers per category
+}
+
+// admin-scoped read: platform-wide supplier statistics for the admin dashboard.
+// authorization is enforced at the route via requireAdmin.
+export async function getSupplierStats(): Promise<SupplierStats> {
+  const [activeSuppliers, inactiveSuppliers, byCategoryRows] = await Promise.all([
+    Supplier.countDocuments({ isActive: true }),
+    Supplier.countDocuments({ isActive: false }),
+    Supplier.aggregate<{ _id: SupplierCategory; count: number }>([
+      { $match: { isActive: true } },
+      { $group: { _id: "$category", count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  // default every known category to 0, then fill from the aggregation
+  const byCategory = Object.fromEntries(
+    SUPPLIER_CATEGORIES.map((c) => [c, 0]),
+  ) as CategoryCounts;
+  for (const row of byCategoryRows) {
+    if (row._id in byCategory) byCategory[row._id] = row.count;
+  }
+
+  return {
+    totalSuppliers: activeSuppliers + inactiveSuppliers,
+    activeSuppliers,
+    inactiveSuppliers,
+    byCategory,
+  };
+}
 
 //Error handling functions
 

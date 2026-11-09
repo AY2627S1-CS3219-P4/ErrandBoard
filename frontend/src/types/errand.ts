@@ -4,7 +4,7 @@
 *defined below.
 */
 
-export const ERRAND_STATUSES = [ "OPEN", "ACCEPTED", "PICKED_UP", "PENDING_COMPLETION", "COMPLETED", "CANCELLED", "EXPIRED" ] as const;
+export const ERRAND_STATUSES = [ "OPEN", "ACCEPTED", "PICKED_UP", "PENDING_COMPLETION", "DISPUTED", "COMPLETED", "CANCELLED", "EXPIRED" ] as const;
 
 export type ErrandStatus = (typeof ERRAND_STATUSES)[number];
 
@@ -13,6 +13,7 @@ export const STATUS_LABELS: Record<ErrandStatus, string> = {
     ACCEPTED: "Accepted",
     PICKED_UP: "Picked up",
     PENDING_COMPLETION: "Awaiting confirmation",
+    DISPUTED: "Disputed",
     COMPLETED: "Completed",
     CANCELLED: "Cancelled",
     EXPIRED: "Expired"
@@ -39,6 +40,9 @@ export interface Errand {
   expiresAt: string;
   deliverBy?: string;
   confirmBy?: string;
+  disputeReason?: string;
+  disputedAt?: string;
+  disputedBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -58,7 +62,7 @@ export interface ErrandFilters {
   since?: string; // ISO date
 }
 
-export type ErrandAction = "cancel" | "courier-cancel" | "pickup" | "deliver" | "complete";
+export type ErrandAction = "cancel" | "courier-cancel" | "pickup" | "deliver" | "complete" | "dispute";
 
 export const ACTIVE_STATUSES_SET: ReadonlySet<ErrandStatus> = new Set<ErrandStatus>([
   "OPEN",

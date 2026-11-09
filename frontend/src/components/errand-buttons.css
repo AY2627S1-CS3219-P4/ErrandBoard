@@ -16,3 +16,5 @@
 .errand-btn-primary { border-color: var(--accent); background: var(--accent); color: #fff; }
 .errand-btn-primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.1); }
 .errand-btn-danger { color: #c0392b; }
+.errand-btn-warning { color: #b9770e; }
+.errand-btn-warning:hover:not(:disabled) { border-color: #b9770e; background: rgba(185, 119, 14, 0.08); }

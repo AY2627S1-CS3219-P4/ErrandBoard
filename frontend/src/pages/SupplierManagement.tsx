@@ -4,9 +4,17 @@ import { Link } from "react-router-dom";
 import { apiFetch, supplierApiUrl } from "../api/client";
 import { serviceResponseError, serviceUnavailable } from "../api/service-errors";
 import { CATEGORY_LABELS, type Supplier } from "../types/supplier";
+import { getSupplierStats, type SupplierStats, type SupplierCategory } from "../api/adminStats";
+import { StatCard, StatGrid } from "../components/StatCard";
+import "./AdminDashboard.css";
 import "./SupplierManagement.css";
 
 const CATEGORIES = Object.keys(CATEGORY_LABELS);
+
+function statValue(loading: boolean, value: number | undefined): string {
+  if (loading) return "…";
+  return typeof value === "number" ? value.toLocaleString() : "—";
+}
 
 function supplierFetch(path: string, init: RequestInit = {}): Promise<Response> {
   return apiFetch(supplierApiUrl(path), {
@@ -68,6 +76,21 @@ export default function SupplierManagement() {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [statusChange, setStatusChange] = useState<StatusChange | null>(null);
+  const [stats, setStats] = useState<SupplierStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  // Stats come from the service endpoint (unfiltered totals), independent of the list's
+  // search/showInactive filter — so the cards stay accurate regardless of the current view.
+  const loadStats = useCallback(async (signal?: AbortSignal) => {
+    // `statsLoading` starts true; the flag is cleared once the fetch settles.
+    try {
+      setStats(await getSupplierStats(signal));
+    } catch {
+      if (!signal?.aborted) setStats(null);
+    } finally {
+      if (!signal?.aborted) setStatsLoading(false);
+    }
+  }, []);
 
   const loadSuppliers = useCallback(async () => {
     setIsLoading(true);
@@ -91,6 +114,13 @@ export default function SupplierManagement() {
     queueMicrotask(() => { if (active) void loadSuppliers(); });
     return () => { active = false; };
   }, [loadSuppliers]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    // defer out of the synchronous effect body (matches the loadAccounts effect above)
+    queueMicrotask(() => { if (!controller.signal.aborted) void loadStats(controller.signal); });
+    return () => controller.abort();
+  }, [loadStats]);
 
   const activeCount = useMemo(() => suppliers.filter((supplier) => supplier.isActive).length, [suppliers]);
 
@@ -138,7 +168,7 @@ export default function SupplierManagement() {
       if (!response.ok) throw new Error(await responseError(response));
       setNotice(editingId ? "Supplier updated successfully." : "Supplier created successfully.");
       cancelEditing();
-      await loadSuppliers();
+      await Promise.all([loadSuppliers(), loadStats()]);
     } catch (requestError) {
       setError(requestError instanceof TypeError ? serviceUnavailable("Supplier management") : requestError instanceof Error ? requestError.message : "Unable to save supplier.");
     } finally {
@@ -167,7 +197,7 @@ export default function SupplierManagement() {
           });
       if (!response.ok) throw new Error(await responseError(response));
       setNotice(`${supplier.name} was ${action === "deactivate" ? "deactivated" : "reactivated"}.`);
-      await loadSuppliers();
+      await Promise.all([loadSuppliers(), loadStats()]);
     } catch (requestError) {
       setError(requestError instanceof TypeError ? serviceUnavailable("Supplier management") : requestError instanceof Error ? requestError.message : `Unable to ${action} supplier.`);
     } finally {
@@ -194,6 +224,21 @@ export default function SupplierManagement() {
           <span>active suppliers</span>
         </div>
       </header>
+
+      <StatGrid variant="auto" aria-label="Supplier statistics">
+        <StatCard icon="TOTAL" label="Total suppliers" value={statValue(statsLoading, stats?.totalSuppliers)} caption="All suppliers" />
+        <StatCard icon="ACTIVE" label="Active" value={statValue(statsLoading, stats?.activeSuppliers)} caption="Listed to users" />
+        <StatCard icon="OFF" label="Inactive" value={statValue(statsLoading, stats?.inactiveSuppliers)} caption="Deactivated" />
+        {CATEGORIES.map((category, index) => (
+          <StatCard
+            key={category}
+            icon={`C${String(index + 1).padStart(2, "0")}`}
+            label={CATEGORY_LABELS[category]}
+            value={statValue(statsLoading, stats?.byCategory?.[category as SupplierCategory])}
+            caption="Active in category"
+          />
+        ))}
+      </StatGrid>
 
       <section className="supplier-management-panel" aria-labelledby="supplier-form-title">
         <div className="supplier-panel-heading">

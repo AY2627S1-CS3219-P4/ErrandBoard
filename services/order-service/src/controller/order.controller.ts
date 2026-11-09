@@ -12,6 +12,11 @@ import {
   completeErrand,
   cancelErrandByRequester,
   cancelErrandByCourier,
+  disputeErrand,
+  listDisputedErrands,
+  resolveDisputeRefund,
+  resolveDisputeTransfer,
+  getErrandStats,
 } from "../services/order.services.js";
 import {
   ErrandNotFoundError,
@@ -25,6 +30,7 @@ import {
   UpstreamError,
   CreditRecoveryRequiredError,
   OrderCreationPendingError,
+  DisputeResolvedError,
 } from "../errors/order.errors.js";
 
 function toArray(value: unknown): string[] | undefined {
@@ -71,6 +77,8 @@ function sendKnownError(res: Response, error: unknown): boolean {
     res.status(403).json({ code: "SELF_ASSIGN", error: "Errands cannot be self-assigned" });
   } else if (error instanceof DeliveryDeadlinePassedError) {
     res.status(409).json( { code: "DEADLINE_PASSED", error: "Delivery deadline passed"})
+  } else if (error instanceof DisputeResolvedError) {
+    res.status(409).json({ code: "DISPUTE_ALREADY_RESOLVED", error: error.message, status: error.status });
   } else if (error instanceof UpdateConflictError) {
     res.status(409).json({ code: "UPDATE_CONFLICT", error: "Errand could not be updated" });
   } else if (error instanceof SupplierNotFoundError) {
@@ -171,6 +179,44 @@ export async function cancelByRequester(req: Request, res: Response): Promise<vo
 export async function cancelByCourier(req: Request, res: Response): Promise<void> {
   try {
     res.json({ errand: await cancelErrandByCourier(idParam(req), userId(req)) });
+  } catch (error) {
+    if (!sendKnownError(res, error)) throw error;
+  }
+}
+
+// a requester disputes their accepted/picked-up errand
+export async function dispute(req: Request, res: Response): Promise<void> {
+  try {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason : "";
+    res.json({ errand: await disputeErrand(idParam(req), userId(req), reason) });
+  } catch (error) {
+    if (!sendKnownError(res, error)) throw error;
+  }
+}
+
+// admin-only: list every disputed errand (the dispute queue)
+export async function listDisputes(_req: Request, res: Response): Promise<void> {
+  res.json({ errands: await listDisputedErrands() });
+}
+
+// admin-only: platform-wide errand statistics for the admin dashboard
+export async function getStats(_req: Request, res: Response): Promise<void> {
+  res.json({ stats: await getErrandStats() });
+}
+
+// admin-only: resolve a dispute by refunding the requester
+export async function resolveRefund(req: Request, res: Response): Promise<void> {
+  try {
+    res.json({ errand: await resolveDisputeRefund(idParam(req)) });
+  } catch (error) {
+    if (!sendKnownError(res, error)) throw error;
+  }
+}
+
+// admin-only: resolve a dispute by transferring the credit to the courier
+export async function resolveTransfer(req: Request, res: Response): Promise<void> {
+  try {
+    res.json({ errand: await resolveDisputeTransfer(idParam(req)) });
   } catch (error) {
     if (!sendKnownError(res, error)) throw error;
   }
