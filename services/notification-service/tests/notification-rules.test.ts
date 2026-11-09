@@ -14,7 +14,9 @@ function ev(over: Partial<StatusChangeEvent["value"]>): StatusChangeEvent["value
     deadline: null, occurredAt: "2026-11-03T08:00:00.000Z", ...over,
   };
 }
-const on = { directActions: true };
+const reviewPath = (id: string) => `/errands/active?review=${id}`;
+const on = { directActions: true, reviewPath };
+const off = { directActions: false, reviewPath };
 const plan = (over: Partial<StatusChangeEvent["value"]>, opts = on) => planNotifications(ev(over), opts);
 const summary = (over: Partial<StatusChangeEvent["value"]>) => plan(over).map((n) => `${n.recipientRole}:${n.kind}`);
 
@@ -62,6 +64,44 @@ describe("who is told about each transition", () => {
   });
 });
 
+describe("disputes", () => {
+  const ADMIN = "3".repeat(24);
+  const admin = { role: "ADMIN" as const, userId: ADMIN };
+  const raised = { status: "DISPUTED" as const, previousStatus: "PICKED_UP" as const, actor: { role: "REQUESTER" as const, userId: REQ } };
+
+  test("requester raises a dispute -> courier only", () => assert.deepEqual(summary(raised), ["COURIER:ERRAND_DISPUTED"]));
+  test("a dispute can be raised from ACCEPTED or PENDING_COMPLETION too", () => {
+    assert.deepEqual(summary({ ...raised, previousStatus: "ACCEPTED" }), ["COURIER:ERRAND_DISPUTED"]);
+    assert.deepEqual(summary({ ...raised, previousStatus: "PENDING_COMPLETION" }), ["COURIER:ERRAND_DISPUTED"]);
+  });
+  test("a missed delivery deadline auto-disputes -> both are told", () =>
+    assert.deepEqual(summary({ ...raised, actor: { role: "SYSTEM", userId: null } }), ["REQUESTER:ERRAND_DISPUTED_TIMEOUT", "COURIER:ERRAND_DISPUTED_TIMEOUT"]));
+  test("a dispute with no courier cannot notify one", () => assert.deepEqual(summary({ ...raised, courierId: null }), []));
+
+  test("admin refunds -> both told, the admin is not", () => {
+    const out = plan({ status: "CANCELLED", previousStatus: "DISPUTED", actor: admin });
+    assert.deepEqual(out.map((n) => `${n.recipientRole}:${n.kind}`), ["REQUESTER:DISPUTE_REFUNDED", "COURIER:DISPUTE_REFUNDED"]);
+    assert.ok(out.every((n) => n.recipientId !== ADMIN));
+    assert.match(out[0].body, /refunded/);
+  });
+  test("admin pays the courier -> both told, with the courier's text first", () => {
+    const out = plan({ status: "COMPLETED", previousStatus: "DISPUTED", actor: admin });
+    assert.deepEqual(out.map((n) => `${n.recipientRole}:${n.kind}`), ["COURIER:DISPUTE_PAID_OUT", "REQUESTER:DISPUTE_PAID_OUT"]);
+    assert.match(out[0].title, /in your favour/);
+    assert.match(out[1].body, /released to them/);
+  });
+  test("an admin payout is not described as an ordinary completion or auto-completion", () => {
+    const kinds = summary({ status: "COMPLETED", previousStatus: "DISPUTED", actor: admin });
+    assert.ok(!kinds.some((k) => /ERRAND_(AUTO_)?COMPLETED/.test(k)));
+  });
+  test("dispute notifications carry only the view button and are not high urgency", () => {
+    for (const n of plan(raised)) {
+      assert.deepEqual(n.actions.map((a) => a.action), ["view"]);
+      assert.equal(n.urgency, "normal");
+    }
+  });
+});
+
 describe("interactive actions", () => {
   const delivered = { status: "PENDING_COMPLETION" as const, previousStatus: "PICKED_UP" as const };
 
@@ -73,9 +113,16 @@ describe("interactive actions", () => {
     assert.equal(n.actions[1].request, undefined);
   });
 
-  test("NOTIFY_DIRECT_ACTIONS=false removes the money-moving button but keeps view", () => {
-    const [n] = plan(delivered, { directActions: false });
-    assert.deepEqual(n.actions.map((a) => a.action), ["view"]);
+  test("NOTIFY_DIRECT_ACTIONS=false swaps it for 'Review & confirm', which only opens the app", () => {
+    const [n] = plan(delivered, off);
+    assert.deepEqual(n.actions.map((a) => a.action), ["review", "view"]);
+    assert.deepEqual(n.actions[0], { action: "review", title: "Review & confirm", url: `/errands/active?review=${ERRAND}` });
+    assert.equal(n.actions.some((a) => a.request), false, "no request: nothing is sent from the service worker");
+    assert.equal(n.urgency, "high");
+  });
+
+  test("review mode adds no buttons to other notifications", () => {
+    for (const n of plan({}, off)) assert.deepEqual(n.actions.map((a) => a.action), ["view"]);
   });
 
   test("every other notification is normal urgency with just a view action", () => {

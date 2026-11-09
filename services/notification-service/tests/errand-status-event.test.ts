@@ -29,6 +29,42 @@ describe("parseStatusEvent", () => {
     assert.equal(parseStatusEvent(msg(e)).value.status, "EXPIRED");
   });
 
+  describe("disputes", () => {
+    const base = (status: string, previous: string, actor: unknown) => {
+      const e = valid();
+      e.value.status = status; e.value.previousStatus = previous; e.value.eventId = `${ID}:status:${status}`; e.value.actor = actor;
+      return e;
+    };
+    for (const previous of ["ACCEPTED", "PICKED_UP", "PENDING_COMPLETION"]) {
+      test(`accepts ${previous} -> DISPUTED raised by the requester`, () => {
+        const e = base("DISPUTED", previous, { role: "REQUESTER", userId: REQ });
+        assert.equal(parseStatusEvent(msg(e, `${ID}:status:DISPUTED`)).value.status, "DISPUTED");
+      });
+    }
+    test("accepts the sweep's PICKED_UP -> DISPUTED", () => {
+      const e = base("DISPUTED", "PICKED_UP", { role: "SYSTEM", userId: null });
+      assert.equal(parseStatusEvent(msg(e, `${ID}:status:DISPUTED`)).value.actor.role, "SYSTEM");
+    });
+    for (const status of ["CANCELLED", "COMPLETED"]) {
+      test(`accepts an admin resolving DISPUTED -> ${status}`, () => {
+        const e = base(status, "DISPUTED", { role: "ADMIN", userId: "3".repeat(24) });
+        assert.equal(parseStatusEvent(msg(e, `${ID}:status:${status}`)).value.actor.role, "ADMIN");
+      });
+    }
+    test("still accepts PICKED_UP -> CANCELLED from an Order Service that predates disputes", () => {
+      const e = base("CANCELLED", "PICKED_UP", { role: "SYSTEM", userId: null });
+      assert.equal(parseStatusEvent(msg(e, `${ID}:status:CANCELLED`)).value.status, "CANCELLED");
+    });
+    test("an admin must carry a user id", () => {
+      const e = base("CANCELLED", "DISPUTED", { role: "ADMIN", userId: null });
+      assert.throws(() => parseStatusEvent(msg(e, `${ID}:status:CANCELLED`)), InvalidStatusEventError);
+    });
+    test("rejects a transition out of DISPUTED that the Order Service does not allow", () => {
+      const e = base("PICKED_UP", "DISPUTED", { role: "ADMIN", userId: "3".repeat(24) });
+      assert.throws(() => parseStatusEvent(msg(e, `${ID}:status:PICKED_UP`)), InvalidStatusEventError);
+    });
+  });
+
   const mutations: [string, (e: any) => void][] = [
     ["non-object courierId", (e) => { e.value.courierId = 7; }],
     ["wrong event type", (e) => { e.value.type = "errand.completed"; }],

@@ -5,14 +5,15 @@ import type { ConsumeMessage } from "amqplib";
 export const EXCHANGE_NAME = "errand.events";
 export const STATUS_EVENT_TYPE = "errand.status.changed";
 
-export const ERRAND_STATUSES = ["OPEN", "ACCEPTED", "PICKED_UP", "PENDING_COMPLETION", "COMPLETED", "CANCELLED", "EXPIRED"] as const;
+export const ERRAND_STATUSES = ["OPEN", "ACCEPTED", "PICKED_UP", "PENDING_COMPLETION", "DISPUTED", "COMPLETED", "CANCELLED", "EXPIRED"] as const;
 export type ErrandStatus = (typeof ERRAND_STATUSES)[number];
 
 const ALLOWED_TRANSITIONS: Record<ErrandStatus, readonly ErrandStatus[]> = {
   OPEN: ["ACCEPTED", "CANCELLED", "EXPIRED"],
-  ACCEPTED: ["PICKED_UP", "CANCELLED"],
-  PICKED_UP: ["PENDING_COMPLETION", "CANCELLED"],
-  PENDING_COMPLETION: ["COMPLETED"],
+  ACCEPTED: ["PICKED_UP", "CANCELLED", "DISPUTED"],
+  PICKED_UP: ["PENDING_COMPLETION", "CANCELLED", "DISPUTED"],
+  PENDING_COMPLETION: ["COMPLETED", "DISPUTED"],
+  DISPUTED: ["COMPLETED", "CANCELLED"],
   COMPLETED: [],
   CANCELLED: [],
   EXPIRED: [],
@@ -26,7 +27,7 @@ export interface StatusChangeEvent {
     errandId: string;
     status: ErrandStatus;
     previousStatus: ErrandStatus;
-    actor: { role: "REQUESTER" | "COURIER" | "SYSTEM"; userId: string | null };
+    actor: { role: "REQUESTER" | "COURIER" | "SYSTEM" | "ADMIN"; userId: string | null };
     requesterId: string;
     courierId: string | null;
     credit: number;
