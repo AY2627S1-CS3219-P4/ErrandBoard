@@ -4,6 +4,8 @@ import { useAuth } from "../auth/useAuth";
 import type { AccountType } from "../auth/auth-context";
 import { apiFetch, userApiUrl } from "../api/client";
 import { serviceResponseError, serviceUnavailable } from "../api/service-errors";
+import { StatCard, StatGrid } from "../components/StatCard";
+import { getUserStats, type UserStats } from "../api/adminStats";
 import "./AdminDashboard.css";
 import "./AccountAdministration.css";
 
@@ -14,6 +16,12 @@ async function apiError(response: Response): Promise<string> {
   return serviceResponseError(response, "Account management", "Unable to complete the account request.");
 }
 
+function statValue(loading: boolean, value: number | undefined): string {
+  if (loading) return "…";
+  console.log(value);
+  return typeof value === "number" ? value.toLocaleString() : "—";
+}
+
 export default function AccountAdministration() {
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<ManagedAccount[]>([]);
@@ -22,6 +30,8 @@ export default function AccountAdministration() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const loadAccounts = useCallback(async () => {
     setIsLoading(true); setError("");
@@ -34,11 +44,28 @@ export default function AccountAdministration() {
     finally { setIsLoading(false); }
   }, []);
 
+  const loadStats = useCallback(async (signal?: AbortSignal) => {
+    setStatsLoading(true);
+    try {
+      setStats(await getUserStats(signal));
+    } catch {
+      if (!signal?.aborted) setStats(null); // leave cards as "—" if stats fail; the table still works
+    } finally {
+      if (!signal?.aborted) setStatsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     queueMicrotask(() => { if (active) void loadAccounts(); });
     return () => { active = false; };
   }, [loadAccounts]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadStats(controller.signal);
+    return () => controller.abort();
+  }, [loadStats]);
   const visibleAccounts = useMemo(() => filter === "ALL" ? accounts : accounts.filter((account) => account.accountType === filter), [accounts, filter]);
 
   async function changeRole(account: ManagedAccount) {
@@ -48,7 +75,7 @@ export default function AccountAdministration() {
       const response = await apiFetch(userApiUrl(`/accounts/${account._id}/role`), { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ accountType: nextRole }) });
       if (!response.ok) throw new Error(await apiError(response));
       setNotice(`${account.username} is now an ${nextRole === "ADMIN" ? "Admin" : "User"}.`);
-      await loadAccounts();
+      await Promise.all([loadAccounts(), loadStats()]);
     } catch (requestError) { setError(requestError instanceof TypeError ? serviceUnavailable("Account management") : requestError instanceof Error ? requestError.message : "Unable to update account role."); }
     finally { setUpdatingId(null); }
   }
@@ -60,7 +87,7 @@ export default function AccountAdministration() {
       const response = await apiFetch(userApiUrl(`/accounts/${account._id}/status`), { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ isActive }) });
       if (!response.ok) throw new Error(await apiError(response));
       setNotice(`${account.username} is now ${isActive ? "active" : "inactive"}.`);
-      await loadAccounts();
+      await Promise.all([loadAccounts(), loadStats()]);
     } catch (requestError) { setError(requestError instanceof TypeError ? serviceUnavailable("Account management") : requestError instanceof Error ? requestError.message : "Unable to update account status."); }
     finally { setUpdatingId(null); }
   }
@@ -69,6 +96,13 @@ export default function AccountAdministration() {
     <main className="admin-dashboard account-administration-page">
       <Link className="admin-back-button" to="/admin"><span aria-hidden="true">←</span>Back to dashboard</Link>
       <div className="admin-page-heading"><div><p className="eyebrow">ERRANDBOARD / SUPERADMIN</p><h1>Account Administration</h1><p>Review platform accounts and manage administrator access.</p></div><span className="role-badge"><span className="role-dot" />{user?.accountType}</span></div>
+      <StatGrid variant="auto" aria-label="Account statistics">
+        <StatCard icon="USERS" label="Total accounts" value={statValue(statsLoading, stats?.totalUsers)} caption="All roles" />
+        <StatCard icon="ACTIVE" label="Active" value={statValue(statsLoading, stats?.activeUsers)} caption="Not deactivated" />
+        <StatCard icon="OFF" label="Inactive" value={statValue(statsLoading, stats?.inactiveUsers)} caption="Deactivated" />
+        <StatCard icon="ADMIN" label="Admins" value={statValue(statsLoading, stats?.admins)} caption="ADMIN role" />
+        <StatCard icon="USER" label="Users" value={statValue(statsLoading, stats?.users)} caption="USER role" />
+      </StatGrid>
       <section className="account-admin-panel" aria-labelledby="account-list-title">
         <div className="section-heading account-admin-heading"><div><p className="eyebrow">ACCESS CONTROL</p><h2 id="account-list-title">Accounts</h2></div><div className="account-summary"><strong>{accounts.length}</strong><span>managed accounts</span></div></div>
         <div className="account-filters" aria-label="Account filters">{(["ALL", "ADMIN", "USER"] as Filter[]).map((value) => <button key={value} className={`account-filter ${filter === value ? "active" : ""}`} type="button" onClick={() => setFilter(value)}>{value === "ALL" ? "All accounts" : `${value === "ADMIN" ? "Admins" : "Users"} (${accounts.filter((account) => account.accountType === value).length})`}</button>)}</div>

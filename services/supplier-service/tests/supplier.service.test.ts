@@ -6,6 +6,7 @@ import {
   deactivateSupplier,
   DuplicateSupplierError,
   getSupplierById,
+  getSupplierStats,
   listSuppliers,
   SupplierNotFoundError,
   updateSupplier,
@@ -209,4 +210,47 @@ test("deactivateSupplier throws SupplierNotFoundError for a missing id", async (
   t.mock.method(Supplier, "findByIdAndUpdate", async () => null);
 
   await assert.rejects(() => deactivateSupplier("missing-id"), SupplierNotFoundError);
+});
+
+test("getSupplierStats returns totals and a per-category breakdown", async (t) => {
+  // countDocuments is called for active then inactive
+  let countCall = 0;
+  t.mock.method(Supplier, "countDocuments", async () => (countCall++ === 0 ? 7 : 3));
+  t.mock.method(Supplier, "aggregate", async () => [
+    { _id: "FOOD_BEVERAGE", count: 4 },
+    { _id: "RETAIL", count: 2 },
+    { _id: "PRINTING", count: 1 },
+  ]);
+
+  const stats = await getSupplierStats();
+
+  assert.equal(stats.totalSuppliers, 10);
+  assert.equal(stats.activeSuppliers, 7);
+  assert.equal(stats.inactiveSuppliers, 3);
+  // every known category present; absent ones default to 0
+  assert.deepEqual(stats.byCategory, {
+    FOOD_BEVERAGE: 4,
+    RETAIL: 2,
+    CONVENIENCE: 0,
+    PRINTING: 1,
+    OTHER: 0,
+  });
+});
+
+test("getSupplierStats yields all zeros for an empty catalogue", async (t) => {
+  t.mock.method(Supplier, "countDocuments", async () => 0);
+  t.mock.method(Supplier, "aggregate", async () => []);
+
+  const stats = await getSupplierStats();
+
+  assert.equal(stats.totalSuppliers, 0);
+  assert.equal(stats.activeSuppliers, 0);
+  assert.equal(stats.inactiveSuppliers, 0);
+  assert.deepEqual(stats.byCategory, {
+    FOOD_BEVERAGE: 0,
+    RETAIL: 0,
+    CONVENIENCE: 0,
+    PRINTING: 0,
+    OTHER: 0,
+  });
 });

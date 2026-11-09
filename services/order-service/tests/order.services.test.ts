@@ -29,6 +29,7 @@ import {
   escapeRegex,
   EXPIRY_DEADLINE,
   getErrand,
+  getErrandStats,
   isObjectIdString,
   listDisputedErrands,
   listMyErrands,
@@ -806,5 +807,69 @@ describe("dispute resolution (admin)", () => {
   test("a missing errand is not found", async (t) => {
     mockUpdate(t, null, null);
     await assert.rejects(resolveDisputeRefund(ERRAND_ID), isError(ErrandNotFoundError));
+  });
+});
+
+describe("getErrandStats", () => {
+  // Route the two aggregations by pipeline shape: the dispute-detail one begins with a $match.
+  function mockAggregate(
+    t: TestContext,
+    statusRows: { _id: string; count: number }[],
+    disputeRows: { _id: boolean; count: number; credit: number }[],
+  ) {
+    t.mock.method(Errand, "aggregate", (async (pipeline: Record<string, unknown>[]) => {
+      const isDisputeDetail = pipeline.some((stage) => "$match" in stage);
+      return isDisputeDetail ? disputeRows : statusRows;
+    }) as never);
+  }
+
+  test("folds the status aggregation into a full breakdown with derived subtotals", async (t) => {
+    mockAggregate(
+      t,
+      [
+        { _id: "OPEN", count: 3 },
+        { _id: "ACCEPTED", count: 2 },
+        { _id: "PICKED_UP", count: 1 },
+        { _id: "PENDING_COMPLETION", count: 1 },
+        { _id: "COMPLETED", count: 10 },
+        { _id: "CANCELLED", count: 4 },
+        { _id: "EXPIRED", count: 2 },
+        { _id: "DISPUTED", count: 5 },
+      ],
+      [
+        { _id: true, count: 2, credit: 20 },   // system-raised
+        { _id: false, count: 3, credit: 35 },  // requester-raised
+      ],
+    );
+    t.mock.method(Errand, "countDocuments", (async () => 2) as never); // openActive
+
+    const stats = await getErrandStats();
+
+    assert.equal(stats.total, 28);
+    assert.equal(stats.active, 7); // OPEN+ACCEPTED+PICKED_UP+PENDING_COMPLETION = 3+2+1+1
+    assert.equal(stats.openActive, 2);
+    assert.equal(stats.open, 3);
+    assert.equal(stats.completed, 10);
+    assert.equal(stats.cancelled, 4);
+    assert.equal(stats.expired, 2);
+    assert.equal(stats.disputed, 5);
+    assert.equal(stats.disputedBySystem, 2);
+    assert.equal(stats.disputedByRequester, 3);
+    assert.equal(stats.creditsHeld, 55);
+  });
+
+  test("an empty platform yields all zeros", async (t) => {
+    mockAggregate(t, [], []);
+    t.mock.method(Errand, "countDocuments", (async () => 0) as never);
+
+    const stats = await getErrandStats();
+
+    assert.equal(stats.total, 0);
+    assert.equal(stats.active, 0);
+    assert.equal(stats.openActive, 0);
+    assert.equal(stats.disputed, 0);
+    assert.equal(stats.disputedBySystem, 0);
+    assert.equal(stats.disputedByRequester, 0);
+    assert.equal(stats.creditsHeld, 0);
   });
 });

@@ -1,10 +1,34 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
+import { StatCard, StatGrid } from "../components/StatCard";
+import { getAdminStats, type AdminStats } from "../api/adminStats";
 import "./AdminDashboard.css";
+
+// Render a loaded number, or "—" while loading / when that service's stats failed to load.
+function statValue(loading: boolean, value: number | undefined): string {
+  if (loading) return "…";
+  return typeof value === "number" ? value.toLocaleString() : "—";
+}
 
 export default function AdminDashboard() {
   const { user } = useAuth();
   const isSuperadmin = user?.accountType === "SUPERADMIN";
+
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    getAdminStats(controller.signal)
+      .then((result) => setStats(result))
+      .catch(() => { /* getAdminStats swallows per-service failures; a throw here is an aborted load */ })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
 
   return (
     <main className="admin-dashboard">
@@ -17,32 +41,32 @@ export default function AdminDashboard() {
         <span className="role-badge"><span className="role-dot" />{user?.accountType}</span>
       </div>
 
-      <section className="admin-stat-grid" aria-label="Dashboard statistics">
-        <article className="admin-stat-card">
-          <span className="stat-icon">01</span>
-          <span>Total users</span>
-          <strong>—</strong>
-          <small>Coming soon</small>
-        </article>
-        <article className="admin-stat-card">
-          <span className="stat-icon">02</span>
-          <span>Active suppliers</span>
-          <strong>—</strong>
-          <small>Coming soon</small>
-        </article>
-        <article className="admin-stat-card">
-          <span className="stat-icon">03</span>
-          <span>Open errands</span>
-          <strong>—</strong>
-          <small>Coming soon</small>
-        </article>
-        <article className="admin-stat-card">
-          <span className="stat-icon">04</span>
-          <span>Credits in system</span>
-          <strong>—</strong>
-          <small>Coming soon</small>
-        </article>
-      </section>
+      <StatGrid aria-label="Dashboard statistics">
+        <StatCard
+          icon="01"
+          label="Total users"
+          value={statValue(loading, stats?.users?.activeUsers)}
+          caption="Active accounts"
+        />
+        <StatCard
+          icon="02"
+          label="Active suppliers"
+          value={statValue(loading, stats?.suppliers?.activeSuppliers)}
+          caption="Currently listed"
+        />
+        <StatCard
+          icon="03"
+          label="Open errands"
+          value={statValue(loading, stats?.errands?.openActive)}
+          caption="Awaiting a courier"
+        />
+        <StatCard
+          icon="04"
+          label="Credits in system"
+          value={statValue(loading, stats?.credits?.totalCredits)}
+          caption="Available + reserved"
+        />
+      </StatGrid>
 
       <section className="admin-tools-section">
         <div className="section-heading">
@@ -65,12 +89,12 @@ export default function AdminDashboard() {
             <span>Review platform errands and resolve disputes</span>
             <small>Open errand oversight</small>
           </Link>
-          <button className="admin-tool-card" type="button" disabled>
+          <Link className="admin-tool-card admin-tool-link" to="/admin/credits">
             <span className="tool-card-label">FINANCE</span>
             <strong>Credit statistics</strong>
             <span>Inspect balances and transaction history</span>
-            <small>Coming soon</small>
-          </button>
+            <small>Open credit statistics</small>
+          </Link>
           {isSuperadmin && (
             <Link className="admin-tool-card admin-tool-link" to="/admin/accounts">
               <span className="tool-card-label">SUPERADMIN</span>

@@ -8,6 +8,8 @@ import {
   resolveDisputeTransfer,
 } from "../api/errands";
 import { formatCredits, timeAgo } from "../utils/errand-format";
+import { getErrandStats, type ErrandStats } from "../api/adminStats";
+import { StatCard, StatGrid } from "../components/StatCard";
 import type { Errand } from "../types/errand";
 import { useNow } from "../hooks/useNow";
 import "./AdminDashboard.css";
@@ -15,6 +17,11 @@ import "./AccountAdministration.css";
 import "./DisputeManagement.css";
 
 type Outcome = "refund" | "transfer";
+
+function statValue(loading: boolean, value: number | undefined): string {
+  if (loading) return "…";
+  return typeof value === "number" ? value.toLocaleString() : "—";
+}
 
 export default function DisputeManagement() {
   const { user } = useAuth();
@@ -25,6 +32,8 @@ export default function DisputeManagement() {
   const [error, setError] = useState("");
   const [refreshTick, setRefreshTick] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null); // row whose details are open
+  const [stats, setStats] = useState<ErrandStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -39,6 +48,16 @@ export default function DisputeManagement() {
         setError(describeError(cause));
         setHasLoaded(true);
       });
+    return () => controller.abort();
+  }, [refreshTick]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setStatsLoading(true);
+    getErrandStats(controller.signal)
+      .then((result) => setStats(result))
+      .catch(() => { if (!controller.signal.aborted) setStats(null); })
+      .finally(() => { if (!controller.signal.aborted) setStatsLoading(false); });
     return () => controller.abort();
   }, [refreshTick]);
 
@@ -82,6 +101,18 @@ export default function DisputeManagement() {
         <button type="button" className="oversight-tab oversight-tab-active" aria-current="page">Disputes</button>
         {/* Future tabs (e.g. an all-errands overview) slot in here. */}
       </nav>
+
+      <StatGrid variant="auto" aria-label="Errand statistics">
+        <StatCard icon="TOTAL" label="Total errands" value={statValue(statsLoading, stats?.total)} caption="All time" />
+        <StatCard icon="ACTIVE" label="Active" value={statValue(statsLoading, stats?.active)} caption="In progress" />
+        <StatCard icon="OPEN" label="Open" value={statValue(statsLoading, stats?.openActive)} caption="Awaiting a courier" />
+        <StatCard icon="DONE" label="Completed" value={statValue(statsLoading, stats?.completed)} caption="Delivered" />
+        <StatCard icon="CXL" label="Cancelled" value={statValue(statsLoading, stats?.cancelled)} caption="Called off" />
+        <StatCard icon="EXP" label="Expired" value={statValue(statsLoading, stats?.expired)} caption="Timed out" />
+        <StatCard icon="DISP" label="Disputed" value={statValue(statsLoading, stats?.disputed)} caption="Awaiting review" />
+        <StatCard icon="SYS" label="Auto-raised" value={statValue(statsLoading, stats?.disputedBySystem)} caption="By deadline sweep" />
+        <StatCard icon="HELD" label="Credits held" value={statValue(statsLoading, stats?.creditsHeld)} caption="Locked in disputes" />
+      </StatGrid>
 
       <section className="account-admin-panel" aria-labelledby="dispute-list-title">
         <div className="section-heading account-admin-heading">

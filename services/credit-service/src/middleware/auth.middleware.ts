@@ -33,3 +33,16 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     next();
   }
 }
+
+// RBAC guard factory; runs after `authenticate`, which has already attached req.user.
+export function requireRole(...roles: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      res.status(403).json({ code: "FORBIDDEN", error: "Access forbidden" });
+      return;
+    }
+    next();
+  };
+}
+
+export const requireAdmin = requireRole("ADMIN", "SUPERADMIN");

@@ -13,7 +13,8 @@ import {
   dispute,
   listDisputes,
   resolveRefund,
-  resolveTransfer
+  resolveTransfer,
+  getStats
 } from "../controller/order.controller.js";
 import { authenticate, requireAdmin } from "../middleware/auth.middleware.js";
 
@@ -27,6 +28,8 @@ errandRouter.get("/", list);
 errandRouter.get("/mine", mine);
 // admin dispute queue — declared before "/:id" so "disputes" is not captured as an id
 errandRouter.get("/disputes", requireAdmin, listDisputes);
+// admin dashboard statistics — also declared before "/:id"
+errandRouter.get("/stats", requireAdmin, getStats);
 errandRouter.get("/:id", getById);
 
 //create routes

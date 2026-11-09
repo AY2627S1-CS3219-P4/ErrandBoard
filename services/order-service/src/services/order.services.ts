@@ -5,7 +5,7 @@ import { CreditRecoveryRequiredError, DeliveryDeadlinePassedError, DisputeResolv
 import { publishTerminalEvent } from "../event/errand.events.js";
 import { Errand, type ErrandRecord } from "../models/Errand.js";
 import { closeUnreservedCreation, queueCreationRecovery, recordOrderCreation, saveErrandAndCompleteCreation } from "./order-creation.service.js";
-import { ACTIVE_STATUSES, HELD_STATUSES, isTerminal } from "../status/errandState.js";
+import { ACTIVE_STATUSES, ERRAND_STATUSES, HELD_STATUSES, isTerminal } from "../status/errandState.js";
 import { type ErrandStatus, validTransition } from "../status/errandState.js";
 
 export const DISPUTE_REASON_MAXLENGTH = 300;
@@ -345,4 +345,83 @@ export async function resolveDisputeRefund(id: string) {
 // emits errand.completed, so the credit service transfers the credit to the courier.
 export async function resolveDisputeTransfer(id: string) {
   return await resolveDispute(id, "COMPLETED");
+}
+
+// shape returned by getErrandStats: a count per status plus derived subtotals and dispute detail
+export interface ErrandStats {
+  total: number;
+  active: number;      // sum over ACTIVE_STATUSES (OPEN, ACCEPTED, PICKED_UP, PENDING_COMPLETION)
+  openActive: number;  // currently-claimable: status OPEN and not yet expired
+  open: number;
+  accepted: number;
+  picked_up: number;
+  pending_completion: number;
+  completed: number;
+  expired: number;
+  cancelled: number;
+  disputed: number;
+  disputedBySystem: number;     // dispute auto-raised by the deadline sweep (disputedBy === "system")
+  disputedByRequester: number;  // dispute raised by a requester (any other disputedBy)
+  creditsHeld: number;          // sum of credit currently locked in DISPUTED errands
+}
+
+// admin-scoped read: platform-wide errand statistics for the admin dashboard.
+// authorization is enforced at the route via requireAdmin.
+export async function getErrandStats(): Promise<ErrandStats> {
+  const now = new Date();
+
+  const [byStatus, openActive, disputeDetail] = await Promise.all([
+    // one count per status
+    Errand.aggregate<{ _id: ErrandStatus; count: number }>([
+      { $group: { _id: "$status", count: { $sum: 1 } } },
+    ]),
+    // currently-claimable open errands (OPEN and not expired)
+    Errand.countDocuments({ status: "OPEN", expiresAt: { $gt: now } }),
+    // dispute split (by origin) + credits held, over DISPUTED errands only
+    Errand.aggregate<{ _id: boolean; count: number; credit: number }>([
+      { $match: { status: "DISPUTED" } },
+      {
+        $group: {
+          _id: { $eq: ["$disputedBy", "system"] },
+          count: { $sum: 1 },
+          credit: { $sum: "$credit" },
+        },
+      },
+    ]),
+  ]);
+
+  // fold the status aggregation into a map with every status defaulted to 0
+  const counts = Object.fromEntries(ERRAND_STATUSES.map((s) => [s, 0])) as Record<ErrandStatus, number>;
+  for (const row of byStatus) {
+    if (row._id in counts) counts[row._id] = row.count;
+  }
+
+  const total = ERRAND_STATUSES.reduce((sum, s) => sum + counts[s], 0);
+  const active = ACTIVE_STATUSES.reduce((sum, s) => sum + counts[s], 0);
+
+  let disputedBySystem = 0;
+  let disputedByRequester = 0;
+  let creditsHeld = 0;
+  for (const row of disputeDetail) {
+    if (row._id) disputedBySystem = row.count;
+    else disputedByRequester = row.count;
+    creditsHeld += row.credit;
+  }
+
+  return {
+    total,
+    active,
+    openActive,
+    open: counts.OPEN,
+    accepted: counts.ACCEPTED,
+    picked_up: counts.PICKED_UP,
+    pending_completion: counts.PENDING_COMPLETION,
+    completed: counts.COMPLETED,
+    expired: counts.EXPIRED,
+    cancelled: counts.CANCELLED,
+    disputed: counts.DISPUTED,
+    disputedBySystem,
+    disputedByRequester,
+    creditsHeld,
+  };
 }

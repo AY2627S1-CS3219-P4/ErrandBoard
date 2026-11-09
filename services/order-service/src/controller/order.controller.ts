@@ -16,6 +16,7 @@ import {
   listDisputedErrands,
   resolveDisputeRefund,
   resolveDisputeTransfer,
+  getErrandStats,
 } from "../services/order.services.js";
 import {
   ErrandNotFoundError,
@@ -196,6 +197,11 @@ export async function dispute(req: Request, res: Response): Promise<void> {
 // admin-only: list every disputed errand (the dispute queue)
 export async function listDisputes(_req: Request, res: Response): Promise<void> {
   res.json({ errands: await listDisputedErrands() });
+}
+
+// admin-only: platform-wide errand statistics for the admin dashboard
+export async function getStats(_req: Request, res: Response): Promise<void> {
+  res.json({ stats: await getErrandStats() });
 }
 
 // admin-only: resolve a dispute by refunding the requester
