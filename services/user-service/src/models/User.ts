@@ -9,6 +9,10 @@ export interface UserDocument {
   passwordHash: string;
   accountType: AccountType;
   isActive: boolean;
+  emailVerified?: boolean;
+  emailVerificationTokenHash?: string;
+  emailVerificationExpiresAt?: Date;
+  emailVerificationRequestedAt?: Date;
   authzVersion: number;
   creditSetupPending: boolean;
   creditSetupAttempts: number;
@@ -54,6 +58,11 @@ const userSchema = new Schema<UserDocument>(
       default: true,
       required: true,
     },
+    // Legacy documents omit this field until the additive backfill runs.
+    emailVerified: { type: Boolean },
+    emailVerificationTokenHash: { type: String, select: false },
+    emailVerificationExpiresAt: { type: Date, select: false },
+    emailVerificationRequestedAt: { type: Date, select: false },
     authzVersion: {
       type: Number,
       default: 0,
@@ -75,6 +84,10 @@ const userSchema = new Schema<UserDocument>(
 userSchema.index(
   { creditSetupNextRetryAt: 1 },
   { partialFilterExpression: { creditSetupPending: true } },
+);
+userSchema.index(
+  { emailVerificationTokenHash: 1 },
+  { unique: true, partialFilterExpression: { emailVerificationTokenHash: { $exists: true } } },
 );
 
 export const User = model<UserDocument>("User", userSchema);

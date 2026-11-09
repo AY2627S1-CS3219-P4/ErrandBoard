@@ -12,6 +12,7 @@ import {
 import { createAccessToken } from "../security/token.js";
 import { AuthorizationChangeError } from "../services/authorization.service.js";
 import { validateRegistration, validatePassword, validUsername, validCredential } from "../validators/registration.validator.js";
+import { confirmVerificationToken, requestVerificationEmail } from "../services/email-verification.service.js";
 
 function duplicateRegistrationFields(error: unknown): Record<string, string> | null {
   if (
@@ -62,15 +63,52 @@ export async function register(
     return;
   }
 
+  let emailDeliveryPending = false;
+  try {
+    await requestVerificationEmail(user.email);
+  } catch {
+    emailDeliveryPending = true;
+    console.error("Could not send registration confirmation email");
+  }
+
+  if (emailDeliveryPending) {
+    res.status(202).json({
+      code: "VERIFICATION_EMAIL_PENDING",
+      message: "Your account was created, but the confirmation email could not be sent yet. Please try resending it.",
+      user,
+    });
+    return;
+  }
   if (user.creditSetupPending) {
     res.status(202).json({
       code: "CREDIT_SETUP_PENDING",
-      message: "Your account was created. Credit setup is still in progress; you can log in while we retry automatically.",
+      message: "Your account was created. Confirm your email before logging in. Credit setup will continue automatically.",
       user,
     });
     return;
   }
   res.status(201).json({ user });
+}
+
+export async function resendVerification(req: Request, res: Response): Promise<void> {
+  const email = req.body?.email;
+  if (typeof email === "string" && email.length <= 254) {
+    try {
+      await requestVerificationEmail(email);
+    } catch {
+      console.error("Could not resend confirmation email");
+    }
+  }
+  res.status(202).json({ message: "If this address has an unverified account, a confirmation email will be sent when eligible." });
+}
+
+export async function confirmEmail(req: Request, res: Response): Promise<void> {
+  const token = req.body?.token;
+  if (typeof token !== "string" || !(await confirmVerificationToken(token))) {
+    res.status(400).json({ error: "This confirmation link is invalid or expired. Request another email." });
+    return;
+  }
+  res.status(200).json({ message: "Email confirmed. You can now log in." });
 }
 
 export async function login(

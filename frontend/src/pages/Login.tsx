@@ -111,6 +111,9 @@ export default function Login() {
       <p className="auth-alternate-link">
         Need an account? <Link to="/register">Register</Link>
       </p>
+      <p className="auth-alternate-link">
+        Waiting for confirmation? <Link to="/check-email">Resend the email</Link>
+      </p>
     </main>
   );
 }

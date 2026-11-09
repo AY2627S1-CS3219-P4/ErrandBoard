@@ -1,6 +1,8 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import CheckEmail from "./pages/CheckEmail";
+import ConfirmEmail from "./pages/ConfirmEmail";
 import Homepage from "./pages/Homepage";
 import Settings from "./pages/Settings";
 import SupplierListing from "./pages/SupplierListing";
@@ -26,7 +28,9 @@ export default function App() {
           <Route element={<RedirectIfAuthenticated />}>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/check-email" element={<CheckEmail />} />
           </Route>
+          <Route path="/confirm-email" element={<ConfirmEmail />} />
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
               <Route path="/home" element={<Homepage />} />

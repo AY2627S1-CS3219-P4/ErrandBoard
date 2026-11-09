@@ -105,13 +105,11 @@ export default function Register() {
         return;
       }
 
-      if (response.status === 202) {
-        navigate("/login", { state: {
-          notice: "Your account was created. Credit setup is still in progress; you can log in while we retry automatically.",
-        } });
-      } else {
-        navigate("/login");
-      }
+      const result = await response.json().catch(() => null) as { code?: string } | null;
+      navigate("/check-email", { state: {
+        email: normalizeRegistrationEmail(email),
+        deliveryPending: result?.code === "VERIFICATION_EMAIL_PENDING",
+      } });
     } catch {
       setError(serviceUnavailable("Registration"));
     } finally {

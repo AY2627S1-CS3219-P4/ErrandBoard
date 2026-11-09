@@ -87,6 +87,9 @@ services:
       CREDIT_INTERNAL_API_KEY: ${CREDIT_INTERNAL_API_KEY}
       REDIS_URL: redis://redis:6379
       FRONTEND_ORIGIN: http://localhost:5173
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      SES_FROM_EMAIL: ${SES_FROM_EMAIL:-}
+      PUBLIC_APP_ORIGIN: ${PUBLIC_APP_ORIGIN:-http://localhost:5173}
     depends_on:
       mongodb:
         condition: service_healthy

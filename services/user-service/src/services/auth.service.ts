@@ -21,6 +21,7 @@ export async function registerUser(input: {
     email: input.email,
     username: input.username,
     passwordHash,
+    emailVerified: false,
     creditSetupPending: true,
     creditSetupNextRetryAt: initialCreditRetryAt(),
   });
@@ -62,7 +63,7 @@ export async function registerUser(input: {
 export async function authenticateUser(username: string, password: string) {
   const user = await User.findOne({ username }).select("+passwordHash");
 
-  if (!user || !(await verifyPassword(password, user.passwordHash)) || user.isActive === false) {
+  if (!user || !(await verifyPassword(password, user.passwordHash)) || user.isActive === false || user.emailVerified === false) {
     return null;
   }
 
@@ -107,7 +108,7 @@ export async function rotateUserSession(rawToken: string): Promise<{
 
   if (session) {
     const user = await User.findById(session.userId);
-    if (!user || user.isActive === false ||
+    if (!user || user.isActive === false || user.emailVerified === false ||
         (session.authzVersion ?? 0) !== (user.authzVersion ?? 0) ||
         !(await requireCurrentAuthorization(user))) {
       await Session.updateOne(
@@ -192,7 +193,7 @@ async function findSessionUser(rawToken: string, includePassword = false) {
   if (!session) return null;
   const query = User.findById(session.userId);
   const user = await (includePassword ? query.select("+passwordHash") : query);
-  if (!user || user.isActive === false ||
+  if (!user || user.isActive === false || user.emailVerified === false ||
       (session.authzVersion ?? 0) !== (user.authzVersion ?? 0) ||
       !(await requireCurrentAuthorization(user))) return null;
   return user;

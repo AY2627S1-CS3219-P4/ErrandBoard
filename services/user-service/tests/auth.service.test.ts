@@ -58,7 +58,8 @@ test("registration sends only a hash to persistence and returns safe account fie
   // Simulate a caller attempting to inject a privileged account type.
   const result = await registerUser({ ...input, accountType: "ADMIN" } as typeof input);
   assert.ok(persisted);
-  assert.deepEqual(Object.keys(persisted).sort(), ["creditSetupNextRetryAt", "creditSetupPending", "email", "passwordHash", "username"]);
+  assert.deepEqual(Object.keys(persisted).sort(), ["creditSetupNextRetryAt", "creditSetupPending", "email", "emailVerified", "passwordHash", "username"]);
+  assert.equal(persisted.emailVerified, false);
   assert.equal(persisted.creditSetupPending, true);
   assert.equal(typeof persisted.passwordHash, "string");
   assert.notEqual(persisted.passwordHash, input.password);
@@ -92,6 +93,13 @@ test("credit setup pending does not prevent login", async (t) => {
   const pendingUser = new User({ ...storedUser.toObject(), creditSetupPending: true });
   t.mock.method(User, "findOne", () => ({ select: async () => pendingUser }));
   assert.equal(await authenticateUser(input.username, input.password), pendingUser);
+});
+
+test("unverified credentials cannot create a login session", async (t) => {
+  const unverified = new User({ ...storedUser.toObject(), emailVerified: false });
+  t.mock.method(User, "findOne", () => ({ select: async () => unverified }));
+  t.mock.method(authorizationStore, "read", async () => { throw new Error("must not consult authorization state"); });
+  assert.equal(await authenticateUser(input.username, input.password), null);
 });
 
 test("a lost database confirmation keeps registration pending for worker reconciliation", async (t) => {
