@@ -12,6 +12,12 @@ import { CreditAccountUnavailableError, syncCreditAccount } from "./credit-accou
 import { initialCreditRetryAt, markCreditSetupReady, recordCreditSetupFailure } from "./credit-provisioning.service.js";
 import { reconcileCognitoVerification } from "./cognito-verification.service.js";
 
+export class EmailNotVerifiedError extends Error {
+  constructor() {
+    super("Email confirmation is required");
+  }
+}
+
 export async function registerUser(input: {
   email: string;
   username: string;
@@ -78,7 +84,7 @@ export async function authenticateUser(username: string, password: string) {
       console.error("Could not reconcile Cognito confirmation:", error instanceof Error ? error.name : "UnknownError");
     }
   }
-  if (user.emailVerified === false) return null;
+  if (user.emailVerified === false) throw new EmailNotVerifiedError();
 
   if (!(await requireCurrentAuthorization(user))) return null;
 

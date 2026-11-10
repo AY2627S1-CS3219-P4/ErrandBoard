@@ -7,6 +7,7 @@ import { hashSessionToken } from "../src/security/session-token.js";
 import { authorizationStore } from "../src/security/authorization-state.js";
 import {
   authenticateUser,
+  EmailNotVerifiedError,
   createUserSession,
   registerUser,
   revokeUserSession,
@@ -99,7 +100,8 @@ test("unverified credentials cannot create a login session", async (t) => {
   const unverified = new User({ ...storedUser.toObject(), emailVerified: false });
   t.mock.method(User, "findOne", () => ({ select: async () => unverified }));
   t.mock.method(authorizationStore, "read", async () => { throw new Error("must not consult authorization state"); });
-  assert.equal(await authenticateUser(input.username, input.password), null);
+  await assert.rejects(authenticateUser(input.username, input.password), EmailNotVerifiedError);
+  assert.equal(await authenticateUser(input.username, "wrong-password"), null);
 });
 
 test("a lost database confirmation keeps registration pending for worker reconciliation", async (t) => {
