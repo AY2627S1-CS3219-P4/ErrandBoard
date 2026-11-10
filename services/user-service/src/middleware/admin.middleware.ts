@@ -41,5 +41,6 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
     res.status(403).json({ error: "Admin access required" });
     return;
   }
+  req.user = claims;
   next();
 }

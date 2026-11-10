@@ -1,7 +1,7 @@
 import { errors, SignJWT, jwtVerify } from "jose";
 import { ACCOUNT_TYPES, type AccountType } from "../models/User.js";
 
-interface AccessTokenClaims {
+export interface AccessTokenClaims {
   userId: string;
   role: AccountType;
   authzVersion: number;

@@ -1,4 +1,4 @@
-import { model, Schema } from "mongoose";
+import { model, Schema, Types } from "mongoose";
 
 export const SUPPLIER_CATEGORIES = [
     "FOOD_BEVERAGE",
@@ -45,6 +45,12 @@ export interface SupplierDocument {
     createdAt: Date;
     updatedAt: Date;
 }
+
+//SupplierId
+export interface SupplierRecord extends SupplierDocument {
+  _id: Types.ObjectId;
+}
+
 
 const coordinateSchema = new Schema<SupplierCoords>(
   {

@@ -1,6 +1,11 @@
 import type { Request, Response } from "express";
 import { ACCOUNT_TYPES, User } from "../models/User.js";
 import { AuthorizationChangeError, updateManagedAccount } from "../services/authorization.service.js";
+import { logger } from "../logger.js";
+
+function actorId(req: Request): string | undefined {
+  return req.user?.userId;
+}
 
 function accountResponse(account: InstanceType<typeof User>) {
   return {
@@ -14,13 +19,63 @@ function accountResponse(account: InstanceType<typeof User>) {
   };
 }
 
-async function applyManagedChange(res: Response, id: string, change: { accountType: "USER" | "ADMIN" } | { isActive: boolean }) {
+async function applyManagedChange(req: Request, res: Response, id: string, change: { accountType: "USER" | "ADMIN" } | { isActive: boolean }) {
+  // Read the account before the change so the audit can record who was affected
+  // (username) and the prior role, which the post-change document no longer holds.
+  const before = await User.findById(id).select("username accountType isActive").lean();
   try {
     const account = await updateManagedAccount(id, change);
-    if (!account) { res.status(404).json({ error: "Account not found" }); return; }
+    if (!account) {
+      logger.warn(
+        {
+          event: "accountType" in change ? "account.role_change_rejected" : "account.status_change_rejected",
+          adminId: actorId(req),
+          targetUserId: id,
+          reason: "account_not_found",
+        },
+        "Account change rejected",
+      );
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+    if ("accountType" in change) {
+      logger.info(
+        {
+          event: "account.role_changed",
+          adminId: actorId(req),
+          targetUserId: id,
+          targetUsername: before?.username,
+          oldRole: before?.accountType,
+          newRole: change.accountType,
+        },
+        "Account role changed by admin",
+      );
+    } else {
+      logger.info(
+        {
+          event: "account.status_changed",
+          adminId: actorId(req),
+          targetUserId: id,
+          targetUsername: before?.username,
+          isActive: change.isActive,
+        },
+        "Account status changed by admin",
+      );
+    }
     res.json({ account: accountResponse(account) });
   } catch (error) {
     if (error instanceof AuthorizationChangeError) {
+      logger.warn(
+        {
+          event: "accountType" in change ? "account.role_change_rejected" : "account.status_change_rejected",
+          adminId: actorId(req),
+          targetUserId: id,
+          targetUsername: before?.username,
+          reason: "authorization_change_error",
+          status: error.status,
+        },
+        "Account change rejected",
+      );
       res.status(error.status).json({ error: error.message });
       return;
     }
@@ -43,7 +98,7 @@ export async function updateAccountRole(req: Request, res: Response): Promise<vo
     res.status(400).json({ error: "Account type must be USER or ADMIN" });
     return;
   }
-  await applyManagedChange(res, req.params.id as string, { accountType });
+  await applyManagedChange(req, res, req.params.id as string, { accountType });
 }
 
 export async function updateAccountStatus(req: Request, res: Response): Promise<void> {
@@ -52,5 +107,5 @@ export async function updateAccountStatus(req: Request, res: Response): Promise<
     res.status(400).json({ error: "isActive must be a boolean" });
     return;
   }
-  await applyManagedChange(res, req.params.id as string, { isActive });
+  await applyManagedChange(req, res, req.params.id as string, { isActive });
 }

@@ -25,7 +25,7 @@ async function sweep(
 
   for (const { _id } of due) {
     try {
-      logger.debug({ status, errandId: _id }, "Processing errand")
+      logger.info({ status, errandId: _id }, "Processing errand")
       await transition(_id.toString());
       logger.info({ status, errandId: _id, transition: transition.name }, "Applied transition to errand")
     } catch (err) {

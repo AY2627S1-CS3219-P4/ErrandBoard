@@ -3,7 +3,7 @@ import {
     Supplier,
     SUPPLIER_CATEGORIES,
     type SupplierCategory,
-    type SupplierDocument,
+    type SupplierRecord,
     type SupplierCoords,
     type OpeningHours,
 }   from "../models/Supplier.js"
@@ -58,7 +58,7 @@ export class DuplicateSupplierError extends Error {}
 //CRUD functions
 export async function createSupplier(
     input: CreateSupplierInput
-): Promise<SupplierDocument> {
+): Promise<SupplierRecord> {
     try {
         return await Supplier.create(input);
     } catch (error) {
@@ -72,7 +72,7 @@ export async function createSupplier(
 }
 
 export async function listSuppliers(input: ListSuppliersInput) {
-    const query: QueryFilter<SupplierDocument> = {};
+    const query: QueryFilter<SupplierRecord> = {};
 
     //if showInactive is true isActive should be set to false;
     if (!input.showInactive) {
@@ -103,7 +103,7 @@ export async function listSuppliers(input: ListSuppliersInput) {
 export async function getSupplierById(
     id: string,
     isAdmin: boolean = false
-): Promise<SupplierDocument> {
+): Promise<SupplierRecord> {
     const supplier = await Supplier.findById(id);
 
     //inactive suppliers are treated as not found if user is not an admin
@@ -116,7 +116,7 @@ export async function getSupplierById(
 export async function updateSupplier(
     id: string,
     input: UpdateSupplierInput
-): Promise<SupplierDocument> {
+): Promise<SupplierRecord> {
     try {
         const target = await Supplier.findByIdAndUpdate(
             id,
@@ -144,7 +144,7 @@ export async function updateSupplier(
 //Instead of deleting outright, set the active attribute of the supplier to false
 export async function deactivateSupplier(
     id: string
-): Promise<SupplierDocument> {
+): Promise<SupplierRecord> {
     const supplier = await Supplier.findByIdAndUpdate(
         id,
         { $set: {isActive: false}},
