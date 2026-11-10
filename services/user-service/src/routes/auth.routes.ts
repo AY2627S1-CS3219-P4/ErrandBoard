@@ -8,14 +8,12 @@ import {
   changeUsername,
   changePassword,
   resendVerification,
-  confirmEmail,
 } from "../controllers/auth.controller.js";
 
 export const authRouter = Router();
 
 authRouter.post("/register", register);
 authRouter.post("/verify-email/resend", resendVerification);
-authRouter.post("/verify-email/confirm", confirmEmail);
 authRouter.post("/login", login);
 authRouter.post("/refresh", refresh);
 authRouter.post("/logout", logout);
