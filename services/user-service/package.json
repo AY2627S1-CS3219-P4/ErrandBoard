@@ -11,6 +11,7 @@
     "seed": "node dist/scripts/seed-users.js",
     "credits:backfill": "node dist/scripts/backfill-user-credits.js",
     "email:backfill": "node dist/scripts/backfill-email-verification.js",
+    "email:smoke": "node dist/scripts/send-ses-smoke.js",
     "seed:dev": "tsx --env-file=../../.env src/scripts/seed-users.ts",
     "authz:rebuild": "node dist/scripts/rebuild-authorization.js",
     "typecheck:tests": "tsc --project tsconfig.test.json",
@@ -18,7 +19,9 @@
     "test:integration": "node --import tsx --test tests/integration/*.test.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1165.0",
     "@aws-sdk/client-sesv2": "^3.1164.0",
+    "@aws-sdk/client-sqs": "^3.1165.0",
     "@zxcvbn-ts/core": "^4.2.0",
     "@zxcvbn-ts/language-common": "^4.1.3",
     "@zxcvbn-ts/language-en": "^4.1.1",

@@ -9,6 +9,7 @@ import { authorizationStore, requireCurrentAuthorization } from "../security/aut
 import { changeAuthorization } from "./authorization.service.js";
 import { CreditAccountUnavailableError, syncCreditAccount } from "./credit-account.client.js";
 import { initialCreditRetryAt, markCreditSetupReady, recordCreditSetupFailure } from "./credit-provisioning.service.js";
+import { reconcileCognitoVerification } from "./cognito-verification.service.js";
 
 export async function registerUser(input: {
   email: string;
@@ -63,9 +64,20 @@ export async function registerUser(input: {
 export async function authenticateUser(username: string, password: string) {
   const user = await User.findOne({ username }).select("+passwordHash");
 
-  if (!user || !(await verifyPassword(password, user.passwordHash)) || user.isActive === false || user.emailVerified === false) {
+  if (!user || !(await verifyPassword(password, user.passwordHash)) || user.isActive === false) {
     return null;
   }
+
+  if (user.emailVerified === false && process.env.EMAIL_VERIFICATION_PROVIDER === "cognito") {
+    try {
+      await reconcileCognitoVerification(user.email);
+      const refreshed = await User.findById(user._id);
+      if (refreshed?.emailVerified === true) user.emailVerified = true;
+    } catch (error) {
+      console.error("Could not reconcile Cognito confirmation:", error instanceof Error ? error.name : "UnknownError");
+    }
+  }
+  if (user.emailVerified === false) return null;
 
   if (!(await requireCurrentAuthorization(user))) return null;
 

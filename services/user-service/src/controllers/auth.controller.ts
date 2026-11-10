@@ -13,6 +13,21 @@ import { createAccessToken } from "../security/token.js";
 import { AuthorizationChangeError } from "../services/authorization.service.js";
 import { validateRegistration, validatePassword, validUsername, validCredential } from "../validators/registration.validator.js";
 import { confirmVerificationToken, requestVerificationEmail } from "../services/email-verification.service.js";
+import { requestCognitoVerification } from "../services/cognito-verification.service.js";
+
+function cognitoPilot(): boolean {
+  return process.env.EMAIL_VERIFICATION_PROVIDER === "cognito";
+}
+
+function registrationEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.REGISTRATION_ENABLED === "true";
+}
+
+function rejectClosedRegistration(res: Response): boolean {
+  if (registrationEnabled()) return false;
+  res.status(503).json({ code: "REGISTRATION_CLOSED", error: "Registration is temporarily unavailable." });
+  return true;
+}
 
 function duplicateRegistrationFields(error: unknown): Record<string, string> | null {
   if (
@@ -41,6 +56,7 @@ export async function register(
   req: Request,
   res: Response,
 ): Promise<void> {
+  if (rejectClosedRegistration(res)) return;
   const validation = validateRegistration(req.body);
   if (!validation.valid) {
     res.status(400).json({
@@ -65,7 +81,8 @@ export async function register(
 
   let emailDeliveryPending = false;
   try {
-    await requestVerificationEmail(user.email);
+    if (cognitoPilot()) await requestCognitoVerification(user.email, "initial");
+    else await requestVerificationEmail(user.email, "initial");
   } catch {
     emailDeliveryPending = true;
     console.error("Could not send registration confirmation email");
@@ -91,10 +108,12 @@ export async function register(
 }
 
 export async function resendVerification(req: Request, res: Response): Promise<void> {
+  if (rejectClosedRegistration(res)) return;
   const email = req.body?.email;
   if (typeof email === "string" && email.length <= 254) {
     try {
-      await requestVerificationEmail(email);
+      if (cognitoPilot()) await requestCognitoVerification(email);
+      else await requestVerificationEmail(email);
     } catch {
       console.error("Could not resend confirmation email");
     }
@@ -103,6 +122,10 @@ export async function resendVerification(req: Request, res: Response): Promise<v
 }
 
 export async function confirmEmail(req: Request, res: Response): Promise<void> {
+  if (cognitoPilot()) {
+    res.status(410).json({ error: "Use the verification link in your Cognito email." });
+    return;
+  }
   const token = req.body?.token;
   if (typeof token !== "string" || !(await confirmVerificationToken(token))) {
     res.status(400).json({ error: "This confirmation link is invalid or expired. Request another email." });

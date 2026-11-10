@@ -7,7 +7,7 @@ import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
 import { hashSessionToken } from "../src/security/session-token.js";
-import { verificationEmailSender } from "../src/services/verification-email.sender.js";
+import { verificationEmailQueue } from "../src/services/verification-email.queue.js";
 import { verifyAccessToken } from "../src/security/token.js";
 import { authorizationStore } from "../src/security/authorization-state.js";
 
@@ -158,6 +158,20 @@ before(async () => {
   });
 });
 
+test("production registration and resend stay closed unless explicitly enabled", async (t) => {
+  setEnv(t, "NODE_ENV", "production");
+  setEnv(t, "REGISTRATION_ENABLED", undefined);
+  const create = t.mock.method(User, "create", async () => { throw new Error("unexpected registration"); });
+  const registration = responseDouble();
+  await register(requestDouble({}), registration.response);
+  assert.equal(registration.state.status, 503);
+  assert.deepEqual(registration.state.body, { code: "REGISTRATION_CLOSED", error: "Registration is temporarily unavailable." });
+  const resend = responseDouble();
+  await resendVerification(requestDouble({ email: "e1397822@u.nus.edu" }), resend.response);
+  assert.equal(resend.state.status, 503);
+  assert.equal(create.mock.callCount(), 0);
+});
+
 test("registration returns 201 with a safe user response", async (t) => {
   process.env.CREDIT_SERVICE_URL = "http://credit-service:3004";
   process.env.CREDIT_INTERNAL_API_KEY = "test-credit-key";
@@ -167,7 +181,7 @@ test("registration returns 201 with a safe user response", async (t) => {
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
   t.mock.method(User, "findOneAndUpdate", async () => new User({ email: "e0000000@u.nus.edu", username: "alice_123", passwordHash: "hash", emailVerified: false }));
-  const emailSend = t.mock.method(verificationEmailSender, "send", async () => {});
+  const emailSend = t.mock.method(verificationEmailQueue, "enqueue", async () => {});
   t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   const creditCall = t.mock.method(globalThis, "fetch", async (url: URL | string | Request, options?: RequestInit) => {
     assert.match(url.toString(), /^http:\/\/credit-service:3004\/credit\/accounts\/[a-f0-9]{24}$/);
@@ -225,7 +239,7 @@ test("registration returns a pending response and schedules repair when credit s
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
   t.mock.method(User, "findOneAndUpdate", async () => new User({ email: "e0000000@u.nus.edu", username: "alice_123", passwordHash: "hash", emailVerified: false }));
-  t.mock.method(verificationEmailSender, "send", async () => {});
+  t.mock.method(verificationEmailQueue, "enqueue", async () => {});
   t.mock.method(User, "create", async (document: Record<string, unknown>) => new User(document));
   const update = t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 503 }));
@@ -245,7 +259,7 @@ test("registration returns a pending response and schedules repair when credit s
 
 test("resend gives the same response when no account or eligible token exists", async (t) => {
   const claim = t.mock.method(User, "findOneAndUpdate", async () => null);
-  const send = t.mock.method(verificationEmailSender, "send", async () => {});
+  const enqueue = t.mock.method(verificationEmailQueue, "enqueue", async () => {});
   const unknown = responseDouble();
   const repeated = responseDouble();
   await resendVerification(requestDouble({ email: "e1234567@u.nus.edu" }), unknown.response);
@@ -253,7 +267,7 @@ test("resend gives the same response when no account or eligible token exists", 
   assert.equal(unknown.state.status, 202);
   assert.deepEqual(unknown.state.body, repeated.state.body);
   assert.equal(claim.mock.callCount(), 2);
-  assert.equal(send.mock.callCount(), 0);
+  assert.equal(enqueue.mock.callCount(), 0);
 });
 
 test("confirmation rejects malformed and used tokens without creating a session", async (t) => {

@@ -6,8 +6,9 @@ export function confirmationUrl(token: string): string {
   const origin = process.env.PUBLIC_APP_ORIGIN;
   if (!origin) throw new Error("PUBLIC_APP_ORIGIN must be configured for verification email");
   const parsed = new URL(origin);
+  const localHttp = parsed.protocol === "http:" && ["localhost", "127.0.0.1"].includes(parsed.hostname);
   if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash ||
-      (process.env.NODE_ENV === "production" && parsed.protocol !== "https:") ||
+      (process.env.NODE_ENV === "production" && parsed.protocol !== "https:" && !localHttp) ||
       (parsed.protocol !== "https:" && parsed.protocol !== "http:")) {
     throw new Error("PUBLIC_APP_ORIGIN must be a trusted web origin");
   }
@@ -17,21 +18,23 @@ export function confirmationUrl(token: string): string {
   return link.toString();
 }
 
+export async function sendPlainEmail(address: string, subject: string, body: string): Promise<void> {
+  const from = process.env.SES_FROM_EMAIL;
+  if (!from) throw new Error("SES_FROM_EMAIL must be configured for verification email");
+  await ses.send(new SendEmailCommand({
+    FromEmailAddress: from,
+    Destination: { ToAddresses: [address] },
+    Content: { Simple: {
+      Subject: { Data: subject, Charset: "UTF-8" },
+      Body: { Text: { Data: body, Charset: "UTF-8" } },
+    } },
+  }));
+}
+
 export const verificationEmailSender = {
   async send(address: string, token: string): Promise<void> {
-    const from = process.env.SES_FROM_EMAIL;
-    if (!from) throw new Error("SES_FROM_EMAIL must be configured for verification email");
     const link = confirmationUrl(token);
-    await ses.send(new SendEmailCommand({
-      FromEmailAddress: from,
-      Destination: { ToAddresses: [address] },
-      Content: { Simple: {
-        Subject: { Data: "Confirm your ErrandBoard email", Charset: "UTF-8" },
-        Body: { Text: {
-          Data: `Confirm your ErrandBoard email by opening this link:\n\n${link}\n\nThis link expires in 24 hours. If you did not register, you can ignore this message.`,
-          Charset: "UTF-8",
-        } },
-      } },
-    }));
+    await sendPlainEmail(address, "Confirm your ErrandBoard email",
+      `Confirm your ErrandBoard email by opening this link:\n\n${link}\n\nThis link expires in 24 hours. If you did not register, you can ignore this message.`);
   },
 };

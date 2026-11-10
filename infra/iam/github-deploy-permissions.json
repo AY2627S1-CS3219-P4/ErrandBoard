@@ -23,7 +23,8 @@
         "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/supplier-service",
         "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/order-service",
         "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/credit-service",
-        "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/frontend"
+        "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/frontend",
+        "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/notification-service"
       ]
     },
     {
@@ -41,7 +42,8 @@
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/supplier-service",
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/order-service",
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/credit-service",
-        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/frontend"
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/frontend",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/notification-service"
       ]
     },
     {
@@ -53,14 +55,18 @@
         "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/supplier-service:*",
         "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/order-service:*",
         "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/credit-service:*",
-        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/frontend:*"
+        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/frontend:*",
+        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/notification-service:*"
       ]
     },
     {
-      "Sid": "PassExistingEcsExecutionRole",
+      "Sid": "PassEcsTaskRoles",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::614099836367:role/ecsTaskExecutionRole",
+      "Resource": [
+        "arn:aws:iam::614099836367:role/ecsTaskExecutionRole",
+        "arn:aws:iam::614099836367:role/ErrandBoardUserServiceEmailTaskRole"
+      ],
       "Condition": {
         "StringEquals": {
           "iam:PassedToService": "ecs-tasks.amazonaws.com"

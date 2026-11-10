@@ -13,6 +13,9 @@ export interface UserDocument {
   emailVerificationTokenHash?: string;
   emailVerificationExpiresAt?: Date;
   emailVerificationRequestedAt?: Date;
+  emailVerificationResendAttempts?: Date[];
+  emailVerificationDeliveredTokenHash?: string;
+  cognitoVerificationSub?: string;
   authzVersion: number;
   creditSetupPending: boolean;
   creditSetupAttempts: number;
@@ -63,6 +66,9 @@ const userSchema = new Schema<UserDocument>(
     emailVerificationTokenHash: { type: String, select: false },
     emailVerificationExpiresAt: { type: Date, select: false },
     emailVerificationRequestedAt: { type: Date, select: false },
+    emailVerificationResendAttempts: { type: [Date], default: undefined, select: false },
+    emailVerificationDeliveredTokenHash: { type: String, select: false },
+    cognitoVerificationSub: { type: String, select: false },
     authzVersion: {
       type: Number,
       default: 0,
@@ -88,6 +94,10 @@ userSchema.index(
 userSchema.index(
   { emailVerificationTokenHash: 1 },
   { unique: true, partialFilterExpression: { emailVerificationTokenHash: { $exists: true } } },
+);
+userSchema.index(
+  { cognitoVerificationSub: 1 },
+  { unique: true, partialFilterExpression: { cognitoVerificationSub: { $exists: true } } },
 );
 
 export const User = model<UserDocument>("User", userSchema);

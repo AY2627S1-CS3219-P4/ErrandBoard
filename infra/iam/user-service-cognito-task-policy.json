@@ -1,0 +1,17 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InspectAndRemovePilotConfirmationUsers",
+      "Effect": "Allow",
+      "Action": ["cognito-idp:AdminGetUser", "cognito-idp:AdminDeleteUser"],
+      "Resource": "arn:aws:cognito-idp:ap-southeast-1:614099836367:userpool/ap-southeast-1_ODByyE8Yt"
+    },
+    {
+      "Sid": "ConsumePilotConfirmationEvents",
+      "Effect": "Allow",
+      "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage"],
+      "Resource": "arn:aws:sqs:ap-southeast-1:614099836367:ErrandBoardCognitoConfirmation"
+    }
+  ]
+}
