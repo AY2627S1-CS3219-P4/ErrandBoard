@@ -20,7 +20,7 @@ let notifications: InMemoryNotificationStore, subs: InMemorySubscriptionStore, g
 beforeEach(() => {
   notifications = new InMemoryNotificationStore(); subs = new InMemorySubscriptionStore(); gw = new FakeGateway();
   hub = new LiveHub({ heartbeatMs: 60_000, maxAgeMs: 60_000, maxPerUser: 5 });
-  deps = { notifications, hub, push: new PushDispatcher(subs, gw), rules: { directActions: true }, errandPath: (id) => `/errands/${id}` };
+  deps = { notifications, hub, push: new PushDispatcher(subs, gw), rules: { directActions: true, reviewPath: (i: string) => `/errands/active?review=${i}` }, errandPath: (id) => `/errands/${id}` };
 });
 
 describe("processStatusEvent", () => {

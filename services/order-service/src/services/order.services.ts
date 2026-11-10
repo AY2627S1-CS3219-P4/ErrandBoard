@@ -227,6 +227,9 @@ async function updateErrand(
       if (froms.length > 1  && existing.status !== source && froms.includes(existing.status)) continue;
       throw new UpdateConflictError();
   }
+
+  //every retry fails due to concurrent transition
+  throw new UpdateConflictError();
 }
 
 // assign courier and update errand status to "ACCEPTED"

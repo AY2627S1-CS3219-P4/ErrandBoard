@@ -8,7 +8,7 @@ import DisputeModal from "../components/DisputeModal";
 import { useNow } from "../hooks/useNow";
 import { NOTIFICATION_RECEIVED_EVENT } from "../notifications/types";
 import { ACTIVE_STATUSES_SET, type Errand, type ErrandAction } from "../types/errand";
-import "./Errands.css";
+import "./Errands.css"
 
 const REFRESH_MS = 15_000;
 

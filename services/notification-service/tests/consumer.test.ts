@@ -21,7 +21,7 @@ const message = (content: unknown, headers: Record<string, unknown> = {}): Consu
 
 function setup() {
   const notifications = new InMemoryNotificationStore();
-  const deps: ProcessorDeps = { notifications, hub: new LiveHub(), push: new PushDispatcher(new InMemorySubscriptionStore(), new FakeGateway()), rules: { directActions: true }, errandPath: (i) => `/errands/${i}` };
+  const deps: ProcessorDeps = { notifications, hub: new LiveHub(), push: new PushDispatcher(new InMemorySubscriptionStore(), new FakeGateway()), rules: { directActions: true, reviewPath: (i: string) => `/errands/active?review=${i}` }, errandPath: (i) => `/errands/${i}` };
   const log: string[] = []; const sent: { queue: string; opts: any }[] = [];
   const channel = { ack: () => { log.push("ack"); }, nack: (_m: unknown, _all: boolean, requeue: boolean) => { log.push(`nack requeue=${requeue}`); } } as never;
   const wrapper = { sendToQueue: async (queue: string, _c: Buffer, opts: any) => { sent.push({ queue, opts }); return true; } } as never;
