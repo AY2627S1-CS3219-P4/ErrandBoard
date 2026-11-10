@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
-import type { Request, Response } from "express";
+import { test, type TestContext } from "node:test";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { User } from "../src/models/User.js";
 import { Session } from "../src/models/Session.js";
 import { authorizationStore } from "../src/security/authorization-state.js";
@@ -39,7 +39,7 @@ function managedAccount(overrides: Record<string, unknown> = {}) {
 // Stub the whole changeAuthorization dependency chain so a role/status change
 // "succeeds" and returns the updated account, letting us assert the controller's
 // audit log without a live Redis/Mongo.
-function stubSuccessfulChange(t: Parameters<Parameters<typeof test>[1]>[0], updated: Record<string, unknown>) {
+function stubSuccessfulChange(t: TestContext, updated: Record<string, unknown>) {
   t.mock.method(authorizationStore, "block", async () => ({ version: 0, role: "USER", active: true, blocked: false }));
   t.mock.method(authorizationStore, "publish", async () => {});
   t.mock.method(authorizationStore, "restore", async () => {});
@@ -49,7 +49,7 @@ function stubSuccessfulChange(t: Parameters<Parameters<typeof test>[1]>[0], upda
 
 // Stub the controller's pre-change read: User.findById(id).select(...).lean().
 // `before` is the account as it looked before the change (or null if missing).
-function stubBefore(t: Parameters<Parameters<typeof test>[1]>[0], before: Record<string, unknown> | null) {
+function stubBefore(t: TestContext, before: Record<string, unknown> | null) {
   t.mock.method(User, "findById", () => ({ select: () => ({ lean: async () => before }) }) as never);
 }
 
@@ -64,9 +64,9 @@ test("updateAccountRole emits an account.role_changed audit event with actor and
     params: { id: "target-1" },
     body: { accountType: "ADMIN" },
     user: superadmin,
-  } as unknown as Request;
+  } as unknown as ExpressRequest;
   const res = mockResponse();
-  await updateAccountRole(req, res as unknown as Response);
+  await updateAccountRole(req, res as unknown as ExpressResponse);
 
   assert.equal(res.statusCode, 200);
   assert.equal(info.mock.callCount(), 1);
@@ -97,9 +97,9 @@ test("updateAccountStatus emits an account.status_changed audit event", async (t
     params: { id: "target-1" },
     body: { isActive: false },
     user: superadmin,
-  } as unknown as Request;
+  } as unknown as ExpressRequest;
   const res = mockResponse();
-  await updateAccountStatus(req, res as unknown as Response);
+  await updateAccountStatus(req, res as unknown as ExpressResponse);
 
   assert.equal(res.statusCode, 200);
   assert.equal(info.mock.callCount(), 1);
@@ -123,9 +123,9 @@ test("a change to a missing account emits a rejected warning, not a success even
     params: { id: "missing" },
     body: { accountType: "ADMIN" },
     user: superadmin,
-  } as unknown as Request;
+  } as unknown as ExpressRequest;
   const res = mockResponse();
-  await updateAccountRole(req, res as unknown as Response);
+  await updateAccountRole(req, res as unknown as ExpressResponse);
 
   assert.equal(res.statusCode, 404);
   assert.equal(info.mock.callCount(), 0);
@@ -148,9 +148,9 @@ test("an authorization failure emits a rejected warning with the status", async 
     params: { id: "target-1" },
     body: { isActive: false },
     user: superadmin,
-  } as unknown as Request;
+  } as unknown as ExpressRequest;
   const res = mockResponse();
-  await updateAccountStatus(req, res as unknown as Response);
+  await updateAccountStatus(req, res as unknown as ExpressResponse);
 
   assert.equal(res.statusCode, 503);
   assert.equal(warn.mock.callCount(), 1);

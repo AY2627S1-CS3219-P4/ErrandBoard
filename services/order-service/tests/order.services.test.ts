@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, test, type TestContext } from "node:test";
 import mongoose from "mongoose";
-import type { Request, Response } from "express";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
 import { logger } from "../src/logger.js";
 import { OrderCreation } from "../src/models/OrderCreation.js";
@@ -895,9 +895,9 @@ describe("dispute resolution audit (admin controller)", () => {
     mockUpdate(t, makeErrand({ status: "CANCELLED", courierId: COURIER_ID, credit: 5 }), stillDisputed());
     const info = t.mock.method(logger, "info", () => logger);
 
-    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as Request;
+    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as ExpressRequest;
     const res = mockResponse();
-    await resolveRefund(req, res as unknown as Response);
+    await resolveRefund(req, res as unknown as ExpressResponse);
 
     assert.equal(res.statusCode, 200);
     const audit = info.mock.calls
@@ -916,9 +916,9 @@ describe("dispute resolution audit (admin controller)", () => {
     mockUpdate(t, makeErrand({ status: "COMPLETED", courierId: COURIER_ID, credit: 8 }), stillDisputed());
     const info = t.mock.method(logger, "info", () => logger);
 
-    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as Request;
+    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as ExpressRequest;
     const res = mockResponse();
-    await resolveTransfer(req, res as unknown as Response);
+    await resolveTransfer(req, res as unknown as ExpressResponse);
 
     assert.equal(res.statusCode, 200);
     const audit = info.mock.calls
@@ -935,9 +935,9 @@ describe("dispute resolution audit (admin controller)", () => {
     mockUpdate(t, null, makeErrand({ status: "CANCELLED", courierId: COURIER_ID }));
     const info = t.mock.method(logger, "info", () => logger);
 
-    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as Request;
+    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as ExpressRequest;
     const res = mockResponse();
-    await resolveRefund(req, res as unknown as Response);
+    await resolveRefund(req, res as unknown as ExpressResponse);
 
     const emitted = info.mock.calls.some((c) => (c.arguments[0] as Record<string, unknown>)?.event === "dispute.resolved");
     assert.equal(emitted, false);
