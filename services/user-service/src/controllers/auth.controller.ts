@@ -8,6 +8,7 @@ import {
   rotateUserSession,
   updateOwnAccount,
   AccountUpdateError,
+  EmailNotVerifiedError,
 } from "../services/auth.service.js";
 import { createAccessToken } from "../security/token.js";
 import { AuthorizationChangeError } from "../services/authorization.service.js";
@@ -122,7 +123,17 @@ export async function login(
     res.status(400).json({ error: "Enter a valid username and password." });
     return;
   }
-  const user = await authenticateUser(req.body.username, req.body.password);
+  let user;
+  try {
+    user = await authenticateUser(req.body.username, req.body.password);
+  } catch (error) {
+    if (!(error instanceof EmailNotVerifiedError)) throw error;
+    res.status(403).json({
+      code: "EMAIL_NOT_VERIFIED",
+      error: "Check your email to confirm your account, then log in again.",
+    });
+    return;
+  }
 
   if (!user) {
     res.status(401).json({ error: "Invalid username or password" });
