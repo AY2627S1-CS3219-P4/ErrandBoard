@@ -17,10 +17,12 @@ export default function Login() {
   );
   const notice = typeof location.state?.notice === "string" ? location.state.notice : "";
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setNeedsVerification(false);
     setIsSubmitting(true);
 
     try {
@@ -40,6 +42,14 @@ export default function Login() {
       }
 
       if (!response.ok) {
+        if (response.status === 403) {
+          const body = await response.json().catch(() => null) as { code?: string } | null;
+          if (body?.code === "EMAIL_NOT_VERIFIED") {
+            setNeedsVerification(true);
+            setError("Check your email to confirm your account, then log in again.");
+            return;
+          }
+        }
         setError(response.status === 401
           ? "Invalid username or password."
           : await serviceResponseError(response, "Login", "Unable to log in right now. Please try again."));
@@ -102,6 +112,7 @@ export default function Login() {
         </div>
 
         {error && <p className="auth-tip auth-form-error" role="alert">{error}</p>}
+        {needsVerification && <p><Link to="/check-email">Need another confirmation email?</Link></p>}
 
         <button className="auth-submit" type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Logging in..." : "Login"}

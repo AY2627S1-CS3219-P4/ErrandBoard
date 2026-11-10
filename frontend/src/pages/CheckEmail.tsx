@@ -9,7 +9,7 @@ export default function CheckEmail() {
   const [email, setEmail] = useState(typeof location.state?.email === "string" ? location.state.email : "");
   const [message, setMessage] = useState(location.state?.deliveryPending
     ? "Your account was created, but the confirmation email could not be sent. Please try resending it."
-    : "Check your email for a confirmation link. After confirming, return here to log in.");
+    : "Check your email for a confirmation link. After confirming, log in again with your ErrandBoard username and password.");
   const [sending, setSending] = useState(false);
 
   async function resend(event: SubmitEvent<HTMLFormElement>) {
@@ -35,7 +35,7 @@ export default function CheckEmail() {
     <h1>Confirm your email</h1>
     <form className="auth-card" onSubmit={resend}>
       <p role="status">{message}</p>
-      <p>Confirmation may take a short time. You can then use your ErrandBoard username and password.</p>
+      <p>Confirmation may take a short time. Once you have opened the link, use the login page to continue. Your account is confirmed when you can log in.</p>
       <div className="auth-field">
         <label htmlFor="confirmation-email">NUS email</label>
         <input id="confirmation-email" type="email" value={email}
@@ -45,6 +45,6 @@ export default function CheckEmail() {
         {sending ? "Requesting..." : "Resend confirmation email"}
       </button>
     </form>
-    <p className="auth-alternate-link"><Link to="/login">Back to login</Link></p>
+    <p className="auth-alternate-link"><Link to="/login">I confirmed my email — log in</Link></p>
   </main>;
 }
