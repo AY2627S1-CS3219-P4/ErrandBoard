@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { changeUsername, changePassword, confirmEmail, currentUser, login, logout, refresh, register, resendVerification } from "../src/controllers/auth.controller.js";
+import { changeUsername, changePassword, currentUser, login, logout, refresh, register, resendVerification } from "../src/controllers/auth.controller.js";
 import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
 import { hashSessionToken } from "../src/security/session-token.js";
-import { verificationEmailQueue } from "../src/services/verification-email.queue.js";
+import { cognitoClient } from "../src/services/cognito-verification.service.js";
 import { verifyAccessToken } from "../src/security/token.js";
 import { authorizationStore } from "../src/security/authorization-state.js";
 
@@ -41,6 +41,19 @@ function setEnv(t: TestContext, key: string, value: string | undefined) {
     if (previous === undefined) delete process.env[key];
     else process.env[key] = previous;
   });
+}
+
+function mockCognitoSignup(t: TestContext) {
+  setEnv(t, "COGNITO_USER_POOL_ID", "ap-southeast-1_testpool");
+  setEnv(t, "COGNITO_APP_CLIENT_ID", "test-client");
+  setEnv(t, "COGNITO_APP_CLIENT_SECRET", "test-secret");
+  t.mock.method(User, "findOneAndUpdate", () => ({ select: async () => new User({
+    email: "e0000000@u.nus.edu", username: "alice_123", passwordHash: "hash", emailVerified: false,
+  }) }));
+  t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
+  return t.mock.method(cognitoClient, "send", async () => ({
+    UserSub: "895a85ac-f0d1-704e-1c61-6497db5cb898", UserConfirmed: false,
+  }));
 }
 
 function requestDouble(
@@ -180,9 +193,7 @@ test("registration returns 201 with a safe user response", async (t) => {
     delete process.env.CREDIT_INTERNAL_API_KEY;
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
-  t.mock.method(User, "findOneAndUpdate", async () => new User({ email: "e0000000@u.nus.edu", username: "alice_123", passwordHash: "hash", emailVerified: false }));
-  const emailSend = t.mock.method(verificationEmailQueue, "enqueue", async () => {});
-  t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
+  const emailSend = mockCognitoSignup(t);
   const creditCall = t.mock.method(globalThis, "fetch", async (url: URL | string | Request, options?: RequestInit) => {
     assert.match(url.toString(), /^http:\/\/credit-service:3004\/credit\/accounts\/[a-f0-9]{24}$/);
     assert.deepEqual(JSON.parse(options?.body as string), { isActive: true });
@@ -238,10 +249,8 @@ test("registration returns a pending response and schedules repair when credit s
     delete process.env.CREDIT_INTERNAL_API_KEY;
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
-  t.mock.method(User, "findOneAndUpdate", async () => new User({ email: "e0000000@u.nus.edu", username: "alice_123", passwordHash: "hash", emailVerified: false }));
-  t.mock.method(verificationEmailQueue, "enqueue", async () => {});
+  mockCognitoSignup(t);
   t.mock.method(User, "create", async (document: Record<string, unknown>) => new User(document));
-  const update = t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 503 }));
   const { state, response } = responseDouble();
 
@@ -254,12 +263,11 @@ test("registration returns a pending response and schedules repair when credit s
   assert.equal(state.status, 202);
   assert.equal((state.body as { code: string }).code, "CREDIT_SETUP_PENDING");
   assert.equal((state.body as { user: { creditSetupPending: boolean } }).user.creditSetupPending, true);
-  assert.equal(update.mock.callCount(), 1);
 });
 
-test("resend gives the same response when no account or eligible token exists", async (t) => {
-  const claim = t.mock.method(User, "findOneAndUpdate", async () => null);
-  const enqueue = t.mock.method(verificationEmailQueue, "enqueue", async () => {});
+test("resend gives the same response when no account or eligible confirmation exists", async (t) => {
+  const claim = t.mock.method(User, "findOneAndUpdate", () => ({ select: async () => null }));
+  const send = t.mock.method(cognitoClient, "send", async () => ({}));
   const unknown = responseDouble();
   const repeated = responseDouble();
   await resendVerification(requestDouble({ email: "e1234567@u.nus.edu" }), unknown.response);
@@ -267,20 +275,7 @@ test("resend gives the same response when no account or eligible token exists", 
   assert.equal(unknown.state.status, 202);
   assert.deepEqual(unknown.state.body, repeated.state.body);
   assert.equal(claim.mock.callCount(), 2);
-  assert.equal(enqueue.mock.callCount(), 0);
-});
-
-test("confirmation rejects malformed and used tokens without creating a session", async (t) => {
-  const claim = t.mock.method(User, "findOneAndUpdate", async () => null);
-  const invalid = responseDouble();
-  await confirmEmail(requestDouble({ token: "invalid" }), invalid.response);
-  assert.equal(invalid.state.status, 400);
-  assert.equal(claim.mock.callCount(), 0);
-  const used = responseDouble();
-  await confirmEmail(requestDouble({ token: "a".repeat(64) }), used.response);
-  assert.equal(used.state.status, 400);
-  assert.equal(claim.mock.callCount(), 1);
-  assert.equal(used.state.cookies.length, 0);
+  assert.equal(send.mock.callCount(), 0);
 });
 
 test("registration rejects invalid fields before hashing or persistence", async (t) => {
