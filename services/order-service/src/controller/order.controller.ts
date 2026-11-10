@@ -1,5 +1,7 @@
 import { Response, Request} from "express";
+
 import { Error as MongooseError } from "mongoose";
+
 import {
   listOpenErrands,
   listMyErrands,
@@ -18,6 +20,7 @@ import {
   resolveDisputeTransfer,
   getErrandStats,
 } from "../services/order.services.js";
+
 import {
   ErrandNotFoundError,
   SelfAssignErrandError,
@@ -207,7 +210,7 @@ export async function getStats(_req: Request, res: Response): Promise<void> {
 // admin-only: resolve a dispute by refunding the requester
 export async function resolveRefund(req: Request, res: Response): Promise<void> {
   try {
-    res.json({ errand: await resolveDisputeRefund(idParam(req)) });
+    res.json({ errand: await resolveDisputeRefund(idParam(req), userId(req)) });
   } catch (error) {
     if (!sendKnownError(res, error)) throw error;
   }
@@ -216,7 +219,7 @@ export async function resolveRefund(req: Request, res: Response): Promise<void> 
 // admin-only: resolve a dispute by transferring the credit to the courier
 export async function resolveTransfer(req: Request, res: Response): Promise<void> {
   try {
-    res.json({ errand: await resolveDisputeTransfer(idParam(req)) });
+    res.json({ errand: await resolveDisputeTransfer(idParam(req), userId(req)) });
   } catch (error) {
     if (!sendKnownError(res, error)) throw error;
   }

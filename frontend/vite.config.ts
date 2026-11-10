@@ -26,6 +26,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/credit/, ""),
       },
+      "/api/notification": {
+        target: "http://localhost:3005",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/notification/, ""),
+      },
     },
   },
 })
