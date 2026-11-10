@@ -54,7 +54,7 @@ const outboxEntrySchema = new Schema<StatusOutboxEntry>(
     eventId: { type: String, required: true },
     status: { type: String, enum: ERRAND_STATUSES, required: true },
     previousStatus: { type: String, enum: ERRAND_STATUSES, required: true },
-    actorRole: { type: String, enum: ["REQUESTER", "COURIER", "SYSTEM"], required: true },
+    actorRole: { type: String, enum: ["REQUESTER", "COURIER", "SYSTEM", "ADMIN"], required: true },
     actorId: String,
     at: { type: Date, required: true },
     deadline: Date,
