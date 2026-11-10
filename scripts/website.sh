@@ -67,8 +67,9 @@ start_site() {
   wait_services "${app_services[@]}"
   set_services 1 frontend
   wait_services frontend
-  echo "Website is up: https://errandboard-1396600328.ap-southeast-1.elb.amazonaws.com"
-  echo "The browser will warn because the configured certificate is self-signed."
+  echo "Website is up: https://da843292oau9i.cloudfront.net"
+  echo "Rollback URL: https://errandboard-1396600328.ap-southeast-1.elb.amazonaws.com"
+  echo "The rollback URL uses a self-signed certificate and will trigger a browser warning."
 }
 
 stop_site() {
@@ -84,7 +85,7 @@ stop_site() {
     stopping) aws ec2 wait instance-stopped --instance-ids "$instance_id" "${aws_args[@]}" ;;
     *) echo "All ECS services are at zero, but EC2 is in state '$state'; check the instance in the console." >&2; exit 1 ;;
   esac
-  echo "Website compute is stopped. ALB, NAT gateway, and EBS charges may continue."
+  echo "Website compute is stopped. CloudFront, WAF, both ALBs, NAT gateway, and EBS charges may continue."
 }
 
 show_status() {
