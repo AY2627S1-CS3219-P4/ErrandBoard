@@ -11,7 +11,7 @@ aws sts get-caller-identity --query Account --output text | grep -Fxq "$account"
 aws ecr get-login-password --region "$region" |
   docker login --username AWS --password-stdin "${account}.dkr.ecr.${region}.amazonaws.com"
 
-for service in user-service supplier-service order-service credit-service frontend; do
+for service in user-service supplier-service order-service credit-service notification-service frontend; do
   context="services/$service"
   dockerfile="services/$service/Dockerfile"
   if [[ "$service" == user-service || "$service" == supplier-service ]]; then

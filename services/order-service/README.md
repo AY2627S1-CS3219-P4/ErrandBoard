@@ -104,6 +104,14 @@ docker compose exec rabbitmq rabbitmqctl list_queues name messages_ready message
 
 Inspect a dead-lettered event and the Credit operation log before any manual replay. Preserve the original `eventId` to retain Credit's idempotency protection; do not purge a queue merely to clear an alert.
 
+### Status events for notifications
+
+Every transition (not just terminal ones) also publishes `errand.status.changed` to the same exchange for the Notification Service. The payload carries `eventId` (`<errandId>:status:<STATUS>`), `status`, `previousStatus`, `actor` (`REQUESTER`/`COURIER`/`SYSTEM`), both user ids, `credit`, supplier name, drop-off, optional `deadline`, and `occurredAt`. Credit does not bind this routing key, so settlement is unaffected.
+
+It uses its own outbox, independent of `eventPending`: `updateErrand` `$push`es an entry onto `errand.notifyOutbox` and sets `notifyPending` in the **same atomic update** as the status change, publishes immediately, `$pull`s each confirmed entry, and the sweep relays leftovers ([src/event/status.events.ts](src/event/status.events.ts)). Entries publish in order per errand and stop at the first failure. Unlike settlement events these are published non-`mandatory`: if the notification queue has never been declared the broker drops them rather than wedging the relay. Delivery is at-least-once; the consumer dedupes on `eventId`.
+
+Existing MongoDB volumes need the partial index (Order runs with `autoIndex: false`): `.load("/migrations/order-notify-outbox.js")`.
+
 ## Background lifecycle sweep
 
 A BullMQ repeatable job (`errand-lifecycle`, backed by Redis) runs every 20s ([src/queue/queue.ts](src/queue/queue.ts)). Each tick ([src/queue/sweep.ts](src/queue/sweep.ts)) first relays any events still pending from earlier failures (see [Reliable delivery](#reliable-delivery-transactional-outbox)), then processes up to 200 due creation intents, and finally finds errands whose deadline has passed and drives them to the correct terminal state — up to 200 per status per tick, the rest wait for the next tick:

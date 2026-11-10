@@ -48,6 +48,7 @@ const ERRAND_ID = "507f1f77bcf86cd799439011";
 const REQUESTER_ID = "requester-1";
 const COURIER_ID = "courier-1";
 const OUTSIDER_ID = "outsider-1";
+const ADMIN_ID = "admin-1";
 
 const supplier = {
   supplierId: "supplier-1",
@@ -83,11 +84,20 @@ function isError(expected: new (...args: never[]) => Error) {
 
 type UpdateCall = { filter: Record<string, unknown>; update: { $set: Record<string, unknown> }; options: unknown };
 
+// Every transition also carries a notification-outbox entry ($push + notifyPending, see
+// src/event/status.events.ts). It is asserted in status-events.test.ts; strip it here so these tests
+// keep pinning the transition itself.
+function stripOutbox(update: Record<string, any>): UpdateCall["update"] {
+  const { $push, ...rest } = update;
+  const { notifyPending, ...set } = rest.$set;
+  return { ...rest, $set: set } as UpdateCall["update"];
+}
+
 // Mocks the atomic update. `result` is what the update matched; `existing` is what the follow-up lookup finds.
 function mockUpdate(t: TestContext, result: ErrandRecord | null, existing: ErrandRecord | null = result) {
   const calls: UpdateCall[] = [];
-  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, update: UpdateCall["update"], options: unknown) => {
-    calls.push({ filter, update, options });
+  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, update: Record<string, unknown>, options: unknown) => {
+    calls.push({ filter, update: stripOutbox(update), options });
     return result;
   }) as never);
   t.mock.method(Errand, "findById", (async () => existing) as never);
@@ -653,7 +663,7 @@ function recordPublishedEvents() {
   const events: { type: string; cause: string }[] = [];
   setEventPublisher({
     isReady: () => true,
-    publish: async (event) => { events.push({ type: event.value.type, cause: event.value.cause }); },
+    publish: async (event) => { if ("cause" in event.value) events.push({ type: event.value.type, cause: event.value.cause }); },
     close: async () => {},
   });
   return events;
@@ -678,7 +688,8 @@ describe("disputeErrand (requester)", () => {
   test("ACCEPTED/PICKED_UP/PENDING_COMPLETION -> DISPUTED, holding credits (no event)", async (t) => {
     const published = recordPublishedTypes();
     const disputed = makeErrand({ status: "DISPUTED", courierId: COURIER_ID });
-    const calls = mockUpdate(t, disputed);
+    // the pre-read finds the errand ACCEPTED; the write is then conditional on exactly that status
+    const calls = mockUpdate(t, disputed, makeErrand({ status: "ACCEPTED", courierId: COURIER_ID }));
 
     const before = Date.now();
     assert.equal(await disputeErrand(ERRAND_ID, REQUESTER_ID, "  never showed up  "), disputed);
@@ -687,7 +698,7 @@ describe("disputeErrand (requester)", () => {
     const { $or, ...filter } = calls[0].filter as { $or: Record<string, unknown>[] };
     assert.deepEqual(filter, {
       _id: ERRAND_ID,
-      status: { $in: ["ACCEPTED", "PICKED_UP", "PENDING_COMPLETION"] },
+      status: "ACCEPTED",
       requesterId: REQUESTER_ID,
     });
     // the confirm-window guard only constrains the PENDING_COMPLETION branch
@@ -699,6 +710,38 @@ describe("disputeErrand (requester)", () => {
     assert.equal(calls[0].update.$set.eventPending, undefined, "a dispute must not set the outbox flag");
     assertWithin(disputedAt, before, after);
     assert.deepEqual(published, [], "a dispute must not publish a terminal event");
+  });
+
+  test("the write is conditional on the status that was read, whichever allowed state that is", async (t) => {
+    const calls = mockUpdate(t, makeErrand({ status: "DISPUTED", courierId: COURIER_ID }),
+      makeErrand({ status: "PICKED_UP", courierId: COURIER_ID }));
+    await disputeErrand(ERRAND_ID, REQUESTER_ID, "late");
+    assert.equal(calls[0].filter.status, "PICKED_UP");
+  });
+
+  test("if the errand moves to another allowed state between the read and the write, it retries", async (t) => {
+    const reads = [
+      makeErrand({ status: "ACCEPTED", courierId: COURIER_ID }),     // first read
+      makeErrand({ status: "PICKED_UP", courierId: COURIER_ID }),    // re-read after the lost write
+      makeErrand({ status: "PICKED_UP", courierId: COURIER_ID }),    // second attempt's read
+    ];
+    t.mock.method(Errand, "findById", (async () => reads.shift()) as never);
+    const statusesTried: unknown[] = [];
+    t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>) => {
+      statusesTried.push(filter.status);
+      return statusesTried.length === 1 ? null : makeErrand({ status: "DISPUTED", courierId: COURIER_ID });
+    }) as never);
+    t.mock.method(Errand, "updateOne", (async () => ({ acknowledged: true })) as never);
+
+    const result = await disputeErrand(ERRAND_ID, REQUESTER_ID, "late");
+    assert.equal(result.status, "DISPUTED");
+    assert.deepEqual(statusesTried, ["ACCEPTED", "PICKED_UP"]);
+  });
+
+  test("an errand that has already left every disputable state is a conflict without writing", async (t) => {
+    const calls = mockUpdate(t, null, makeErrand({ status: "COMPLETED", courierId: COURIER_ID }));
+    await assert.rejects(disputeErrand(ERRAND_ID, REQUESTER_ID, "late"), isError(UpdateConflictError));
+    assert.equal(calls.length, 0);
   });
 
   test("a PENDING_COMPLETION errand past its confirm window can no longer be disputed", async (t) => {
@@ -758,7 +801,7 @@ describe("dispute resolution (admin)", () => {
     const published = recordPublishedTypes();
     const calls = mockUpdate(t, makeErrand({ status: "CANCELLED", courierId: COURIER_ID }), stillDisputed());
 
-    await resolveDisputeRefund(ERRAND_ID);
+    await resolveDisputeRefund(ERRAND_ID, ADMIN_ID);
 
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "DISPUTED" });
     assert.deepEqual(calls[0].update, { $set: { status: "CANCELLED", terminalCause: "DISPUTE_REFUNDED", eventPending: true } });
@@ -769,7 +812,7 @@ describe("dispute resolution (admin)", () => {
     const published = recordPublishedTypes();
     const calls = mockUpdate(t, makeErrand({ status: "COMPLETED", courierId: COURIER_ID }), stillDisputed());
 
-    await resolveDisputeTransfer(ERRAND_ID);
+    await resolveDisputeTransfer(ERRAND_ID, ADMIN_ID);
 
     assert.deepEqual(calls[0].filter, { _id: ERRAND_ID, status: "DISPUTED" });
     assert.deepEqual(calls[0].update, { $set: { status: "COMPLETED", terminalCause: "DISPUTE_TRANSFERRED", eventPending: true } });
@@ -781,7 +824,7 @@ describe("dispute resolution (admin)", () => {
     // the persisted doc the atomic write returns carries terminalCause; buildEvent reads it back
     mockUpdate(t, makeErrand({ status: "CANCELLED", courierId: COURIER_ID, terminalCause: "DISPUTE_REFUNDED" }), stillDisputed());
 
-    await resolveDisputeRefund(ERRAND_ID);
+    await resolveDisputeRefund(ERRAND_ID, ADMIN_ID);
 
     assert.deepEqual(events, [{ type: "errand.cancelled", cause: "DISPUTE_REFUNDED" }]);
   });
@@ -789,7 +832,7 @@ describe("dispute resolution (admin)", () => {
   test("resolving an already-resolved errand reports DisputeResolvedError, not a generic conflict", async (t) => {
     // the pre-read sees a terminal errand, so no update is attempted
     const calls = mockUpdate(t, null, makeErrand({ status: "CANCELLED", courierId: COURIER_ID }));
-    await assert.rejects(resolveDisputeRefund(ERRAND_ID), isError(DisputeResolvedError));
+    await assert.rejects(resolveDisputeRefund(ERRAND_ID, ADMIN_ID), isError(DisputeResolvedError));
     assert.equal(calls.length, 0, "a settled dispute must not reach the atomic update");
   });
 
@@ -804,12 +847,12 @@ describe("dispute resolution (admin)", () => {
     }) as never);
     t.mock.method(Errand, "findOneAndUpdate", (async () => null) as never); // CAS matched nothing
 
-    await assert.rejects(resolveDisputeTransfer(ERRAND_ID), isError(DisputeResolvedError));
+    await assert.rejects(resolveDisputeTransfer(ERRAND_ID, ADMIN_ID), isError(DisputeResolvedError));
   });
 
   test("a missing errand is not found", async (t) => {
     mockUpdate(t, null, null);
-    await assert.rejects(resolveDisputeRefund(ERRAND_ID), isError(ErrandNotFoundError));
+    await assert.rejects(resolveDisputeRefund(ERRAND_ID, ADMIN_ID), isError(ErrandNotFoundError));
   });
 });
 

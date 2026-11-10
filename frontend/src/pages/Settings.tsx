@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useLeaveGuard } from "../components/leave-guard";
 import { apiFetch, userApiUrl } from "../api/client";
+import PushPanel from "../notifications/PushPanel";
 import { ZxcvbnFactory } from "@zxcvbn-ts/core";
 import * as common from "@zxcvbn-ts/language-common";
 import * as english from "@zxcvbn-ts/language-en";
@@ -165,6 +166,11 @@ export default function Settings() {
             {usernameNotice && <p className="settings-notice" role="status">{usernameNotice}</p>}
             {usernameError && <p className="settings-error" role="alert">{usernameError}</p>}
           </form>
+        </section>
+
+        <section className="settings-section" aria-labelledby="notification-settings-title">
+          <h3 id="notification-settings-title">Notifications</h3>
+          <PushPanel showTitle={false} />
         </section>
 
         <section className="settings-section" aria-labelledby="password-settings-title">

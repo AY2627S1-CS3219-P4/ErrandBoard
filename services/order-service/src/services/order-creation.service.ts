@@ -109,7 +109,7 @@ export async function reconcileOnePendingCreation(now = new Date()): Promise<boo
       $or: [{ leaseUntil: { $exists: false } }, { leaseUntil: { $lte: now } }],
     },
     { $set: { leaseId, leaseUntil: new Date(now.getTime() + LEASE_MS) } },
-    { new: true, sort: { retryAt: 1 } },
+    { returnDocument: 'after', sort: { retryAt: 1 } },
   );
   if (!creation) return false;
   try {

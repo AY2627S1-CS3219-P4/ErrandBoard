@@ -6,7 +6,7 @@ cluster=ErrandBoard
 instance_id=i-0d9f56cf5a7a6b091
 security_group=sg-05271866f3007008f
 subnets=subnet-0ba162b50106575dc,subnet-03b454bca3b27e7d1
-services=(mongodb redis rabbitmq credit-service user-service supplier-service order-service frontend)
+services=(mongodb redis rabbitmq credit-service user-service supplier-service order-service notification-service frontend)
 aws_args=(--region "$region")
 if [[ -n "${AWS_PROFILE:-}" ]]; then aws_args+=(--profile "$AWS_PROFILE"); fi
 [[ "${1:-}" == WIPE_ERRANDBOARD_AND_SEED ]] || { echo 'Usage: reset-seed-aws.sh WIPE_ERRANDBOARD_AND_SEED' >&2; exit 2; }

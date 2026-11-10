@@ -3,6 +3,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Homepage from "./pages/Homepage";
 import Settings from "./pages/Settings";
+import Notifications from "./pages/Notifications";
 import SupplierListing from "./pages/SupplierListing";
 import SupplierDetail from "./pages/SupplierDetail";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -30,6 +31,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AppLayout />}>
               <Route path="/home" element={<Homepage />} />
+              <Route path="/notifications" element={<Notifications />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/suppliers" element={<SupplierListing />} />
               <Route path="/supplier/:id" element={<SupplierDetail />} />

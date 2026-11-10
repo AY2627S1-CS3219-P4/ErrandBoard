@@ -173,6 +173,48 @@ jobs:
       - name: Build and run unit tests
         run: npm test
 
+  notification-service:
+    name: Notification service (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    defaults:
+      run:
+        working-directory: services/notification-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: services/notification-service/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check source types
+        run: npm run typecheck
+      
+      - name: Check test types
+        run: npm run typecheck:tests
+
+      - name: Run unit tests
+        run: npm test
+      
+      - name: Compile service
+        run: npm run build
+
+
+
   frontend:
     name: Frontend (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
@@ -222,12 +264,16 @@ jobs:
       MONGO_SUPPLIER_SERVICE_PASSWORD: ci-placeholder-supplier
       MONGO_ORDER_SERVICE_PASSWORD: ci-placeholder-order
       MONGO_CREDIT_SERVICE_PASSWORD: ci-placeholder-credit
+      MONGO_NOTIFICATION_SERVICE_PASSWORD: ci-placeholder-notification
       MONGO_REPLICA_SET_KEY: ci-placeholder-replica-set-key-1234567890
       RABBITMQ_DEFAULT_USER: ci-placeholder-rabbit-user
       RABBITMQ_DEFAULT_PASS: ci-placeholder-rabbit-password
       JWT_SECRET: ci-placeholder-jwt-secret
       CREDIT_INTERNAL_API_KEY: ci-placeholder-credit-internal-key
       ORDER_CREDIT_API_KEY: ci-placeholder-order-credit-key
+      VAPID_PUBLIC_KEY: ci-placeholder-vapid-public-key
+      VAPID_PRIVATE_KEY: ci-placeholder-vapid-private-key
+      VAPID_SUBJECT: ci-placeholder-vapid-subject
 
     steps:
       - name: Checkout repository
@@ -240,7 +286,7 @@ jobs:
 
   deploy:
     name: Build and register ECS deployment
-    needs: [user-service, supplier-service, order-service, credit-service, frontend, compose-config]
+    needs: [user-service, supplier-service, order-service, credit-service, notification-service, frontend, compose-config]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 90

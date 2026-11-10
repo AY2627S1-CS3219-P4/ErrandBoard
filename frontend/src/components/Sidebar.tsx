@@ -2,6 +2,7 @@ import { useState, type MouseEvent } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { useLeaveGuard } from "./leave-guard";
+import { useNotifications } from "../notifications/useNotifications";
 import { useCreditBalance } from "../hooks/useCreditBalance";
 import "./Sidebar.css";
 
@@ -17,6 +18,7 @@ export default function Sidebar() {
     const { available: availableCredits, ready: balanceReady, unavailable: creditsUnavailable } =
         useCreditBalance(user?.id);
     const { shouldBlockLeave } = useLeaveGuard();
+    const { unread } = useNotifications();
     const isAdmin = user?.accountType === "ADMIN" || user?.accountType === "SUPERADMIN";
 
     function handleNavigate(event: MouseEvent<HTMLAnchorElement>) {
@@ -44,6 +46,11 @@ export default function Sidebar() {
                 <li>
                     <NavLink className={({ isActive }) => linkClass(isActive)} to="/home" onClick={handleNavigate}>
                         Home
+                        {unread > 0 && (
+                            <span className="sidebar-badge" aria-label={`${unread} unread`}>
+                                {unread > 99 ? "99+" : unread}
+                            </span>
+                        )}
                     </NavLink>
                 </li>
                 <li>

@@ -2,6 +2,7 @@ export const USER_API_BASE_URL = "/api/user";
 export const SUPPLIER_API_BASE_URL = "/api/supplier";
 export const ORDER_API_BASE_URL = "/api/order";
 export const CREDIT_API_BASE_URL = "/api/credit";
+export const NOTIFICATION_API_BASE_URL = "/api/notification";
 export const AUTH_SESSION_EXPIRED_EVENT = "errandboard:auth-session-expired";
 export const CREDIT_BALANCE_REFRESH_EVENT = "errandboard:credit-balance-refresh";
 
@@ -36,6 +37,10 @@ export function orderApiUrl(path: string): string {
 
 export function creditApiUrl(path: string): string {
   return `${CREDIT_API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export function notificationApiUrl(path: string): string {
+  return `${NOTIFICATION_API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 /** Fetch the signed-in user's balance; the endpoint derives identity from the cookie. */
