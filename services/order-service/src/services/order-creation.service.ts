@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { logger } from "../logger.js";
 import mongoose, { Types } from "mongoose";
 import { inspectReservation, releaseReservation, reservationMatches, type CreditInput } from "../clients/credit.client.js";
 import { CreditRecoveryRequiredError } from "../errors/order.errors.js";
@@ -108,7 +109,7 @@ export async function reconcileOnePendingCreation(now = new Date()): Promise<boo
       $or: [{ leaseUntil: { $exists: false } }, { leaseUntil: { $lte: now } }],
     },
     { $set: { leaseId, leaseUntil: new Date(now.getTime() + LEASE_MS) } },
-    { new: true, sort: { retryAt: 1 } },
+    { returnDocument: 'after', sort: { retryAt: 1 } },
   );
   if (!creation) return false;
   try {
@@ -118,7 +119,7 @@ export async function reconcileOnePendingCreation(now = new Date()): Promise<boo
       await updateCreation(creation._id.toString(), "RECONCILE", leaseId, {
         lastError: error.message,
       });
-      console.error(`Order ${creation._id} needs manual Credit reconciliation`);
+      logger.error({ orderId: creation._id }, "Order needs manual Credit reconciliation");
       return true;
     }
     const attempts = (creation.retryAttempts ?? 0) + 1;
@@ -133,7 +134,7 @@ export async function reconcileOnePendingCreation(now = new Date()): Promise<boo
         $unset: { leaseId: "", leaseUntil: "" },
       },
     );
-    console.warn(`Order creation recovery delayed for ${creation._id}; attempt ${attempts}`);
+    logger.warn({ orderId: creation._id, attempt: attempts }, "Order creation recovery delayed");
   }
   return true;
 }

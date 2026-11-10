@@ -44,6 +44,16 @@ db.createRole({
     roles: []
 });
 
+//Notification Service
+db.createRole({
+    role: "notification_service_role",
+    privileges: [
+        { resource: { db: "errandboard", collection: "notifications"}, actions: ["find", "insert", "update"]},
+        { resource: { db: "errandboard", collection: "pushSubscriptions" }, actions: ["find", "insert", "update", "remove"]}
+    ],
+    roles: []
+});
+
 
 
 /* Microservice db account creation */
@@ -95,6 +105,19 @@ db.createUser({
     ]
 });
 
+
+//Notification Service
+db.createUser({
+    user: "notification_service",
+    pwd: process.env.MONGO_NOTIFICATION_SERVICE_PASSWORD,
+    roles: [
+        {
+            role: "notification_service_role",
+            db: process.env.MONGO_INITDB_DATABASE
+        }
+    ]
+})
+
 /* Collection creation */
 
 // Supplier Service
@@ -110,15 +133,27 @@ db.errands.createIndex({ requesterId: 1, status: 1});
 db.errands.createIndex({ courierId: 1, status: 1});
 db.errands.createIndex({ createdAt: -1});
 db.errands.createIndex({ eventPending: 1 }, { partialFilterExpression: { eventPending: true } });
+db.errands.createIndex({ notifyPending: 1 }, { partialFilterExpression: { notifyPending: true } });
+
 db.createCollection("orderCreation");
 db.orderCreation.createIndex(
     { state: 1, retryAt: 1 },
     { partialFilterExpression: { state: "PENDING" } }
 );
 
-
 // Credit Service
 db.createCollection("UserCredits");
 db.UserCredits.createIndex({ userId: 1 }, { unique: true });
 db.createCollection("transactionLog");
 db.transactionLog.createIndex({ orderId: 1, transactionType: 1 }, { unique: true });
+
+//Notification service
+db.createCollection("notifications");
+db.notifications.createIndex({ userId: 1, eventId: 1 }, { unique: true });
+db.notifications.createIndex({ userId: 1, _id: -1 });
+db.notifications.createIndex({ userId: 1, readAt: 1 });
+db.notifications.createIndex({ createdAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
+
+db.createCollection("pushSubscriptions");
+db.pushSubscriptions.createIndex({ endpoint: 1 }, { unique: true });
+db.pushSubscriptions.createIndex({ userId: 1 });

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { parse } from "csv-parse/sync";
 import { connectDb, disconnectDb } from "../config/db.js";
 import { Supplier, type SupplierCategory } from "../models/Supplier.js";
+import { logger } from "../logger.js";
 
 // Maps the CSV "Type" column to the model's categories
 const CATEGORY_BY_TYPE: Record<string, SupplierCategory> = {
@@ -28,7 +29,7 @@ const csvPath = process.env.SEED_CSV_PATH ?? "../../data/csv/supplier-seed-data.
 function toSupplier(row: SeedRow, line: number) {
     const category = CATEGORY_BY_TYPE[row.Type];
     if (!category) {
-        console.warn(`Line ${line}: unknown type "${row.Type}", using OTHER`);
+        logger.warn({ line, type: row.Type }, "Unknown supplier type, using OTHER");
     }
 
     let openingHours;
@@ -89,15 +90,16 @@ async function main(): Promise<void> {
         })),
     );
 
-    console.log(
-        `Suppliers seeded: ${result.upsertedCount} inserted, ${result.matchedCount} already present`,
+    logger.info(
+        { inserted: result.upsertedCount, alreadyPresent: result.matchedCount },
+        "Suppliers seeded",
     );
 }
 
 main()
     .then(disconnectDb)
     .catch(async (error) => {
-        console.error("Supplier seeding failed:", error);
+        logger.error({ err: error }, "Supplier seeding failed");
         await disconnectDb();
         process.exitCode = 1;
     });

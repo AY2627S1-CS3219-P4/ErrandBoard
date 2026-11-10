@@ -5,8 +5,11 @@ import { adminRouter } from "./routes/admin.routes.js";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { AuthorizationStateError } from "./security/authorization-state.js";
+import { httpLogger } from "./logger.js";
 
 export const app = express();
+
+app.use(httpLogger);
 
 app.use(express.json());
 app.use(cookieParser())

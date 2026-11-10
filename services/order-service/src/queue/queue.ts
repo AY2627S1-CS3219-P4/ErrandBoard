@@ -1,4 +1,5 @@
 import { Queue, Worker, type Worker as TWorker } from "bullmq";
+import { logger } from "../logger.js";
 import { bullConnection } from "./connection.js";
 import { runLifecycleSweep } from "./sweep.js";
 
@@ -30,7 +31,7 @@ export async function startLifecycle() {
     concurrency: 1,             // one tick at a time
   });
 
-  worker.on("failed", (job, err) => console.error("lifecycle sweep failed:", err));
+  worker.on("failed", (_job, err) => logger.error({ err }, "Lifecycle sweep failed"));
 }
 
 export async function stopLifecycle() {

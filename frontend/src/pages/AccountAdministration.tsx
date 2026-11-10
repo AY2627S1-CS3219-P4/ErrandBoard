@@ -19,7 +19,6 @@ async function apiError(response: Response): Promise<string> {
 
 function statValue(loading: boolean, value: number | undefined): string {
   if (loading) return "…";
-  console.log(value);
   return typeof value === "number" ? value.toLocaleString() : "—";
 }
 
@@ -113,6 +112,7 @@ export default function AccountAdministration() {
         <StatCard icon="ACTIVE" label="Active" value={statValue(statsLoading, stats?.activeUsers)} caption="Not deactivated" />
         <StatCard icon="OFF" label="Inactive" value={statValue(statsLoading, stats?.inactiveUsers)} caption="Deactivated" />
         <StatCard icon="ADMIN" label="Admins" value={statValue(statsLoading, stats?.admins)} caption="ADMIN role" />
+        <StatCard icon="SUPERADMIN" label="Superadmins" value={statValue(statsLoading, stats?.superadmins)} caption="SUPERADMIN role" />
         <StatCard icon="USER" label="Users" value={statValue(statsLoading, stats?.users)} caption="USER role" />
       </StatGrid>
       <section className="account-admin-panel" aria-labelledby="account-list-title">

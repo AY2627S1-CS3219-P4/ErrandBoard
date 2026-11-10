@@ -10,6 +10,7 @@ import {
   InvalidErrandEventError,
   parseErrandEvent,
 } from "./errand-event.js";
+import { logger } from "../logger.js";
 
 const QUEUE_NAME = "credit.errand.events";
 const RETRY_EXCHANGE = "credit.errand.events.retry";
@@ -33,7 +34,7 @@ async function handleMessage(
   try {
     const event = parseErrandEvent(message);
     const result = await applyErrandEvent(event);
-    console.log(`Credit settled ${event.value.eventId}; applied=${result.applied}`);
+    logger.info({ eventId: event.value.eventId, applied: result.applied }, "Credit settled");
     const affectedUsers = [event.value.requesterId];
     if (event.value.type === "errand.completed" && event.value.courierId) {
       affectedUsers.push(event.value.courierId);
@@ -45,14 +46,14 @@ async function handleMessage(
   } catch (error) {
     if (error instanceof InvalidErrandEventError ||
         error instanceof CreditOperationError && (error.status === 400 || error.status === 409)) {
-      console.error("Credit event needs reconciliation:", error);
+      logger.error({ err: error }, "Credit event needs reconciliation");
       channel.nack(message, false, false);
       return;
     }
 
     const attempts = retryCount(message);
     if (attempts >= MAX_RETRIES) {
-      console.error(`Credit event failed after ${attempts} retries:`, error);
+      logger.error({ err: error, attempts }, "Credit event failed after max retries");
       channel.nack(message, false, false);
       return;
     }
@@ -65,10 +66,10 @@ async function handleMessage(
         messageId: message.properties.messageId,
         headers: { ...message.properties.headers, [RETRY_HEADER]: attempts + 1 },
       });
-      console.warn(`Retrying credit event ${message.properties.messageId} (attempt ${attempts + 1})`, error);
+      logger.warn({ err: error, messageId: message.properties.messageId, attempt: attempts + 1 }, "Retrying credit event");
       channel.ack(message);
     } catch (retryError) {
-      console.error("Could not schedule Credit event retry:", retryError);
+      logger.error({ err: retryError }, "Could not schedule Credit event retry");
       channel.nack(message, false, true);
     }
   }
@@ -79,9 +80,9 @@ export async function startErrandConsumer(): Promise<() => Promise<void>> {
   if (!url) throw new Error("RABBITMQ_URL missing");
 
   const connection = amqp.connect([url]);
-  connection.on("connect", () => console.log("Credit RabbitMQ connected"));
-  connection.on("connectFailed", ({ err }) => console.error("Credit RabbitMQ connect failed:", err.message));
-  connection.on("disconnect", ({ err }) => console.error("Credit RabbitMQ disconnected:", err?.message));
+  connection.on("connect", () => logger.info("Credit RabbitMQ connected"));
+  connection.on("connectFailed", ({ err }) => logger.error({ err }, "Credit RabbitMQ connect failed"));
+  connection.on("disconnect", ({ err }) => logger.error({ err }, "Credit RabbitMQ disconnected"));
 
   const wrapper = connection.createChannel({
     setup: async (channel: ConfirmChannel) => {
@@ -119,7 +120,7 @@ export async function startErrandConsumer(): Promise<() => Promise<void>> {
         if (message) {
           void handleMessage(channel, wrapper, message).catch((error) => {
             // The broker requeues an unacknowledged delivery if its channel closes.
-            console.error("Credit event handler lost its channel:", error);
+            logger.error({ err: error }, "Credit event handler lost its channel");
           });
         }
       }, { noAck: false });
@@ -134,7 +135,7 @@ export async function startErrandConsumer(): Promise<() => Promise<void>> {
     throw error;
   }
 
-  console.log(`Credit consumer listening on ${QUEUE_NAME}`);
+  logger.info({ queue: QUEUE_NAME }, "Credit consumer listening");
   return async () => {
     await wrapper.close();
     await connection.close();

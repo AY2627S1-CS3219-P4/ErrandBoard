@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { Types } from "mongoose";
 import { authenticate, requireAdmin } from "../middleware/auth.middleware.js";
+import { logger } from "../logger.js";
 import { notifyCreditBalanceUpdated, subscribeToCreditBalance } from "../events/credit-balance-events.js";
 import { UserCredit } from "../models/UserCredit.js";
 import { TransactionLog } from "../models/TransactionLog.js";
@@ -98,7 +99,7 @@ export async function reserveOrderCredits(req: Request, res: Response): Promise<
       res.status(error.status).json({ error: error.message });
       return;
     }
-    console.error("Credit reservation failed", error);
+    logger.error({ err: error }, "Credit reservation failed");
     res.status(500).json({ error: "Credit reservation failed" });
   }
 }
@@ -120,7 +121,7 @@ export async function inspectOrderReservation(req: Request, res: Response): Prom
       res.status(error.status).json({ code: "CREDIT_RECONCILIATION_REQUIRED", error: error.message });
       return;
     }
-    console.error("Credit reservation lookup failed", error);
+    logger.error({ err: error }, "Credit reservation lookup failed");
     res.status(503).json({ code: "CREDIT_UNAVAILABLE", error: "Credit reservation status is unavailable" });
   }
 }
@@ -148,7 +149,7 @@ export async function releaseOrderReservation(req: Request, res: Response): Prom
       res.status(error.status).json({ code: "CREDIT_OPERATION_CONFLICT", error: error.message });
       return;
     }
-    console.error("Credit reservation release failed", error);
+    logger.error({ err: error }, "Credit reservation release failed");
     res.status(503).json({ code: "CREDIT_UNAVAILABLE", error: "Credit reservation release is unavailable" });
   }
 }
@@ -172,7 +173,7 @@ export async function getMyBalance(req: Request, res: Response): Promise<void> {
     }
     res.json({ available: account.available, reserve: account.reserve });
   } catch (error) {
-    console.error("Credit balance lookup failed", error);
+    logger.error({ err: error }, "Credit balance lookup failed");
     res.status(500).json({ code: "CREDIT_BALANCE_UNAVAILABLE", error: "Credit balance unavailable" });
   }
 }
@@ -253,7 +254,7 @@ export async function getCreditStats(_req: Request, res: Response): Promise<void
       },
     });
   } catch (error) {
-    console.error("Credit stats lookup failed", error);
+    logger.error({ err: error }, "Credit stats lookup failed");
     res.status(500).json({ code: "CREDIT_STATS_UNAVAILABLE", error: "Credit statistics unavailable" });
   }
 }

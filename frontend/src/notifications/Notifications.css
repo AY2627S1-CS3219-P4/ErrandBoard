@@ -1,0 +1,125 @@
+.notifications-page {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  text-align: left;
+}
+.notifications-page > * { width: min(100%, 40rem); }
+.notifications-page .app-page-header { margin-bottom: 1.5rem; }
+.notifications-mark-all { width: auto; white-space: nowrap; }
+.notifications-mark-all:disabled { opacity: 0.55; cursor: not-allowed; }
+.notifications-status { color: var(--text); font-size: 0.9rem; }
+.notifications-error { color: #b42318; font-size: 0.85rem; }
+.notifications-more { align-self: center; margin-top: 1rem; width: auto; }
+
+.push-panel {
+  box-sizing: border-box;
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--accent-bg);
+}
+.push-panel-title { margin: 0 0 0.35rem; font-size: 0.95rem; font-weight: 650; color: var(--text-h); }
+.push-panel-text { margin: 0 0 0.75rem; font-size: 0.85rem; line-height: 1.55; color: var(--text); }
+.push-panel-text:last-child { margin-bottom: 0; }
+.push-panel-button {
+  min-height: 2.4rem;
+  padding: 0.45rem 0.95rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 0.45rem;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.push-panel-button:hover { background: var(--accent-bg); }
+.push-panel-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.push-panel-button:disabled { opacity: 0.55; cursor: not-allowed; }
+.push-panel-error { margin: 0.6rem 0 0; color: #b42318; font-size: 0.8rem; }
+
+.notifications-list { display: flex; flex-direction: column; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.notification-item {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+}
+.notification-item-unread { border-color: var(--accent-border); background: var(--accent-bg); }
+.notification-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+  color: inherit;
+  text-decoration: none;
+}
+.notification-item-main:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 0.5rem; }
+.notification-item-title { display: flex; align-items: center; gap: 0.45rem; color: var(--text-h); font-size: 0.9rem; font-weight: 650; }
+.notification-dot { flex: 0 0 auto; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--accent); }
+.notification-item-body { color: var(--text); font-size: 0.85rem; line-height: 1.5; overflow-wrap: anywhere; }
+.notification-item-time { color: var(--text); font-size: 0.75rem; opacity: 0.8; }
+.notification-item-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0 0.9rem 0.75rem; }
+.notification-item-action {
+  padding: 0.35rem 0.8rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 650;
+  text-decoration: none;
+}
+.notification-item-action:hover { background: var(--accent-bg); }
+
+.notification-toasts {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  display: flex;
+  width: min(22rem, calc(100vw - 2rem));
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.notification-toast {
+  position: relative;
+  border: 1px solid var(--accent-border);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+.notification-toast-link { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.75rem 2.2rem 0.75rem 0.9rem; color: var(--text-h); text-decoration: none; font-size: 0.85rem; }
+.notification-toast-link span { color: var(--text); font-size: 0.8rem; line-height: 1.45; }
+.notification-toast-close {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.4rem;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: none;
+  color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.notification-toast-close:hover { background: var(--accent-bg); }
+@media (prefers-color-scheme: dark) {
+  .notifications-error, .push-panel-error { color: #fca5a5; }
+}
+@media (max-width: 720px) {
+  .notification-toasts { right: 0.75rem; bottom: 0.75rem; }
+}
+
+/* Inbox section on the Home page (the page itself is centre-aligned for the credits cards). */
+.home-inbox { margin-top: 2rem; text-align: left; }
+.home-inbox-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.home-inbox-header .home-card-title { margin: 0; }

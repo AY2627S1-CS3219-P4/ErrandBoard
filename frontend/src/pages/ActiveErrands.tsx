@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { describeError, disputeErrand, ErrandApiError, listMyErrands, runErrandAction } from "../api/errands";
+import { Link, useSearchParams } from "react-router-dom";
+import { describeError, ErrandApiError, listMyErrands, runErrandAction, disputeErrand} from "../api/errands";
 import { useAuth } from "../auth/useAuth";
 import ActiveErrandCard from "../components/ActiveErrandCard";
 import ErrandPreviewModal from "../components/ErrandPreviewModal";
 import DisputeModal from "../components/DisputeModal";
 import { useNow } from "../hooks/useNow";
+import { NOTIFICATION_RECEIVED_EVENT } from "../notifications/types";
 import { ACTIVE_STATUSES_SET, type Errand, type ErrandAction } from "../types/errand";
-import "./Errands.css";
+import "./Errands.css"
 
 const REFRESH_MS = 15_000;
 
@@ -34,6 +35,13 @@ export default function ActiveErrands() {
   useEffect(() => {
     const id = setInterval(() => setRefreshTick((tick) => tick + 1), REFRESH_MS);
     return () => clearInterval(id);
+  }, []);
+
+  // A status notification arrived (live stream or service worker): reload now instead of waiting for the next poll.
+  useEffect(() => {
+    const reload = () => setRefreshTick((tick) => tick + 1);
+    window.addEventListener(NOTIFICATION_RECEIVED_EVENT, reload);
+    return () => window.removeEventListener(NOTIFICATION_RECEIVED_EVENT, reload);
   }, []);
 
   useEffect(() => {
@@ -77,6 +85,14 @@ export default function ActiveErrands() {
     }
   }, []);
 
+  // The "Review & confirm" button on a delivered-notification opens /errands/active?review=<errandId>.
+  // Offer the same Confirm action as the card (including its "cannot be undone" prompt) instead of
+  // paying out from the notification itself. Derived while rendering: it disappears once the errand moves on.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const reviewId = searchParams.get("review");
+  const reviewErrand = reviewId
+    ? errands.find((item) => item._id === reviewId && item.requesterId === user?.id && item.status === "PENDING_COMPLETION")
+    : undefined;
   const handleAction = useCallback((errand: Errand, action: ErrandAction) => {
     // disputing opens a modal to collect a reason; other actions just confirm.
     if (action === "dispute") {
@@ -130,6 +146,24 @@ export default function ActiveErrands() {
         <Link className="errands-tab" to="/errands">Open errands</Link>
         <Link className="errands-tab errands-tab-active" to="/errands/active" aria-current="page">My errands</Link>
       </nav>
+
+      {reviewErrand && (
+        <section className="errands-review" role="alert" aria-label="Confirm receipt">
+          <p>
+            Your courier marked your <strong>{reviewErrand.supplier.name}</strong> errand as delivered.
+            Did you receive your item?
+          </p>
+          <div className="errands-review-actions">
+            <button className="errands-review-confirm" type="button"
+              disabled={busy !== null} onClick={() => void handleAction(reviewErrand, "complete")}>
+              Confirm receipt
+            </button>
+            <button className="errands-review-dismiss" type="button" onClick={() => setSearchParams({}, { replace: true })}>
+              Not yet
+            </button>
+          </div>
+        </section>
+      )}
 
       {!hasLoaded && <p className="errands-status">Loading your errands…</p>}
       {error && <p className="errands-error" role="alert">{error}</p>}

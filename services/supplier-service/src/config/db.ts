@@ -1,15 +1,16 @@
 import mongoose from "mongoose";
+import { logger } from "../logger.js";
 
 //listeners for database connection events
 
 //Listens for error events when connecting to database
-mongoose.connection.on("error", () => {
-    console.error("MongoDB connection error");
+mongoose.connection.on("error", (err) => {
+    logger.error({ err }, "MongoDB connection error");
 });
 
 //Listens for disconnection events when connecting to database
 mongoose.connection.on("disconnected", () => {
-    console.warn("MongoDB disconnected");
+    logger.warn("MongoDB disconnected");
 });
 
 

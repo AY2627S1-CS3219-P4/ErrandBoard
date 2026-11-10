@@ -8,7 +8,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "PushFiveApplicationImages",
+      "Sid": "PushSixApplicationImages",
       "Effect": "Allow",
       "Action": [
         "ecr:BatchCheckLayerAvailability",
@@ -23,8 +23,8 @@
         "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/supplier-service",
         "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/order-service",
         "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/credit-service",
-        "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/frontend",
-        "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/notification-service"
+        "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/notification-service",
+        "arn:aws:ecr:ap-southeast-1:614099836367:repository/ay2627-cs3219-p4/errandboard/frontend"
       ]
     },
     {
@@ -34,7 +34,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "InspectAndUpdateFiveServices",
+      "Sid": "InspectAndUpdateSixServices",
       "Effect": "Allow",
       "Action": ["ecs:DescribeServices", "ecs:UpdateService"],
       "Resource": [
@@ -42,12 +42,12 @@
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/supplier-service",
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/order-service",
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/credit-service",
-        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/frontend",
-        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/notification-service"
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/notification-service",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/frontend"
       ]
     },
     {
-      "Sid": "RegisterFiveTaskFamilies",
+      "Sid": "RegisterSixTaskFamilies",
       "Effect": "Allow",
       "Action": "ecs:RegisterTaskDefinition",
       "Resource": [
@@ -55,8 +55,8 @@
         "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/supplier-service:*",
         "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/order-service:*",
         "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/credit-service:*",
-        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/frontend:*",
-        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/notification-service:*"
+        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/notification-service:*",
+        "arn:aws:ecs:ap-southeast-1:614099836367:task-definition/frontend:*"
       ]
     },
     {

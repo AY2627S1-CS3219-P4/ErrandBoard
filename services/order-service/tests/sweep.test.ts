@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, test, type TestContext } from "node:te
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
 import { OrderCreation } from "../src/models/OrderCreation.js";
 import { setEventPublisher } from "../src/event/publisher.js";
-import type { ErrandEvent } from "../src/event/types.js";
+import type { PublishableEvent } from "../src/event/types.js";
 import type { ErrandStatus } from "../src/status/errandState.js";
 import { runLifecycleSweep } from "../src/queue/sweep.js";
+import { logger } from "../src/logger.js";
 
 // mirrors the constant in sweep.ts
 const SWEEP_BATCH = 200;
@@ -52,10 +53,16 @@ function mockDueFind(
   const calls: FindCall[] = [];
   cleared = [];
   t.mock.method(Errand, "updateOne", (async (filter: Record<string, unknown>, update: Record<string, unknown>) => {
-    cleared.push({ filter, update });
+    // only the settlement-event flag is tracked here; status-event outbox bookkeeping is covered
+    // in status-events.test.ts
+    if ("$unset" in update && "eventPending" in (update.$unset as object)) cleared.push({ filter, update });
     return { acknowledged: true };
   }) as never);
   t.mock.method(Errand, "find", ((query: Record<string, unknown>) => {
+    if ("notifyPending" in query) {
+      const statusRelay = { sort() { return statusRelay; }, limit() { return Promise.resolve([]); } };
+      return statusRelay;
+    }
     if ("eventPending" in query) {
       const relay = {
         sort() { return relay; },
@@ -84,7 +91,11 @@ function mockTransition(
   decide: (filter: Record<string, unknown>, update: UpdateCall["update"]) => ErrandRecord | null,
 ) {
   const calls: UpdateCall[] = [];
-  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, update: UpdateCall["update"]) => {
+  t.mock.method(Errand, "findOneAndUpdate", (async (filter: Record<string, unknown>, rawUpdate: Record<string, any>) => {
+    // drop the notification-outbox fields (covered in status-events.test.ts) so these tests pin the transition
+    const { $push, ...rest } = rawUpdate;
+    const { notifyPending, ...set } = rest.$set;
+    const update = { ...rest, $set: set } as UpdateCall["update"];
     calls.push({ filter, update });
     return decide(filter, update);
   }) as never);
@@ -100,7 +111,7 @@ function assertDueDate(value: unknown, before: number, after: number) {
 }
 
 describe("runLifecycleSweep", () => {
-  let published: ErrandEvent[];
+  let published: PublishableEvent[];
 
   beforeEach(() => {
     published = [];
@@ -167,7 +178,7 @@ describe("runLifecycleSweep", () => {
   });
 
   test("a publish failure after commit does not fail the sweep and leaves the event pending", async (t) => {
-    t.mock.method(console, "error", () => {});
+    t.mock.method(logger, "error", () => {});
     setEventPublisher({ isReady: () => true, publish: async () => { throw new Error("broker down"); }, close: async () => {} });
     mockDueFind(t, { OPEN: [{ _id: OPEN_ID }] });
     mockTransition(t, (filter, update) =>
@@ -191,7 +202,7 @@ describe("runLifecycleSweep", () => {
   });
 
   test("the relay stops at the first failed publish so a down broker is not hit repeatedly", async (t) => {
-    t.mock.method(console, "error", () => {});
+    t.mock.method(logger, "error", () => {});
     let attempts = 0;
     setEventPublisher({ isReady: () => true, publish: async () => { attempts++; throw new Error("broker down"); }, close: async () => {} });
     mockDueFind(t, {}, [
@@ -207,7 +218,7 @@ describe("runLifecycleSweep", () => {
   });
 
   test("the relay warns when a terminal event has been pending for over two minutes", async (t) => {
-    const warn = t.mock.method(console, "warn", () => {});
+    const warn = t.mock.method(logger, "warn", () => {});
     mockDueFind(t, {}, [makeErrand({
       _id: OPEN_ID,
       status: "EXPIRED",
@@ -216,11 +227,12 @@ describe("runLifecycleSweep", () => {
     mockTransition(t, () => null);
     await runLifecycleSweep();
     assert.equal(warn.mock.callCount(), 1);
-    assert.match(String(warn.mock.calls[0].arguments[0]), /terminal event backlog/);
+    // pino signature is logger.warn(contextObj, message); the message is the 2nd argument.
+    assert.match(String(warn.mock.calls[0].arguments[1]), /terminal event backlog/);
   });
 
   test("a failing transition is skipped and does not stop the sweep", async (t) => {
-    t.mock.method(console, "warn", () => {}); // silence the per-item warning
+    t.mock.method(logger, "warn", () => {}); // silence the per-item warning
     mockDueFind(t, { OPEN: [{ _id: BAD_ID }, { _id: GOOD_ID }] });
     // BAD_ID matches nothing (findById also null -> ErrandNotFoundError); GOOD_ID succeeds
     const updates = mockTransition(t, (filter) =>

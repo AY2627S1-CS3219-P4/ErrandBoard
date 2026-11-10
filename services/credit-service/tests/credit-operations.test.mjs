@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import mongoose, { Types } from "mongoose";
 import { app } from "../dist/app.js";
+import { logger } from "../dist/logger.js";
 import { TransactionLog } from "../dist/models/TransactionLog.js";
 import { UserCredit } from "../dist/models/UserCredit.js";
 import { inspectOrderReservation, releaseOrderReservation, reserveOrderCredits } from "../dist/routes/credit.routes.js";
@@ -91,6 +92,45 @@ test("one reserve records ORDER_START, moves credits, and a repeat does nothing"
     assert.equal(db.accounts[requesterId].available, 80);
     assert.equal(db.accounts[requesterId].reserve, 20);
   } finally { db.restore(); }
+});
+
+test("an applied reserve emits a credit.transaction audit event", async () => {
+  const db = fakeDatabase();
+  const calls = [];
+  const originalInfo = logger.info;
+  logger.info = (obj, msg) => { calls.push({ obj, msg }); };
+  try {
+    await reserveCredits(operation);
+    const audit = calls.find((c) => c.obj?.event === "credit.transaction");
+    assert.ok(audit, "expected a credit.transaction event to be logged");
+    assert.equal(audit.obj.action, "RESERVE");
+    assert.equal(audit.obj.transactionType, "ORDER_START");
+    assert.equal(audit.obj.orderId, orderId.toString());
+    assert.equal(audit.obj.requesterId, requesterId.toString());
+    assert.equal(audit.obj.amount, 20);
+    assert.equal(audit.obj.courierId, undefined);
+  } finally {
+    logger.info = originalInfo;
+    db.restore();
+  }
+});
+
+test("a transfer logs the courier on its credit.transaction event", async () => {
+  const db = fakeDatabase();
+  const calls = [];
+  const originalInfo = logger.info;
+  logger.info = (obj, msg) => { calls.push({ obj, msg }); };
+  try {
+    await reserveCredits(operation);
+    await transferCredits({ ...operation, courierId });
+    const transfer = calls.find((c) => c.obj?.event === "credit.transaction" && c.obj.action === "TRANSFER");
+    assert.ok(transfer, "expected a TRANSFER credit.transaction event");
+    assert.equal(transfer.obj.courierId, courierId.toString());
+    assert.equal(transfer.obj.transactionType, "ORDER_END");
+  } finally {
+    logger.info = originalInfo;
+    db.restore();
+  }
 });
 
 test("insufficient available balance rolls back the log and balance", async () => {

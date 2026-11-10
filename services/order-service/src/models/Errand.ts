@@ -1,6 +1,6 @@
 import { model, Schema, type Types } from "mongoose";
 import { ERRAND_STATUSES, type ErrandStatus } from "../status/errandState.js";
-import { TERMINAL_CAUSES, type TerminalCause } from "../event/types.js";
+import { TERMINAL_CAUSES, type ActorRole, type TerminalCause } from "../event/types.js";
 
 export interface SupplierCopy {
     supplierId: string;
@@ -8,6 +8,18 @@ export interface SupplierCopy {
     building: string;
     address: string;
     imageUrl?: string; //maybe for frontend stuff
+}
+
+// A status-change event that is owed to the broker. Written in the SAME atomic update as the
+// transition (transactional outbox), removed once the broker confirms it.
+export interface StatusOutboxEntry {
+    eventId: string;
+    status: ErrandStatus;
+    previousStatus: ErrandStatus;
+    actorRole: ActorRole;
+    actorId?: string;
+    at: Date;
+    deadline?: Date;
 }
 
 export interface ErrandDocument {
@@ -28,12 +40,27 @@ export interface ErrandDocument {
     createdAt: Date;
     updatedAt: Date;
     eventPending?: boolean; //if true this errand owes an event operation
+    notifyPending?: boolean; //if true notifyOutbox is non-empty (partial-indexed for the relay)
+    notifyOutbox?: StatusOutboxEntry[];
 }
 
 //ErrandId
 export interface ErrandRecord extends ErrandDocument {
   _id: Types.ObjectId;
 }
+
+const outboxEntrySchema = new Schema<StatusOutboxEntry>(
+  {
+    eventId: { type: String, required: true },
+    status: { type: String, enum: ERRAND_STATUSES, required: true },
+    previousStatus: { type: String, enum: ERRAND_STATUSES, required: true },
+    actorRole: { type: String, enum: ["REQUESTER", "COURIER", "SYSTEM", "ADMIN"], required: true },
+    actorId: String,
+    at: { type: Date, required: true },
+    deadline: Date,
+  },
+  { _id: false },
+);
 
 const errandSchema = new Schema<ErrandDocument>(
   {
@@ -58,6 +85,9 @@ const errandSchema = new Schema<ErrandDocument>(
     disputedBy: String,
     terminalCause: { type: String, enum: TERMINAL_CAUSES },
     eventPending: Boolean,
+    notifyPending: Boolean,
+    // default undefined: do not materialise an empty array on every new errand
+    notifyOutbox: { type: [outboxEntrySchema], default: undefined },
     },
     { collection: "errands", timestamps: true }
 );
@@ -70,5 +100,6 @@ errandSchema.index({ courierId: 1, status: 1 });
 errandSchema.index({ status: 1, disputedAt: 1 }, { partialFilterExpression: { status: "DISPUTED" } });
 errandSchema.index({ createdAt: -1 });
 errandSchema.index({ eventPending: 1 }, { partialFilterExpression: { eventPending: true } });
+errandSchema.index({ notifyPending: 1 }, { partialFilterExpression: { notifyPending: true } });
 
 export const Errand = model<ErrandDocument>("Errand", errandSchema);

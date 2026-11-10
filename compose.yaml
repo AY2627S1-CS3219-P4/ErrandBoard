@@ -24,6 +24,7 @@ services:
       MONGO_SUPPLIER_SERVICE_PASSWORD: ${MONGO_SUPPLIER_SERVICE_PASSWORD}
       MONGO_ORDER_SERVICE_PASSWORD: ${MONGO_ORDER_SERVICE_PASSWORD}
       MONGO_CREDIT_SERVICE_PASSWORD: ${MONGO_CREDIT_SERVICE_PASSWORD}
+      MONGO_NOTIFICATION_SERVICE_PASSWORD: ${MONGO_NOTIFICATION_SERVICE_PASSWORD:?Set a Notification service MongoDB password}
       MONGO_REPLICA_SET_KEY: ${MONGO_REPLICA_SET_KEY:?Set a high-entropy replica-set key}
     volumes:
       - mongodb_data:/data/db
@@ -253,6 +254,38 @@ services:
     networks:
       - errandboard-network
 
+  notification-service:
+    build: ./services/notification-service
+    environment:
+      PORT: 3005
+      MONGO_HOST: mongodb
+      MONGO_DB_NAME: errandboard
+      MONGO_NOTIFICATION_SERVICE_PASSWORD: ${MONGO_NOTIFICATION_SERVICE_PASSWORD:?Set a Notification service MongoDB password}
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672
+      FRONTEND_ORIGIN: http://localhost:5173
+      # generate once with `npm run vapid:generate`; changing them later invalidates every subscription
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:?Run npm run vapid:generate in notification-service}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:?Run npm run vapid:generate in notification-service}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:?Set VAPID_SUBJECT, e.g. mailto:you@example.com}
+      # the frontend has no /errands/:id page; active errands live here (the {id} placeholder is optional)
+      APP_ERRAND_PATH: /errands/active
+      NOTIFY_DIRECT_ACTIONS: "false"
+    ports:
+      - "127.0.0.1:3005:3005"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mongodb-rs-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - errandboard-network
+
   frontend:
     build: ./frontend
     ports:
@@ -265,6 +298,8 @@ services:
       order-service:
         condition: service_started
       credit-service:
+        condition: service_started
+      notification-service:
         condition: service_started
     networks:
       - errandboard-network

@@ -6,6 +6,7 @@ import { connectDb, disconnectDb } from "../db.js";
 import { User, type AccountType } from "../models/User.js";
 import { syncCreditAccount } from "../services/credit-account.client.js";
 import { authorizationStore } from "../security/authorization-state.js";
+import { logger } from "../logger.js";
 
 interface SeedRow {
   email: string;
@@ -103,8 +104,9 @@ export async function seedUsers(rows: SeedRow[]): Promise<void> {
     }
   }
 
-  console.log(
-    `Users seeded: ${result.upsertedCount} inserted, ${result.matchedCount} already present`,
+  logger.info(
+    { inserted: result.upsertedCount, alreadyPresent: result.matchedCount },
+    "Users seeded",
   );
 }
 
@@ -127,7 +129,7 @@ async function main(): Promise<void> {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   main().catch((error) => {
-    console.error("User seeding failed:", error);
+    logger.error({ err: error }, "User seeding failed");
     process.exitCode = 1;
   });
 }

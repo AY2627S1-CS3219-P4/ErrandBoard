@@ -31,6 +31,7 @@
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/supplier-service",
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/order-service",
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/credit-service",
+        "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/notification-service",
         "arn:aws:ecs:ap-southeast-1:614099836367:service/ErrandBoard/frontend"
       ]
     },
