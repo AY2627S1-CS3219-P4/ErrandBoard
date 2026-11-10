@@ -4,10 +4,13 @@ import express from "express";
 import cors from "cors"; //cross-origin resource sharing
 import cookieParser from "cookie-parser";
 import { supplierRouter } from "./routes/supplier.routes.js";
+import { httpLogger } from "./logger.js";
 
 export const app = express();
 
-//enable functions 
+app.use(httpLogger);
+
+//enable functions
 app.use(express.json());
 app.use(cookieParser());
 

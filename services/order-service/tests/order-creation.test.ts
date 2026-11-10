@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test, type TestContext } from "node:test";
 import mongoose, { Types } from "mongoose";
 import { Errand } from "../src/models/Errand.js";
+import { logger } from "../src/logger.js";
 import { OrderCreation } from "../src/models/OrderCreation.js";
 import {
   nextCreationRetryDelay,
@@ -151,7 +152,7 @@ test("an active Errand with refunded Credit is isolated rather than silently acc
   }) as never);
   const call = t.mock.method(globalThis, "fetch", (async () =>
     Response.json({ state: "REFUNDED", requesterId, amount: 20 })) as never);
-  t.mock.method(console, "error", () => {});
+  t.mock.method(logger, "error", () => {});
 
   assert.equal(await reconcileOnePendingCreation(), true);
   assert.equal(finalState, "RECONCILE");
@@ -168,7 +169,7 @@ test("a Credit outage keeps recovery pending with capped backoff", async (t) => 
     return { matchedCount: 1 };
   }) as never);
   t.mock.method(globalThis, "fetch", (async () => Response.json({ error: "down" }, { status: 503 })) as never);
-  t.mock.method(console, "warn", () => {});
+  t.mock.method(logger, "warn", () => {});
 
   assert.equal(await reconcileOnePendingCreation(), true);
   assert.equal((retry?.$set as { retryAttempts: number }).retryAttempts, 1);
@@ -187,7 +188,7 @@ test("a transferred orphan is isolated for manual reconciliation", async (t) => 
   }) as never);
   t.mock.method(globalThis, "fetch", (async () =>
     Response.json({ state: "TRANSFERRED", requesterId, amount: 20, courierId: new Types.ObjectId().toString() })) as never);
-  t.mock.method(console, "error", () => {});
+  t.mock.method(logger, "error", () => {});
 
   assert.equal(await reconcileOnePendingCreation(), true);
   assert.equal(finalState, "RECONCILE");

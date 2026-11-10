@@ -1,5 +1,6 @@
 import { User } from "../models/User.js";
 import { Session } from "../models/Session.js";
+import { logger } from "../logger.js";
 import { hashPassword, verifyPassword } from "../security/password.js";
 import {
   createSessionToken,
@@ -36,7 +37,7 @@ export async function registerUser(input: {
     } catch (writeError) {
       // The initial pending state and retry time were saved with User.create.
       // A later worker pass can still repair an ambiguous provisioning result.
-      console.error("Could not update credit provisioning retry metadata:", writeError);
+      logger.error({ err: writeError }, "Could not update credit provisioning retry metadata");
     }
   }
   if (!creditSetupPending) {
@@ -46,7 +47,7 @@ export async function registerUser(input: {
       // Credit may already have committed. Keep the durable pending flag so an
       // idempotent retry can confirm it rather than reporting a failed signup.
       creditSetupPending = true;
-      console.error("Could not confirm credit provisioning completion:", error);
+      logger.error({ err: error }, "Could not confirm credit provisioning completion");
     }
   }
 

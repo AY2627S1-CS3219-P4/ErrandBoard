@@ -1,4 +1,5 @@
 import { Errand } from "../models/Errand.js";
+import { logger } from "../logger.js";
 import {
   expireOpenErrand,
   disputeErrandAfterDeadline,
@@ -25,11 +26,11 @@ async function sweep(
 
   for (const { _id } of due) {
     try {
-      console.log(`Processing ${status} errand ${_id}`)
+      logger.info({ status, errandId: _id }, "Processing errand")
       await transition(_id.toString());
-      console.log(`Applied ${transition.name} transition to ${status} errand ${_id}`)
+      logger.info({ status, errandId: _id, transition: transition.name }, "Applied transition to errand")
     } catch (err) {
-      console.warn(`lifecycle sweep skip ${status} ${_id}:`, (err as Error).message);
+      logger.warn({ err, status, errandId: _id }, "Lifecycle sweep skip");
     }
   }
   return due.length;

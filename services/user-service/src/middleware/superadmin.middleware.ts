@@ -35,5 +35,6 @@ export async function requireSuperadmin(req: Request, res: Response, next: NextF
     return;
   }
   if (claims.role !== "SUPERADMIN") { res.status(403).json({ error: "Superadmin access required" }); return; }
+  req.user = claims;
   next();
 }

@@ -1,4 +1,5 @@
 import type { Response } from "express";
+import { logger } from "../logger.js";
 
 const clientsByUser = new Map<string, Set<Response>>();
 const EVENT_NAME = "credit-balance-updated";
@@ -51,7 +52,7 @@ export function notifyCreditBalanceUpdated(userIds: string[]): void {
       try {
         sendBalanceUpdate(response);
       } catch (error) {
-        console.warn("Could not notify a Credit balance listener:", error);
+        logger.warn({ err: error }, "Could not notify a Credit balance listener");
       }
     }
   }

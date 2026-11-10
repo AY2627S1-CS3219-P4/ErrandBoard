@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { logger } from "../logger.js";
 import { fetchActiveSupplier } from "../clients/supplier.client.js";
 import { reserveCredits } from "../clients/credit.client.js";
 import { CreditRecoveryRequiredError, DeliveryDeadlinePassedError, DisputeResolvedError, ErrandNotFoundError, InsufficientCreditsError, InvalidStatusTransitionError, OrderCreationPendingError, SelfAssignErrandError, UpdateConflictError, ValidationError } from "../errors/order.errors.js";
@@ -126,16 +127,16 @@ export async function createErrand(input: CreateErrandInput): Promise<ErrandReco
   } catch (error) {
     if (error instanceof InsufficientCreditsError) {
       try { await closeUnreservedCreation(creditInput.orderId); } catch (writeError) {
-        console.error("Could not close rejected order creation:", writeError);
+        logger.error({ err: writeError }, "Could not close rejected order creation");
       }
       throw error;
     }
     if (error instanceof CreditRecoveryRequiredError) {
       // A conflicting Credit log needs an operator rather than endless retries.
-      console.error(`Order ${_id} needs manual Credit reconciliation`);
+      logger.error({ orderId: _id }, "Order needs manual Credit reconciliation");
     }
     try { await queueCreationRecovery(creditInput.orderId, error); } catch (writeError) {
-      console.error("Could not expedite order creation recovery:", writeError);
+      logger.error({ err: writeError }, "Could not expedite order creation recovery");
     }
     throw new OrderCreationPendingError();
   }
@@ -151,10 +152,10 @@ export async function createErrand(input: CreateErrandInput): Promise<ErrandReco
       const confirmed = await Errand.findById(_id) as ErrandRecord | null;
       if (confirmed) return confirmed;
     } catch (recoveryError) {
-      console.error(`Order ${_id} write outcome could not be checked:`, recoveryError);
+      logger.error({ err: recoveryError, orderId: _id }, "Order write outcome could not be checked");
     }
     try { await queueCreationRecovery(creditInput.orderId, error); } catch (writeError) {
-      console.error("Could not expedite order creation recovery:", writeError);
+      logger.error({ err: writeError }, "Could not expedite order creation recovery");
     }
     throw new OrderCreationPendingError();
   }

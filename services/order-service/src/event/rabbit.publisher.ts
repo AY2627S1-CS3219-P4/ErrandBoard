@@ -1,4 +1,5 @@
 import amqp, { ChannelWrapper } from "amqp-connection-manager";
+import { logger } from "../logger.js";
 import type { ConfirmChannel } from "amqplib";
 import { EXCHANGE_NAME, STATUS_EVENT_TYPE, type EventPublisher, type PublishableEvent } from "./types.js";
 
@@ -50,13 +51,13 @@ export class RabbitPublisher implements EventPublisher {
 
 
 export function connectRabbit(url: string): RabbitPublisher {
-    console.log("starting publisher")
+    logger.info("Starting publisher")
     const returnMessages = new Set<string>();
     const connection = amqp.connect([url]);
 
-    connection.on("connect", () => console.log("RabbitMQ connected"));
-    connection.on("connectFailed", ({ err }) => console.error("RabbitMQ connect failed:", err.message));
-    connection.on("disconnect", ({ err }) => console.error("RabbitMQ disconnected:", err?.message));
+    connection.on("connect", () => logger.info("RabbitMQ connected"));
+    connection.on("connectFailed", ({ err }) => logger.error({ err }, "RabbitMQ connect failed"));
+    connection.on("disconnect", ({ err }) => logger.error({ err }, "RabbitMQ disconnected"));
     
     //setup function uses the ConfirmChannel interface to verify 
     const channel = connection.createChannel({

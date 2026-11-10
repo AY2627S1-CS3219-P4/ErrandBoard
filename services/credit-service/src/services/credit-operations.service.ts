@@ -1,4 +1,5 @@
 import mongoose, { Types } from "mongoose";
+import { logger } from "../logger.js";
 import { TransactionLog, type CreditAction, type TransactionType } from "../models/TransactionLog.js";
 import { UserCredit } from "../models/UserCredit.js";
 
@@ -127,11 +128,36 @@ async function applyOperation(
         }
       }
     });
+    // Audit the committed operation alongside the durable TransactionLog row.
+    logger.info(
+      {
+        event: "credit.transaction",
+        action,                                    // RESERVE | REFUND | TRANSFER
+        transactionType,                           // ORDER_START | ORDER_END
+        orderId: operation.orderId.toString(),
+        requesterId: operation.requesterId.toString(),
+        courierId: operation.courierId?.toString(),
+        amount: operation.amount,
+      },
+      "Credit transaction applied",
+    );
     return { applied: true };
   } catch (error) {
     if (isDuplicateKey(error)) {
       const existing = await TransactionLog.findOne({ orderId: operation.orderId, transactionType });
-      if (existing && sameOperation(existing, action, operation)) return { applied: false };
+      if (existing && sameOperation(existing, action, operation)) {
+        // A retried delivery that matches the existing operation: a safe no-op.
+        logger.debug(
+          {
+            event: "credit.transaction.duplicate",
+            action,
+            transactionType,
+            orderId: operation.orderId.toString(),
+          },
+          "Duplicate credit operation ignored",
+        );
+        return { applied: false };
+      }
       throw new CreditOperationError(409, "A different credit operation already exists for this order phase");
     }
     throw error;

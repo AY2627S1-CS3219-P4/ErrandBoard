@@ -35,6 +35,7 @@ import {
   OrderCreationPendingError,
   DisputeResolvedError,
 } from "../errors/order.errors.js";
+import { logger } from "../logger.js";
 
 function toArray(value: unknown): string[] | undefined {
   if (value === undefined) return undefined;
@@ -210,7 +211,20 @@ export async function getStats(_req: Request, res: Response): Promise<void> {
 // admin-only: resolve a dispute by refunding the requester
 export async function resolveRefund(req: Request, res: Response): Promise<void> {
   try {
-    res.json({ errand: await resolveDisputeRefund(idParam(req), userId(req)) });
+    const errand = await resolveDisputeRefund(idParam(req), userId(req));
+    logger.info(
+      {
+        event: "dispute.resolved",
+        resolution: "refund",
+        adminId: req.user?.userId,
+        errandId: errand._id.toString(),
+        requesterId: errand.requesterId,
+        courierId: errand.courierId,
+        amount: errand.credit,
+      },
+      "Dispute resolved by admin (refund to requester)",
+    );
+    res.json({ errand });
   } catch (error) {
     if (!sendKnownError(res, error)) throw error;
   }
@@ -219,7 +233,20 @@ export async function resolveRefund(req: Request, res: Response): Promise<void> 
 // admin-only: resolve a dispute by transferring the credit to the courier
 export async function resolveTransfer(req: Request, res: Response): Promise<void> {
   try {
-    res.json({ errand: await resolveDisputeTransfer(idParam(req), userId(req)) });
+    const errand = await resolveDisputeTransfer(idParam(req), userId(req));
+    logger.info(
+      {
+        event: "dispute.resolved",
+        resolution: "transfer",
+        adminId: req.user?.userId,
+        errandId: errand._id.toString(),
+        requesterId: errand.requesterId,
+        courierId: errand.courierId,
+        amount: errand.credit,
+      },
+      "Dispute resolved by admin (transfer to courier)",
+    );
+    res.json({ errand });
   } catch (error) {
     if (!sendKnownError(res, error)) throw error;
   }

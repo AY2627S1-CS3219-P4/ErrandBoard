@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, test, type TestContext } from "node:test";
 import mongoose from "mongoose";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { Errand, type ErrandRecord } from "../src/models/Errand.js";
+import { logger } from "../src/logger.js";
 import { OrderCreation } from "../src/models/OrderCreation.js";
 import { setEventPublisher } from "../src/event/publisher.js";
 import {
@@ -40,6 +42,7 @@ import {
   type CreateErrandInput,
 } from "../src/services/order.services.js";
 import { validTransition, isTerminal } from "../src/status/errandState.js";
+import { resolveRefund, resolveTransfer } from "../src/controller/order.controller.js";
 
 const ERRAND_ID = "507f1f77bcf86cd799439011";
 const REQUESTER_ID = "requester-1";
@@ -608,7 +611,7 @@ describe("completeErrand", () => {
   });
 
   test("a publish failure after commit does not fail the request or clear the pending flag", async (t) => {
-    t.mock.method(console, "error", () => {});
+    t.mock.method(logger, "error", () => {});
     setEventPublisher({ isReady: () => true, publish: async () => { throw new Error("broker down"); }, close: async () => {} });
     const completed = makeErrand({ status: "COMPLETED", courierId: COURIER_ID });
     mockUpdate(t, completed);
@@ -914,5 +917,72 @@ describe("getErrandStats", () => {
     assert.equal(stats.disputedBySystem, 0);
     assert.equal(stats.disputedByRequester, 0);
     assert.equal(stats.creditsHeld, 0);
+  });
+});
+
+describe("dispute resolution audit (admin controller)", () => {
+  const admin = { userId: "admin-1", role: "ADMIN", authzVersion: 0 };
+  const stillDisputed = () => makeErrand({ status: "DISPUTED", courierId: COURIER_ID });
+
+  function mockResponse() {
+    const res = {
+      statusCode: 200,
+      body: undefined as unknown,
+      status(code: number) { this.statusCode = code; return this; },
+      json(payload: unknown) { this.body = payload; return this; },
+    };
+    return res;
+  }
+
+  test("resolveRefund emits a dispute.resolved(refund) event with actor, parties, and amount", async (t) => {
+    mockUpdate(t, makeErrand({ status: "CANCELLED", courierId: COURIER_ID, credit: 5 }), stillDisputed());
+    const info = t.mock.method(logger, "info", () => logger);
+
+    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as ExpressRequest;
+    const res = mockResponse();
+    await resolveRefund(req, res as unknown as ExpressResponse);
+
+    assert.equal(res.statusCode, 200);
+    const audit = info.mock.calls
+      .map((c) => c.arguments[0] as Record<string, unknown>)
+      .find((ctx) => ctx.event === "dispute.resolved");
+    assert.ok(audit, "a dispute.resolved event should be emitted");
+    assert.equal(audit.resolution, "refund");
+    assert.equal(audit.adminId, "admin-1");
+    assert.equal(audit.errandId, ERRAND_ID);
+    assert.equal(audit.requesterId, REQUESTER_ID);
+    assert.equal(audit.courierId, COURIER_ID);
+    assert.equal(audit.amount, 5);
+  });
+
+  test("resolveTransfer emits a dispute.resolved(transfer) event", async (t) => {
+    mockUpdate(t, makeErrand({ status: "COMPLETED", courierId: COURIER_ID, credit: 8 }), stillDisputed());
+    const info = t.mock.method(logger, "info", () => logger);
+
+    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as ExpressRequest;
+    const res = mockResponse();
+    await resolveTransfer(req, res as unknown as ExpressResponse);
+
+    assert.equal(res.statusCode, 200);
+    const audit = info.mock.calls
+      .map((c) => c.arguments[0] as Record<string, unknown>)
+      .find((ctx) => ctx.event === "dispute.resolved");
+    assert.ok(audit, "a dispute.resolved event should be emitted");
+    assert.equal(audit.resolution, "transfer");
+    assert.equal(audit.adminId, "admin-1");
+    assert.equal(audit.amount, 8);
+  });
+
+  test("a failed resolution does not emit a dispute.resolved event", async (t) => {
+    // settled dispute -> DisputeResolvedError, surfaced as a known error, no audit
+    mockUpdate(t, null, makeErrand({ status: "CANCELLED", courierId: COURIER_ID }));
+    const info = t.mock.method(logger, "info", () => logger);
+
+    const req = { params: { id: ERRAND_ID }, user: admin } as unknown as ExpressRequest;
+    const res = mockResponse();
+    await resolveRefund(req, res as unknown as ExpressResponse);
+
+    const emitted = info.mock.calls.some((c) => (c.arguments[0] as Record<string, unknown>)?.event === "dispute.resolved");
+    assert.equal(emitted, false);
   });
 });

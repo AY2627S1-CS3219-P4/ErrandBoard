@@ -46,12 +46,10 @@ jobs:
       - name: Check source types
         run: npm run typecheck
 
-      # tsconfig includes only src/; tsx executes tests without type checking.
+      # tsconfig.test.json includes src/ (for ambient types like express.d.ts)
+      # plus tests/; tsx executes tests without type checking.
       - name: Check test types
-        run: >-
-          npx --no-install tsc --noEmit --target ES2022
-          --module NodeNext --moduleResolution NodeNext --strict
-          --esModuleInterop --skipLibCheck --types node tests/*.test.ts
+        run: npm run typecheck:tests
 
       # These tests validate documents in memory; MongoDB is not required.
       - name: Run unit tests

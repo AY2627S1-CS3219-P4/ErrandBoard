@@ -1,5 +1,6 @@
 //Main entry point
 import { app } from "./app.js";
+import { logger } from "./logger.js";
 import { connectDb, disconnectDb } from "./config/db.js";
 import { getEventPublisher, closeEventPublisher } from "./event/publisher.js";
 import { startLifecycle, stopLifecycle } from "./queue/queue.js";
@@ -16,7 +17,7 @@ async function main(): Promise<void> {
 
     //have the express app listen
     const server = app.listen(port, "0.0.0.0", () => {
-    console.log(`Order service listening on port ${port}`);
+    logger.info({ port }, "Order service listening");
   });
 
   const shutdown = async () => {
@@ -34,7 +35,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-  console.error("Order Service failed to start:", error);
+  logger.error({ err: error }, "Order Service failed to start");
   await disconnectDb();
   await authorizationStore.close();
   process.exitCode = 1;

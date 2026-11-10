@@ -1,4 +1,5 @@
 import { createClient } from "redis";
+import { logger } from "../logger.js";
 import { User, type AccountType } from "../models/User.js";
 
 export interface AuthorizationState {
@@ -20,7 +21,7 @@ const client = createClient({
   disableOfflineQueue: true,
   socket: { connectTimeout: 2000 },
 });
-client.on("error", (error) => console.error("Redis authorization connection error:", error));
+client.on("error", (error) => logger.error({ err: error }, "Redis authorization connection error"));
 
 const compareAndSet = `
   if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end

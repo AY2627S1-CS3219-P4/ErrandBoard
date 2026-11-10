@@ -2,9 +2,12 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { errandRouter } from "./routes/order.routes.js";
+import { httpLogger } from "./logger.js";
 
 
 export const app = express();
+
+app.use(httpLogger);
 
 app.use(express.json());
 app.use(cookieParser());
