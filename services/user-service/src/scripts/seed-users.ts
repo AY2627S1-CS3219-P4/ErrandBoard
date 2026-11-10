@@ -75,7 +75,7 @@ export async function seedUsers(rows: SeedRow[]): Promise<void> {
       users.map((user) => ({
         updateOne: {
           filter: { email: user.email },
-          update: { $setOnInsert: user },
+          update: { $setOnInsert: user, $set: { emailVerified: true } },
           upsert: true,
         },
       })),

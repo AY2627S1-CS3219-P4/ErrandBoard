@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { before, test, type TestContext } from "node:test";
 import type { CookieOptions, Request, Response } from "express";
 import bcrypt from "bcryptjs";
-import { changeUsername, changePassword, currentUser, login, logout, refresh, register } from "../src/controllers/auth.controller.js";
+import { changeUsername, changePassword, confirmEmail, currentUser, login, logout, refresh, register, resendVerification } from "../src/controllers/auth.controller.js";
 import { Session } from "../src/models/Session.js";
 import { User } from "../src/models/User.js";
 import { hashPassword } from "../src/security/password.js";
 import { hashSessionToken } from "../src/security/session-token.js";
+import { verificationEmailQueue } from "../src/services/verification-email.queue.js";
 import { verifyAccessToken } from "../src/security/token.js";
 import { authorizationStore } from "../src/security/authorization-state.js";
 
@@ -157,6 +158,20 @@ before(async () => {
   });
 });
 
+test("production registration and resend stay closed unless explicitly enabled", async (t) => {
+  setEnv(t, "NODE_ENV", "production");
+  setEnv(t, "REGISTRATION_ENABLED", undefined);
+  const create = t.mock.method(User, "create", async () => { throw new Error("unexpected registration"); });
+  const registration = responseDouble();
+  await register(requestDouble({}), registration.response);
+  assert.equal(registration.state.status, 503);
+  assert.deepEqual(registration.state.body, { code: "REGISTRATION_CLOSED", error: "Registration is temporarily unavailable." });
+  const resend = responseDouble();
+  await resendVerification(requestDouble({ email: "e1397822@u.nus.edu" }), resend.response);
+  assert.equal(resend.state.status, 503);
+  assert.equal(create.mock.callCount(), 0);
+});
+
 test("registration returns 201 with a safe user response", async (t) => {
   process.env.CREDIT_SERVICE_URL = "http://credit-service:3004";
   process.env.CREDIT_INTERNAL_API_KEY = "test-credit-key";
@@ -165,6 +180,8 @@ test("registration returns 201 with a safe user response", async (t) => {
     delete process.env.CREDIT_INTERNAL_API_KEY;
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
+  t.mock.method(User, "findOneAndUpdate", async () => new User({ email: "e0000000@u.nus.edu", username: "alice_123", passwordHash: "hash", emailVerified: false }));
+  const emailSend = t.mock.method(verificationEmailQueue, "enqueue", async () => {});
   t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   const creditCall = t.mock.method(globalThis, "fetch", async (url: URL | string | Request, options?: RequestInit) => {
     assert.match(url.toString(), /^http:\/\/credit-service:3004\/credit\/accounts\/[a-f0-9]{24}$/);
@@ -198,11 +215,13 @@ test("registration returns 201 with a safe user response", async (t) => {
 
   assert.equal(state.status, 201);
   assert.ok(persisted);
-  assert.deepEqual(Object.keys(persisted).sort(), ["creditSetupNextRetryAt", "creditSetupPending", "email", "passwordHash", "username"]);
+  assert.deepEqual(Object.keys(persisted).sort(), ["creditSetupNextRetryAt", "creditSetupPending", "email", "emailVerified", "passwordHash", "username"]);
+  assert.equal(persisted.emailVerified, false);
   assert.equal(persisted.email, "e0000000@u.nus.edu");
   assert.notEqual(persisted.passwordHash, strongRegistrationPassword);
   assert.equal(create.mock.callCount(), 1);
   assert.equal(creditCall.mock.callCount(), 1);
+  assert.equal(emailSend.mock.callCount(), 1);
 
   const body = state.body as { user: Record<string, unknown> };
   assert.deepEqual(Object.keys(body.user).sort(), ["accountType", "creditSetupPending", "email", "id", "username"]);
@@ -219,6 +238,8 @@ test("registration returns a pending response and schedules repair when credit s
     delete process.env.CREDIT_INTERNAL_API_KEY;
   });
   t.mock.method(authorizationStore, "initialize", async () => {});
+  t.mock.method(User, "findOneAndUpdate", async () => new User({ email: "e0000000@u.nus.edu", username: "alice_123", passwordHash: "hash", emailVerified: false }));
+  t.mock.method(verificationEmailQueue, "enqueue", async () => {});
   t.mock.method(User, "create", async (document: Record<string, unknown>) => new User(document));
   const update = t.mock.method(User, "updateOne", async () => ({ matchedCount: 1 }));
   t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 503 }));
@@ -234,6 +255,32 @@ test("registration returns a pending response and schedules repair when credit s
   assert.equal((state.body as { code: string }).code, "CREDIT_SETUP_PENDING");
   assert.equal((state.body as { user: { creditSetupPending: boolean } }).user.creditSetupPending, true);
   assert.equal(update.mock.callCount(), 1);
+});
+
+test("resend gives the same response when no account or eligible token exists", async (t) => {
+  const claim = t.mock.method(User, "findOneAndUpdate", async () => null);
+  const enqueue = t.mock.method(verificationEmailQueue, "enqueue", async () => {});
+  const unknown = responseDouble();
+  const repeated = responseDouble();
+  await resendVerification(requestDouble({ email: "e1234567@u.nus.edu" }), unknown.response);
+  await resendVerification(requestDouble({ email: "e1234567@u.nus.edu" }), repeated.response);
+  assert.equal(unknown.state.status, 202);
+  assert.deepEqual(unknown.state.body, repeated.state.body);
+  assert.equal(claim.mock.callCount(), 2);
+  assert.equal(enqueue.mock.callCount(), 0);
+});
+
+test("confirmation rejects malformed and used tokens without creating a session", async (t) => {
+  const claim = t.mock.method(User, "findOneAndUpdate", async () => null);
+  const invalid = responseDouble();
+  await confirmEmail(requestDouble({ token: "invalid" }), invalid.response);
+  assert.equal(invalid.state.status, 400);
+  assert.equal(claim.mock.callCount(), 0);
+  const used = responseDouble();
+  await confirmEmail(requestDouble({ token: "a".repeat(64) }), used.response);
+  assert.equal(used.state.status, 400);
+  assert.equal(claim.mock.callCount(), 1);
+  assert.equal(used.state.cookies.length, 0);
 });
 
 test("registration rejects invalid fields before hashing or persistence", async (t) => {

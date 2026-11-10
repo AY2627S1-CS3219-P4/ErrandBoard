@@ -10,6 +10,7 @@ import { authorizationStore, requireCurrentAuthorization } from "../security/aut
 import { changeAuthorization } from "./authorization.service.js";
 import { CreditAccountUnavailableError, syncCreditAccount } from "./credit-account.client.js";
 import { initialCreditRetryAt, markCreditSetupReady, recordCreditSetupFailure } from "./credit-provisioning.service.js";
+import { reconcileCognitoVerification } from "./cognito-verification.service.js";
 
 export async function registerUser(input: {
   email: string;
@@ -22,6 +23,7 @@ export async function registerUser(input: {
     email: input.email,
     username: input.username,
     passwordHash,
+    emailVerified: false,
     creditSetupPending: true,
     creditSetupNextRetryAt: initialCreditRetryAt(),
   });
@@ -67,6 +69,17 @@ export async function authenticateUser(username: string, password: string) {
     return null;
   }
 
+  if (user.emailVerified === false && process.env.EMAIL_VERIFICATION_PROVIDER === "cognito") {
+    try {
+      await reconcileCognitoVerification(user.email);
+      const refreshed = await User.findById(user._id);
+      if (refreshed?.emailVerified === true) user.emailVerified = true;
+    } catch (error) {
+      console.error("Could not reconcile Cognito confirmation:", error instanceof Error ? error.name : "UnknownError");
+    }
+  }
+  if (user.emailVerified === false) return null;
+
   if (!(await requireCurrentAuthorization(user))) return null;
 
   return user;
@@ -108,7 +121,7 @@ export async function rotateUserSession(rawToken: string): Promise<{
 
   if (session) {
     const user = await User.findById(session.userId);
-    if (!user || user.isActive === false ||
+    if (!user || user.isActive === false || user.emailVerified === false ||
         (session.authzVersion ?? 0) !== (user.authzVersion ?? 0) ||
         !(await requireCurrentAuthorization(user))) {
       await Session.updateOne(
@@ -193,7 +206,7 @@ async function findSessionUser(rawToken: string, includePassword = false) {
   if (!session) return null;
   const query = User.findById(session.userId);
   const user = await (includePassword ? query.select("+passwordHash") : query);
-  if (!user || user.isActive === false ||
+  if (!user || user.isActive === false || user.emailVerified === false ||
       (session.authzVersion ?? 0) !== (user.authzVersion ?? 0) ||
       !(await requireCurrentAuthorization(user))) return null;
   return user;

@@ -43,6 +43,12 @@ test("seeding provisions credits for new and previously seeded users using their
   await seedUsers(rows);
 
   assert.equal(bulkWrite.mock.callCount(), 1);
+  const writes = bulkWrite.mock.calls[0]?.arguments[0] as unknown as Array<{ updateOne: { update: { $set: { emailVerified: boolean }; $setOnInsert: Record<string, unknown> } } }>;
+  assert.equal(writes.length, 2);
+  for (const write of writes) {
+    assert.equal(write.updateOne.update.$set.emailVerified, true);
+    assert.equal("emailVerified" in write.updateOne.update.$setOnInsert, false);
+  }
   assert.deepEqual(calls, [
     { url: `http://credit-service:3004/credit/accounts/${activeId}`, isActive: true },
     { url: `http://credit-service:3004/credit/accounts/${inactiveId}`, isActive: false },

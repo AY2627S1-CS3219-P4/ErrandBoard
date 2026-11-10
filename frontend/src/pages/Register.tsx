@@ -5,9 +5,9 @@ import * as common from "@zxcvbn-ts/language-common";
 import * as english from "@zxcvbn-ts/language-en";
 import { apiFetch, userApiUrl } from "../api/client";
 import { serviceUnavailable } from "../api/service-errors";
+import { isValidRegistrationEmail, normalizeRegistrationEmail } from "../auth/registration-email";
 import "./AuthForm.css";
 
-const EMAIL_REGEX: RegExp = /^e\d{7}@u\.nus\.edu$/;
 const USER_REGEX: RegExp = /^[a-zA-Z0-9_]{3,30}$/;
 const MIN_PASSWORD_CHARACTERS = 10;
 const MAX_PASSWORD_BYTES = 72;
@@ -28,10 +28,6 @@ const passwordEstimator = new ZxcvbnFactory({
     ...english.dictionary,
   },
 });
-
-function validateEmail(value: string): boolean {
-  return EMAIL_REGEX.test(value);
-}
 
 function validateUsername(value: string): boolean {
   return USER_REGEX.test(value);
@@ -65,7 +61,7 @@ export default function Register() {
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const emailIsValid = validateEmail(email);
+  const emailIsValid = isValidRegistrationEmail(email);
   const usernameIsValid = validateUsername(username);
   const passwordCheck = useMemo(() => checkPassword(password), [password]);
   const isSubmitDisabled =
@@ -89,7 +85,7 @@ export default function Register() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, username, password }),
+        body: JSON.stringify({ email: normalizeRegistrationEmail(email), username, password }),
       });
 
       if (!response.ok) {
@@ -109,13 +105,11 @@ export default function Register() {
         return;
       }
 
-      if (response.status === 202) {
-        navigate("/login", { state: {
-          notice: "Your account was created. Credit setup is still in progress; you can log in while we retry automatically.",
-        } });
-      } else {
-        navigate("/login");
-      }
+      const result = await response.json().catch(() => null) as { code?: string } | null;
+      navigate("/check-email", { state: {
+        email: normalizeRegistrationEmail(email),
+        deliveryPending: result?.code === "VERIFICATION_EMAIL_PENDING",
+      } });
     } catch {
       setError(serviceUnavailable("Registration"));
     } finally {

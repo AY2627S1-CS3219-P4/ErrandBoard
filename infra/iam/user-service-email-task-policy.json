@@ -1,0 +1,22 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SendFromPrivateSesIdentity",
+      "Effect": "Allow",
+      "Action": "ses:SendEmail",
+      "Resource": "arn:aws:ses:ap-southeast-1:614099836367:identity/e1397822@u.nus.edu",
+      "Condition": {
+        "StringEquals": {
+          "ses:FromAddress": "e1397822@u.nus.edu"
+        }
+      }
+    },
+    {
+      "Sid": "PublishAndConsumeVerificationMessages",
+      "Effect": "Allow",
+      "Action": ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage"],
+      "Resource": "arn:aws:sqs:ap-southeast-1:614099836367:ErrandBoardVerificationEmail"
+    }
+  ]
+}

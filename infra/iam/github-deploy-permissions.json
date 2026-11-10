@@ -34,7 +34,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "InspectAndUpdateFiveServices",
+      "Sid": "InspectAndUpdateSixServices",
       "Effect": "Allow",
       "Action": ["ecs:DescribeServices", "ecs:UpdateService"],
       "Resource": [
@@ -47,7 +47,7 @@
       ]
     },
     {
-      "Sid": "RegisterFiveTaskFamilies",
+      "Sid": "RegisterSixTaskFamilies",
       "Effect": "Allow",
       "Action": "ecs:RegisterTaskDefinition",
       "Resource": [
@@ -60,10 +60,13 @@
       ]
     },
     {
-      "Sid": "PassExistingEcsExecutionRole",
+      "Sid": "PassEcsTaskRoles",
       "Effect": "Allow",
       "Action": "iam:PassRole",
-      "Resource": "arn:aws:iam::614099836367:role/ecsTaskExecutionRole",
+      "Resource": [
+        "arn:aws:iam::614099836367:role/ecsTaskExecutionRole",
+        "arn:aws:iam::614099836367:role/ErrandBoardUserServiceEmailTaskRole"
+      ],
       "Condition": {
         "StringEquals": {
           "iam:PassedToService": "ecs-tasks.amazonaws.com"
