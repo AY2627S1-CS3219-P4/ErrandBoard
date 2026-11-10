@@ -5,8 +5,8 @@ region=ap-southeast-1
 cluster=ErrandBoard
 instance_id=i-0d9f56cf5a7a6b091
 data_services=(mongodb redis rabbitmq)
-app_services=(credit-service supplier-service user-service order-service)
-all_services=(frontend user-service supplier-service order-service credit-service mongodb redis rabbitmq)
+app_services=(credit-service supplier-service user-service order-service notification-service)
+all_services=(frontend user-service supplier-service order-service credit-service notification-service mongodb redis rabbitmq)
 
 aws_args=(--region "$region")
 if [[ -n "${AWS_PROFILE:-}" ]]; then aws_args+=(--profile "$AWS_PROFILE"); fi
