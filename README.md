@@ -157,3 +157,13 @@ Unit/integration tests per service (`npm test` in each folder), TypeScript check
 | Credit events and frontend integration | generate / explain / debug | Assisted with the Credit Service event consumer and frontend balance updates, and explained RabbitMQ event handling. | Chose when balances should refresh, tested the behavior, and requested changes for reservation and refund events. |
 | Frontend containerisation and AWS deployment | generate / reference / debug | Helped containerise the frontend and provided deployment guidance for ECR, ECS, EC2, EBS, service configuration, and troubleshooting. | Selected deployment options under the project’s budget and constraints, configured resources, ran commands, and checked deployment results. |
 | Email verification | generate / reference / debug | Generated and tested an SES based confirmation flow, then assisted with a Cognito verification pilot, queue processing, rollback preparation, and removal of the unused SES path. | Chose the verification approach and pilot constraints, supplied test requirements, checked email delivery, and directed the rollout and rollback decisions. |
+
+
+**AI Usage for:** Jinxia
+| Area | Mode | What it did | What the author did |
+|---|---|---|---|
+| Frontend | generate | Order and Supplier UI, admin dashboard dispute and statistic cards | Review and refactor accordingly |
+| Supplier-service | generate / reference | Generated unit tests. Explained supplier-service code for integrating the authorization functions needed. Generated the supplier seed script. | Described the requirements for route authorization and supplier seeding, referenced the authorization design, and wrote the authorization functions. |
+| Order-service | generate / reference / refactor | Generated unit tests. Debugged the CRUD functions. | Provided the requirements for CRUD and error handling, and wrote the CRUD functions. |
+| Admin dashboard | generate / reference / refactor | Generated code after guidelines were provided. | Provided the key design decisions and debugging. |
+| Centralized logging | generate / reference | Generated ideas and code for the repetitive replacement of console logs. | Wrote the logging of admin and domain actions. |
