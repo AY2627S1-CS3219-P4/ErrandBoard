@@ -99,7 +99,6 @@ docker compose up --build
 ```
 
 Generate VAPID keys once: `npx web-push generate-vapid-keys` (public key to the frontend/service, private key stays server-side).
-`<Add seed/reset instructions and demo accounts.>`
 
 ## Deployment (AWS)
 
@@ -111,7 +110,6 @@ ECS Fargate cluster `ErrandBoard` (region `ap-southeast-1`), images in ECR, ECS 
 - **Messaging:** RabbitMQ topic exchange so services subscribe independently (credit, notification).
 - **Order state machine:** OPEN → ACCEPTED → PICKED_UP → PENDING_COMPLETION → COMPLETED, plus CANCELLED, EXPIRED and DISPUTED; every transition is a guarded atomic update.
 - **N2H, notifications:** inbox in MongoDB is the source of truth; SSE for live delivery, Web Push for closed browsers.
-- `<Add your own rationale and trade-offs in your own words.>`
 
 ## Testing and CI
 
