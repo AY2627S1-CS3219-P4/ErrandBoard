@@ -103,7 +103,7 @@ Generate VAPID keys once: `npx web-push generate-vapid-keys` (public key to the 
 
 ## Deployment (AWS)
 
-ECS Fargate cluster `ErrandBoard` (region `ap-southeast-1`), images in ECR, ECS Service Connect for service discovery, secrets in AWS Secrets Manager. GitHub Actions builds, tests and deploys; the `website` workflow brings the stack up or down. See `infra/` and `scripts/`.
+ECS Fargate cluster `ErrandBoard` (region `ap-southeast-1`), images in ECR, ECS Service Connect for service discovery, secrets in AWS Secrets Manager, email confirmation using AWS Cognito. GitHub Actions builds, tests and deploys; the `website` workflow brings the stack up or down. See `infra/` and `scripts/`.
 
 ## Key Design Decisions
 
