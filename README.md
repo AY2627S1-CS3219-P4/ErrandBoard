@@ -16,10 +16,10 @@
 
 | Name | Role / ownership | N2H feature |
 | ----- | ----- | ----- |
-| Glen | user service + credit service | CI/CD + admin dashboard |
+| Glen | user service + credit service | Cloud deployment + admin dashboard |
 | Jinxia | supplier service + order service | admin dashboard + centralized logging |
 | Boqian | supplier service + order service | Real-time status push notifications |
-| Joshua | user service + credit service | CI/CD + centralized logging |
+| Joshua | user service + credit service | CI/CD + Cloud deployment |
 
 ---
 
@@ -120,7 +120,10 @@ Unit/integration tests per service (`npm test` in each folder), TypeScript check
 ---
 ## AI Use Summary
 
-**Tools:** Claude (Anthropic), used through the Claude app / Claude Code. Model version: Sonnet 5.5. Period of use: 2026-09-01 to 2026-11-11.
+**Tools:** 
+
+- Claude (Anthropic), used through the Claude app / Claude Code. Model version: Sonnet 5.5. Period of use: 2026-09-01 to 2026-11-11.
+- Codex (OpenAI), used through ChatGPT app / Codex plugin on VSCode. Models used: GPT-6 Luna (for querying and planning), GPT-6 Sol (for coding/bug fixing)
 
 
 **AI Usage for:** Boqian
@@ -130,8 +133,18 @@ Unit/integration tests per service (`npm test` in each folder), TypeScript check
 | Supplier-service | generate / refactor / reference | Generate unit-tests for certain edge cases in supplier-service. Provide refactoring advice for certain implementations in suppler.service. Provide suggestions on integrating authenticate into existing routes. Provided reference for schema entries based on author-design and requirements. | Initial supplier-service design was hand-written with reference to other services. Basic route / service structure was hand-written with refactoring suggestions provided by AI. | 
 | Order-service | generate / refactor / reference | Generated template implementation for event implementation. Generated tests for order-service. Provide references / suggestions for correct implementation of user-chosen design. Generated schema reference document based on user chosen requirements. Assistance in refactoring and debugging order-service code base | Initial file structure files were hand-written with reference to other services. Most order routes / services were written with reference to other services with AI assistance and suggestions. Internal logic and state transitions were all author designed.|
 | Notification Service | reference/refactor/generate | Generated test code and implementation of Web push + SSE. Service worker in browser was generated. Frontend section for notification service was generated. Initial service setup was reviewed and refactored.| All generated code was reviewed and refactored accordingly. Initial file setup including authentication, routes and folder structure was hand written with reference to other services. |
-| CI/CD and AWS deployment (.github/, scripts/, infra/) | generate / debug | Debug errors faced when attempted to modify files for CI/CD + AWS deployment for order + notification services | Created the AWS resources and applied changes manually |
+| CI/CD and AWS deployment (.github/, scripts/, infra/) | generate / debug | Debug errors faced when attempted to modify files for CI/CD + AWS deployment for order + notification services. | Created the AWS resources and applied changes manually. |
 | Debugging | debug | Explained errors (VAPID subject, Service Connect timeout, security group, SSE:ERR_HTTP2_PROTOCOL_ERROR, typescript errors) | Applied and verified the fixes |
+
+**AI Usage for:** <Joshua>
+| Area | Mode | What it did | What the author did |
+|---|---|---|---|
+| Initialising project structure | generate / explain | Generate the initial structure before added work in D2. Explain what each folder is supposed to contain, how they are supposed to interact, explain REST API, explain usage of certain initial libraries | Describe the requirements, query and understand the initial structure, and modify the final architecture based on concepts learned in the course after Microservices topic was taught. |
+| User-service | generate / reference | Used to generate ideas for displaying password strength to the user. Used to reference the API URL when linking other components of the project | All decisions about how to sanitise inputs, where to check values as data travels through the system, mode of communication between the services as well as the schema design was done by the Author |
+| Credit Service | generate / reference | Generated the code after all decisions were made. Used to visually represents components and interactions to aid diagram drawing in D3 | Decisions on async/sync communication between services, function calling, logging, database transaction, schema design, saga compensation actions etc. was all decided upon by the Author before implementing |
+| CI/CD and AWS deployment (.github/, scripts/, infra/) | generate / debug | Debug errors faced when attempted to modify files for CI/CD + AWS deployment (Had issues with authenticating to push images into ECR). Used to generate ideas and check feasibility of deployment decisions such as using EC2 to host database + EBS volumes, or use of AWS Cognito to get registration emails | Created the AWS resources and applied changes manually apart from Cloudfront due to lack of time. Make final decisions based on ideas on how to deploy with the limitations we have (e.g., not allowed to get a domain using Route 53 created issues with using self-signed certs => Use Cloudfront as entry point so that we have a CA-signed cert) |
+| Debugging | debug | Spotting and explaining errors as well as suggesting fixes across different services | Applied and verified the fixes |
+
 
 **AI Usage for:** <insert name>
 | Area | Mode | What it did | What the author did |
