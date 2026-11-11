@@ -121,8 +121,9 @@ Unit/integration tests per service (`npm test` in each folder), TypeScript check
 ## AI Use Summary
 
 **Tools:** Claude (Anthropic), used through the Claude app / Claude Code. Model version: Sonnet 5.5. Period of use: 2026-09-01 to 2026-11-11.
-**Used by:** Boqian
 
+
+**AI Usage for:** Boqian
 | Area | Mode | What it did | What the author did |
 |---|---|---|---|
 | Frontend  | generate | Generation UI, service worker, SSE stream client, push subscription helpers, service worker, Home page inbox merge, tests | Review and refactor accordingly |
@@ -131,3 +132,7 @@ Unit/integration tests per service (`npm test` in each folder), TypeScript check
 | Notification Service | reference/refactor/generate | Generated test code and implementation of Web push + SSE. Service worker in browser was generated. Frontend section for notification service was generated. Initial service setup was reviewed and refactored.| All generated code was reviewed and refactored accordingly. Initial file setup including authentication, routes and folder structure was hand written with reference to other services. |
 | CI/CD and AWS deployment (.github/, scripts/, infra/) | generate / debug | Debug errors faced when attempted to modify files for CI/CD + AWS deployment for order + notification services | Created the AWS resources and applied changes manually |
 | Debugging | debug | Explained errors (VAPID subject, Service Connect timeout, security group, SSE:ERR_HTTP2_PROTOCOL_ERROR, typescript errors) | Applied and verified the fixes |
+
+**AI Usage for:** <insert name>
+| Area | Mode | What it did | What the author did |
+|---|---|---|---|
