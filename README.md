@@ -8,7 +8,7 @@
 |---|---|
 | **Group** | 04 |
 | **Deployment link** | https://da843292oau9i.cloudfront.net |
-| **Demo mode** | <AWS | local containers> |
+| **Demo mode** | AWS/local containers |
 
 ---
 
@@ -118,7 +118,16 @@ ECS Fargate cluster `ErrandBoard` (region `ap-southeast-1`), images in ECR, ECS 
 Unit/integration tests per service (`npm test` in each folder), TypeScript checks, and a GitHub Actions workflow that runs them on every push/PR.
 
 ---
-
 ## AI Use Summary
 
-(Paste the contents of the AI disclosure section here; it must be the **last section** of this README. Full log: [`ai/usage-log.md`](./ai/usage-log.md).)
+**Tools:** Claude (Anthropic), used through the Claude app / Claude Code. Model version: Sonnet 5.5. Period of use: 2026-09-01 to 2026-11-11.
+**Used by:** Boqian
+
+| Area | Mode | What it did | What the author did |
+|---|---|---|---|
+| Frontend  | generate | Generation UI, service worker, SSE stream client, push subscription helpers, service worker, Home page inbox merge, tests | Review and refactor accordingly |
+| Supplier-service | generate / refactor / reference | Generate unit-tests for certain edge cases in supplier-service. Provide refactoring advice for certain implementations in suppler.service. Provide suggestions on integrating authenticate into existing routes. Provided reference for schema entries based on author-design and requirements. | Initial supplier-service design was hand-written with reference to other services. Basic route / service structure was hand-written with refactoring suggestions provided by AI. | 
+| Order-service | generate / refactor / reference | Generated template implementation for event implementation. Generated tests for order-service. Provide references / suggestions for correct implementation of user-chosen design. Generated schema reference document based on user chosen requirements. Assistance in refactoring and debugging order-service code base | Initial file structure files were hand-written with reference to other services. Most order routes / services were written with reference to other services with AI assistance and suggestions. Internal logic and state transitions were all author designed.|
+| Notification Service | reference/refactor/generate | Generated test code and implementation of Web push + SSE. Service worker in browser was generated. Frontend section for notification service was generated. Initial service setup was reviewed and refactored.| All generated code was reviewed and refactored accordingly. Initial file setup including authentication, routes and folder structure was hand written with reference to other services. |
+| CI/CD and AWS deployment (.github/, scripts/, infra/) | generate / debug | Debug errors faced when attempted to modify files for CI/CD + AWS deployment for order + notification services | Created the AWS resources and applied changes manually |
+| Debugging | debug | Explained errors (VAPID subject, Service Connect timeout, security group, SSE:ERR_HTTP2_PROTOCOL_ERROR, typescript errors) | Applied and verified the fixes |
