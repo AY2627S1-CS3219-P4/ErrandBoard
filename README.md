@@ -136,7 +136,7 @@ Unit/integration tests per service (`npm test` in each folder), TypeScript check
 | CI/CD and AWS deployment (.github/, scripts/, infra/) | generate / debug | Debug errors faced when attempted to modify files for CI/CD + AWS deployment for order + notification services. | Created the AWS resources and applied changes manually. |
 | Debugging | debug | Explained errors (VAPID subject, Service Connect timeout, security group, SSE:ERR_HTTP2_PROTOCOL_ERROR, typescript errors) | Applied and verified the fixes |
 
-**AI Usage for:** <Joshua>
+**AI Usage for:** Joshua
 | Area | Mode | What it did | What the author did |
 |---|---|---|---|
 | Initialising project structure | generate / explain | Generate the initial structure before added work in D2. Explain what each folder is supposed to contain, how they are supposed to interact, explain REST API, explain usage of certain initial libraries | Describe the requirements, query and understand the initial structure, and modify the final architecture based on concepts learned in the course after Microservices topic was taught. |
