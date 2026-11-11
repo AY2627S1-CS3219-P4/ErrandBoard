@@ -50,7 +50,7 @@
 | Backend | Node.js, Express, TypeScript, Mongoose, JWT (cookies), BullMQ |
 | Data | MongoDB (replica set, per-service users, transactions), Redis |
 | Messaging / real time | RabbitMQ, Server-Sent Events, Web Push (VAPID) |
-| Infra | Docker, Docker Compose, AWS ECS Fargate, ECR, ALB, Service Connect, Secrets Manager, CloudWatch |
+| Infra | Docker, Docker Compose, AWS ECS Fargate, ECR, ALB, Service Connect, Secrets Manager, CloudWatch, AWS Cognito |
 | CI/CD | GitHub Actions, GitHub OIDC roles |
 
 ---
@@ -146,6 +146,14 @@ Unit/integration tests per service (`npm test` in each folder), TypeScript check
 | Debugging | debug | Spotting and explaining errors as well as suggesting fixes across different services | Applied and verified the fixes |
 
 
-**AI Usage for:** <insert name>
+**AI Usage for:** Glendon Goh
+
 | Area | Mode | What it did | What the author did |
 |---|---|---|---|
+| Requirements and project planning | explain / reference / generate | Reviewed the proposal and milestone requirements, suggested wording for User Service requirements and edge cases, and helped prepare presentation content. | Chose the requirements, priorities, service scope, and presentation content; revised the wording after course and professor feedback. |
+| FR tracking and GitHub workflow | generate / refactor / debug | Helped create and revise `FR-TRACKER.md`, the issue template, and a workflow that updates requirement status when issues close or reopen. | Defined the requirement IDs and desired tracking behavior, checked the rendered tracker, tested the workflow, and requested corrections. |
+| User Service authentication and sessions | generate / explain / debug | Assisted with session tokens, MongoDB session storage and expiry, logout, account seeding, inactive-account checks, and related tests. Explained the implementation and helped diagnose login and database errors. | Set the required account and session behavior, inspected the implementation, tested it locally, and requested fixes where behavior differed from the requirements. |
+| Admin and supplier interfaces | generate / refactor / debug | Built and revised the Admin Dashboard, Account Administration and Supplier Management pages, including route integration, account activation, responsive layouts, and UI fixes. | Specified the roles, actions, and layout; checked the running pages; and directed repeated functional and visual corrections. |
+| Credit events and frontend integration | generate / explain / debug | Assisted with the Credit Service event consumer and frontend balance updates, and explained RabbitMQ event handling. | Chose when balances should refresh, tested the behavior, and requested changes for reservation and refund events. |
+| Frontend containerisation and AWS deployment | generate / reference / debug | Helped containerise the frontend and provided deployment guidance for ECR, ECS, EC2, EBS, service configuration, and troubleshooting. | Selected deployment options under the project’s budget and constraints, configured resources, ran commands, and checked deployment results. |
+| Email verification | generate / reference / debug | Generated and tested an SES based confirmation flow, then assisted with a Cognito verification pilot, queue processing, rollback preparation, and removal of the unused SES path. | Chose the verification approach and pilot constraints, supplied test requirements, checked email delivery, and directed the rollout and rollback decisions. |
